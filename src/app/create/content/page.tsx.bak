@@ -1,0 +1,2889 @@
+/**
+ * Content Generation Page
+ * 
+ * This page generates content based on research results, allowing users to:
+ * 1. View and customize content settings
+ * 2. Generate content using AI based on research insights
+ * 3. Export or copy the generated content
+ */
+
+"use client";
+
+import Link from "next/link";
+import AppShell from "../../../components/AppShell";
+import { useState, useEffect, useRef, FormEvent } from "react";
+import { getSampleResearch } from "@/app/lib/sampleResearch";
+import ReactMarkdown from 'react-markdown';
+import { useRouter } from 'next/navigation';
+import { TrendingTopic } from "@/app/lib/api/redditApi";
+import { IconFileText, IconDownload, IconFile, IconCopy } from "@tabler/icons-react";
+import ApiKeySetupGuide from "../../../components/ApiKeySetupGuide";
+import { toast } from 'react-hot-toast';
+import YouTubeTranscriptInput from '@/components/YouTubeTranscriptInput';
+import { MODEL_CONFIG, getProcessDescription } from '@/app/lib/modelConfig';
+import { getPersonaDisplayName } from '@/app/lib/personaUtils';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import PersonaStyledContent from '@/components/PersonaStyledContent';
+import { useContent } from '@/lib/hooks/useContent';
+
+// Enhanced research results interface including Claude 3.7 Sonnet analysis
+interface ResearchResults {
+  researchMethod: 'perplexity' | 'trending' | 'claude';
+  perplexityResearch?: string;
+  trendingTopics?: TrendingTopic[];
+  dataSources?: {
+    reddit: boolean;
+    rss: boolean;
+  };
+}
+
+// Near the top of the file, update the content details interface
+interface ContentDetails {
+  contentType: string;
+  platform: string;
+  subPlatform?: string;
+  targetAudience: string;
+  researchTopic: string;
+  businessType: string;
+  businessName?: string; // Add optional businessName property
+  primarySubject?: string;
+  subjectType?: string;
+  subjectDetails?: string;
+  youtubeTranscript?: string;
+  youtubeUrl?: string;
+}
+
+// Update the content settings interface
+interface ContentSettings {
+  style: string;
+  length: string;
+  includeCTA: boolean;
+  includeHashtags: boolean;
+  customHashtags?: string; // Add optional customHashtags property
+}
+
+export default function ContentGenerator() {
+  const router = useRouter();
+  const { t, language } = useTranslation();
+  const { saveContent } = useContent();
+  
+  // State for content details from previous step
+  const [contentDetails, setContentDetails] = useState<ContentDetails>({
+    contentType: '',
+    platform: '',
+    targetAudience: '',
+    researchTopic: '',
+    businessType: ''
+  });
+
+  const [researchResults, setResearchResults] = useState<ResearchResults | null>(null);
+  const [contentSettings, setContentSettings] = useState<ContentSettings>({
+    style: 'ariastar', // Changed from 'professional' to 'ariastar'
+    length: 'medium',
+    includeCTA: true,
+    includeHashtags: true
+  });
+  
+  // Add state for content preview expansion
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
+  const [showResearch, setShowResearch] = useState(true); // Set default to true so research is visible by default
+  const [showApiInstructions, setShowApiInstructions] = useState(false);
+  const [apiTypeToSetup, setApiTypeToSetup] = useState<'anthropic' | 'perplexity'>('anthropic');
+  const [isUsingSimulatedClaude, setIsUsingSimulatedClaude] = useState(false);
+  
+  const [generatedContent, setGeneratedContent] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [statusMessage, setStatusMessage] = useState('');
+
+  // Add to the ContentPage component's state
+  const [samplePost, setSamplePost] = useState<string>('');
+  const [samplePostPlatform, setSamplePostPlatform] = useState<string>('');
+
+  // Add state for YouTube transcript in the ContentPage component
+  const [youtubeTranscript, setYoutubeTranscript] = useState<string | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState<string | null>(null);
+
+  // Add state for API mode tracking
+  const [apiMode, setApiMode] = useState<'normal' | 'fallback' | 'error'>('normal');
+  const [apiErrorDetails, setApiErrorDetails] = useState<string | null>(null);
+
+  // Add the error state variable near other state variables
+  const [error, setError] = useState<string | null>(null);
+
+  // Add the missing isLoading state
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Add debounce state to prevent multiple simultaneous calls
+  const [isStartGenerationDebounced, setIsStartGenerationDebounced] = useState(false);
+
+  // Feedback system states
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+  const [contentVersions, setContentVersions] = useState<string[]>([]);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+
+  // Helper function to determine if CTA and hashtags options should be shown
+  const shouldShowSocialOptions = () => {
+    // Don't show these options for video scripts, vlogs, or blogs where they don't apply
+    const contentType = contentDetails?.contentType?.toLowerCase() || '';
+    return !(
+      contentType.includes('video script') || 
+      contentType.includes('video-script') || 
+      contentType.includes('vlog') || 
+      contentType.includes('youtube') ||
+      contentType.includes('youtube-script') ||
+      contentType === 'blog post' || 
+      contentType === 'blog-post'
+    );
+  };
+
+  // Define content styles if it doesn't exist
+  const CONTENT_STYLES: Record<string, Array<{id: string, name: string}>> = {
+    'blogPost': [
+      // Rich Personas (moved to the top)
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles (moved below rich personas)
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' }
+    ],
+    'socialMedia': [
+      // Rich Personas (moved to the top)
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles (moved below rich personas)
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' }
+    ],
+    'Video Script': [
+      // Rich Personas (moved to the top)
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles (moved below rich personas)
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' },
+      { id: 'conversational', name: 'Conversational' },
+      { id: 'storyteller', name: 'Storyteller' },
+      { id: 'motivational', name: 'Motivational' },
+      { id: 'educational', name: 'Educational' },
+      { id: 'persuasive', name: 'Persuasive' }
+    ],
+    'video-script': [
+      // Rich Personas (moved to the top)
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles (moved below rich personas)
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' },
+      { id: 'conversational', name: 'Conversational' },
+      { id: 'storyteller', name: 'Storyteller' },
+      { id: 'motivational', name: 'Motivational' },
+      { id: 'educational', name: 'Educational' },
+      { id: 'persuasive', name: 'Persuasive' }
+    ],
+    'email': [
+      // Rich Personas (moved to the top)
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles (moved below rich personas)
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' },
+      { id: 'conversational', name: 'Conversational' },
+      { id: 'storyteller', name: 'Storyteller' },
+      { id: 'motivational', name: 'Motivational' },
+      { id: 'educational', name: 'Educational' },
+      { id: 'persuasive', name: 'Persuasive' }
+    ],
+    'default': [
+      // Rich Personas (moved to the top)
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles (moved below rich personas)
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' },
+      { id: 'conversational', name: 'Conversational' },
+      { id: 'storyteller', name: 'Storyteller' },
+      { id: 'motivational', name: 'Motivational' },
+      { id: 'educational', name: 'Educational' },
+      { id: 'persuasive', name: 'Persuasive' }
+    ],
+    'youtube-script': [
+      // Rich Personas
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' },
+      { id: 'conversational', name: 'Conversational' },
+      { id: 'storyteller', name: 'Storyteller' },
+      { id: 'motivational', name: 'Motivational' },
+      { id: 'educational', name: 'Educational' },
+      { id: 'persuasive', name: 'Persuasive' }
+    ],
+    'vlog-script': [
+      // Rich Personas
+      { id: 'ariastar', name: 'AriaStar (Relatable Best Friend)' },
+      { id: 'specialist_mentor', name: 'MentorPro (Specialist Mentor)' },
+      { id: 'ai_collaborator', name: 'AllInsight (AI Collaboration Showcaser)' },
+      { id: 'sustainable_advocate', name: 'EcoEssence (Sustainable Lifestyle Advocate)' },
+      { id: 'data_visualizer', name: 'DataStory (Real-time Data Visualizer)' },
+      { id: 'multiverse_curator', name: 'NexusVerse (Multiverse Experience Curator)' },
+      { id: 'ethical_tech', name: 'TechTranslate (Ethical Tech Translator)' },
+      { id: 'niche_community', name: 'CommunityForge (Niche Community Cultivator)' },
+      { id: 'synthesis_maker', name: 'SynthesisSage (Synthesis Sense-Maker)' },
+      // Regular styles
+      { id: 'professional', name: 'Professional' },
+      { id: 'casual', name: 'Casual' },
+      { id: 'enthusiastic', name: 'Enthusiastic' },
+      { id: 'informative', name: 'Informative' },
+      { id: 'conversational', name: 'Conversational' },
+      { id: 'storyteller', name: 'Storyteller' },
+      { id: 'motivational', name: 'Motivational' },
+      { id: 'educational', name: 'Educational' },
+      { id: 'vlog', name: 'Vlog Style' },
+      { id: 'documentary', name: 'Documentary Style' }
+    ]
+  };
+
+  // Helper functions moved outside of the render function
+  const extractRecommendationsFromDetails = (details: ContentDetails): string[] => {
+    // Extract recommendations from research if available
+    if (researchResults?.perplexityResearch) {
+      return extractRecommendationsFromResearch(researchResults.perplexityResearch, details.researchTopic || '').slice(0, 5);
+    }
+    
+    // Default recommendations if no research available
+    return [
+      'Focus on value-driven content that educates your audience',
+      'Use storytelling to connect emotionally with your audience',
+      'Include clear calls to action in your posts',
+      'Optimize content length for each specific platform',
+      'Utilize relevant hashtags to increase visibility'
+    ];
+  };
+  
+  const extractHashtagsFromDetails = (details: ContentDetails): string[] => {
+    // Generate some default hashtags based on topic and audience
+    const topic = details.researchTopic || details.targetAudience || '';
+    const words = topic.split(' ').filter(word => word.length > 3);
+    return words.map(word => `#${word.toLowerCase().replace(/[^a-z0-9]/g, '')}`);
+  };
+
+  // Load content details and research results from session storage and Firebase
+  useEffect(() => {
+    try {
+      console.log('Initializing content page...');
+      const storedDetails = sessionStorage.getItem('contentDetails');
+      const storedResearchData = sessionStorage.getItem('researchData');
+      
+      if (storedDetails) {
+        const parsedDetails = JSON.parse(storedDetails) as ContentDetails;
+        console.log('Content details found:', parsedDetails);
+        setContentDetails(parsedDetails);
+        
+        // Set appropriate default content settings based on content type
+        const contentType = parsedDetails.contentType?.toLowerCase() || '';
+        const isVideoOrBlogContent = 
+          contentType.includes('video script') || 
+          contentType.includes('video-script') || 
+          contentType.includes('vlog') || 
+          contentType === 'blog post' || 
+          contentType === 'blog-post';
+        
+        setContentSettings(prevSettings => ({
+          ...prevSettings,
+          style: 'ariastar', // Default to AriaStar
+          includeCTA: !isVideoOrBlogContent, // False for video/blog content
+          includeHashtags: !isVideoOrBlogContent // False for video/blog content
+        }));
+        
+        if (parsedDetails.youtubeTranscript) {
+          setYoutubeTranscript(parsedDetails.youtubeTranscript);
+        }
+        
+        if (parsedDetails.youtubeUrl) {
+          setYoutubeUrl(parsedDetails.youtubeUrl);
+        }
+      }
+      
+      // Load research data from session storage
+      if (storedResearchData) {
+        const parsedResearchData = JSON.parse(storedResearchData);
+        console.log('Research data found in session storage:', parsedResearchData);
+        
+        // Create research results object from research data
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: parsedResearchData.research || '',
+          trendingTopics: [],
+          dataSources: {
+            reddit: false,
+            rss: false
+          }
+        };
+        
+        setResearchResults(researchResults);
+        
+        // Update content details with YouTube data if available
+        if (parsedResearchData.youtubeTranscript) {
+          setYoutubeTranscript(parsedResearchData.youtubeTranscript);
+          setContentDetails(prev => ({
+            ...prev,
+            youtubeTranscript: parsedResearchData.youtubeTranscript
+          }));
+        }
+        
+        if (parsedResearchData.youtubeUrl) {
+          setYoutubeUrl(parsedResearchData.youtubeUrl);
+          setContentDetails(prev => ({
+            ...prev,
+            youtubeUrl: parsedResearchData.youtubeUrl
+          }));
+        }
+      } else {
+        // If no research data in session storage, try to load from Firebase
+        const loadResearchFromFirebase = async () => {
+          try {
+            // Get the current user from Firebase Auth
+            const { auth } = await import('@/lib/firebase/firebase');
+            const currentUser = auth.currentUser;
+            
+            if (!currentUser) {
+              console.error('User not authenticated. Cannot load research data from Firebase.');
+              return;
+            }
+            
+            // Load research data from Firebase
+            const { collection, query, where, getDocs, orderBy, limit } = await import('firebase/firestore');
+            const { db } = await import('@/lib/firebase/firebase');
+            
+            console.log('Loading research data from Firebase for user:', currentUser.uid);
+            
+            // Create a query to get the most recent research data for the current user
+            const researchQuery = query(
+              collection(db, 'research'),
+              where('userId', '==', currentUser.uid),
+              orderBy('createdAt', 'desc'),
+              limit(1)
+            );
+            
+            const querySnapshot = await getDocs(researchQuery);
+            
+            if (!querySnapshot.empty) {
+              const doc = querySnapshot.docs[0];
+              const researchData = doc.data();
+              console.log('Research data loaded from Firebase:', researchData);
+              
+              // Create research results object from research data
+              const researchResults: ResearchResults = {
+                researchMethod: 'perplexity',
+                perplexityResearch: researchData.research || '',
+                trendingTopics: [],
+                dataSources: {
+                  reddit: false,
+                  rss: false
+                }
+              };
+              
+              setResearchResults(researchResults);
+              
+              // Update content details with research data
+              setContentDetails(prev => ({
+                ...prev,
+                researchTopic: researchData.topic || prev.researchTopic,
+                contentType: researchData.contentType || prev.contentType,
+                platform: researchData.platform || prev.platform,
+                targetAudience: researchData.targetAudience || prev.targetAudience,
+                businessType: researchData.businessType || prev.businessType,
+                youtubeTranscript: researchData.youtubeTranscript || prev.youtubeTranscript,
+                youtubeUrl: researchData.youtubeUrl || prev.youtubeUrl
+              }));
+              
+              // Update YouTube data if available
+              if (researchData.youtubeTranscript) {
+                setYoutubeTranscript(researchData.youtubeTranscript);
+              }
+              
+              if (researchData.youtubeUrl) {
+                setYoutubeUrl(researchData.youtubeUrl);
+              }
+              
+              // Save to session storage for future use
+              sessionStorage.setItem('researchData', JSON.stringify({
+                ...researchData,
+                id: doc.id
+              }));
+            } else {
+              console.log('No research data found in Firebase for user:', currentUser.uid);
+            }
+          } catch (error) {
+            console.error('Error loading research data from Firebase:', error);
+          }
+        };
+        
+        loadResearchFromFirebase();
+      }
+      
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error initializing content page:', err);
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Add any additional data loading from the nested useEffect that needs to be separate
+  // in a new independent useEffect if necessary
+  
+  // Update the startGeneration function to remove fallback mode and add debounce
+  const startGeneration = async () => {
+    // Prevent multiple simultaneous calls using debounce
+    if (isGenerating || isStartGenerationDebounced) return;
+    
+    // Set debounce flag to prevent multiple calls
+    setIsStartGenerationDebounced(true);
+    
+    setIsGenerating(true);
+    setError(null);
+    setApiMode('normal');
+    setApiErrorDetails(null);
+    
+    // Set up more realistic progress tracking
+    setGenerationProgress(5); // Start at 5%
+    console.log("Generation started: Progress 5%");
+    setStatusMessage(`Preparing content request for ${new Date().getFullYear()} best practices...`);
+    
+    try {
+      // Construct context with all available information
+      let context = `Content Type: ${contentDetails.contentType || 'article'}, Platform: ${contentDetails.platform || 'general'}, Target Audience: ${contentDetails.targetAudience || 'general'}`;
+      
+      // Add research information if available
+      if (researchResults?.perplexityResearch) {
+        context += `, Research: Available`;
+      }
+      
+      // Add YouTube transcript information if available
+      if (youtubeTranscript) {
+        context += `, YouTube Content: Available`;
+      }
+      
+      setGenerationProgress(10);
+      console.log("Building prompt: Progress 10%");
+      setStatusMessage("Building content prompt...");
+      
+      // Show realistic expected time based on content complexity
+      const baseTime = 60; // Base time in seconds (1 minute)
+      let estimatedTime = baseTime;
+      
+      // Add time for research and transcript if present
+      if (researchResults?.perplexityResearch) estimatedTime += 30;
+      if (youtubeTranscript) estimatedTime += 30;
+      
+      // Adjust based on content type (video scripts take longer)
+      if (contentDetails.contentType === 'Video Script') estimatedTime += 30;
+      
+      // Update message with realistic estimate (1-3 minutes)
+      const estimatedMinutes = Math.ceil(estimatedTime / 60);
+      setStatusMessage(`Generating content with Claude 3.7 Sonnet (est. 1-${Math.min(estimatedMinutes, 3)} minutes)...`);
+      
+      // Build the prompt based on content settings
+      const enhancedPrompt = {
+        prompt: `Create ${contentDetails.contentType} content for ${contentDetails.platform} targeting ${contentDetails.targetAudience}.`,
+        topic: contentDetails.researchTopic || contentDetails.targetAudience,
+        context,
+        contentType: contentDetails.contentType,
+        platform: contentDetails.platform,
+        audience: contentDetails.targetAudience,
+        researchData: researchResults?.perplexityResearch || '',
+        youtubeTranscript,
+        youtubeUrl,
+        style: contentSettings.style,
+        language // Use the language from the hook
+      };
+      
+      console.log('Generating content with Claude API...');
+      console.log('Language for content generation:', language);
+      
+      // Progress simulation that's more realistic
+      // Claude usually takes 20-40 seconds for content generation
+      setGenerationProgress(15);
+      console.log("Starting progress simulation: Progress 15%");
+      
+      // Progressive updates during the API call
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            console.log("Progress reached 90%, stopping interval");
+            return prev;
+          }
+          // Slowly increment progress, slower at the beginning, faster in the middle
+          const increment = prev < 30 ? 2 : prev < 60 ? 4 : prev < 80 ? 2 : 1;
+          const newProgress = prev + increment;
+          console.log(`Progress updated: ${newProgress}%`);
+          return newProgress;
+        });
+      }, 1000);
+      
+      // Call the API
+      const response = await fetch('/api/claude/content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(enhancedPrompt),
+      });
+      
+      // Clear the interval when we get a response
+      clearInterval(progressInterval);
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        // Handle API error with detailed information
+        console.error('API error:', data);
+        setApiMode('error');
+        setApiErrorDetails(data.message || data.error || 'Unknown API error');
+        throw new Error(data.message || data.error || 'Failed to generate content');
+      }
+      
+      const generatedContent = data.content;
+      if (!generatedContent) {
+        throw new Error('No content was generated');
+      }
+      
+      // Apply style transformations and length adjustments to the content
+      // First apply the selected style
+      let formattedContent = applyContentStyle(generatedContent, contentSettings.style);
+      
+      // Then adjust for length preference
+      formattedContent = adjustContentLength(formattedContent, contentSettings.length);
+      
+      // Apply call-to-action if enabled
+      if (contentSettings.includeCTA) {
+        formattedContent = addCallToAction(formattedContent, contentDetails.contentType, contentDetails.platform, false);
+      }
+      
+      // Add hashtags if enabled
+      if (contentSettings.includeHashtags) {
+        const hashtags = contentSettings.customHashtags 
+          ? contentSettings.customHashtags.split(',').map(tag => tag.trim())
+          : extractHashtagsFromDetails(contentDetails);
+        formattedContent = addHashtags(formattedContent, hashtags);
+      }
+      
+      // Complete the progress
+      setGenerationProgress(100);
+      console.log("Generation complete: Progress 100%");
+      setStatusMessage(t('contentPage.generated'));
+      
+      setGeneratedContent(formattedContent);
+      setIsGenerating(false);
+      
+      // Clear status message after a delay
+      setTimeout(() => {
+        setStatusMessage("");
+        setGenerationProgress(0);
+      }, 2000);
+      
+    } catch (error: any) {
+      console.error('Error generating content:', error);
+      setError(error.message || 'An error occurred while generating content');
+      setIsGenerating(false);
+      setGenerationProgress(0);
+    } finally {
+      // Clear the debounce flag after a short delay
+      setTimeout(() => {
+        setIsStartGenerationDebounced(false);
+      }, 1000);
+    }
+  };
+  
+  // Helper function to extract business name from audience field
+  const extractBusinessName = (audience: string): string => {
+    // Look for business identifiers
+    if (audience.includes('.com') || audience.includes('.net') || audience.includes('.org') || 
+        audience.includes('www.') || audience.includes('Inc.') || audience.includes('LLC') ||
+        audience.includes('Ltd.')) {
+      
+      // Try to extract business name using common patterns
+      const businessPatterns = [
+        /([A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*)\s+is\s+/i,  // "Company is..."
+        /([A-Za-z0-9]+\.[A-Za-z0-9]+)/,  // domain.com
+        /www\.([A-Za-z0-9]+)\./,  // www.company.com
+        /for\s+([A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*)/i,  // "for Company"
+        /([A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*)\.com/i,  // Company.com
+        /([A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*)\.net/i,  // Company.net
+        /([A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*)\.org/i,  // Company.org
+      ];
+      
+      for (const pattern of businessPatterns) {
+        const match = audience.match(pattern);
+        if (match && match[1]) {
+          return match[1].trim();
+        }
+      }
+    }
+    
+    return '';
+  };
+  
+  // Helper function to extract topic-specific recommendations from research
+  const extractRecommendationsFromResearch = (research: string, topic: string): string[] => {
+    const recommendations: string[] = [];
+    
+    // Look for sections about the topic
+    const topicLower = topic.toLowerCase();
+    const paragraphs = research.split('\n\n');
+    
+    // Try to find topic-specific content first
+    for (const para of paragraphs) {
+      if (para.toLowerCase().includes(topicLower)) {
+        // Extract bullet points
+        const lines = para.split('\n');
+        for (const line of lines) {
+          if (line.trim().startsWith('-') || line.trim().startsWith('*') || 
+              /^\d+\./.test(line.trim()) || line.includes('**')) {
+            const cleanLine = line.replace(/^[-*]\s+|\d+\.\s+|\*\*/g, '').trim();
+            if (cleanLine && cleanLine.length > 10) {
+              recommendations.push(cleanLine);
+            }
+          }
+        }
+      }
+    }
+    
+    // If we found some, return them
+    if (recommendations.length > 0) {
+      return recommendations;
+    }
+    
+    // Otherwise, look for any recommendations or key points
+    const keyPointsMatch = research.match(/##\s*Key\s*Points([\s\S]*?)(?=##|$)/i);
+    const recommendationsMatch = research.match(/##\s*(?:Recommendations|Content\s*Recommendations)([\s\S]*?)(?=##|$)/i);
+    
+    if (keyPointsMatch) {
+      const points = keyPointsMatch[1].split('\n').filter(line => 
+        line.trim().startsWith('-') || 
+        line.trim().startsWith('*') || 
+        /^\d+\./.test(line.trim())
+      );
+      recommendations.push(...points.map(p => p.replace(/^[-*\d.]\s*|\*\*/g, '').trim()));
+    }
+    
+    if (recommendationsMatch) {
+      const recs = recommendationsMatch[1].split('\n').filter(line => 
+        line.trim().startsWith('-') || 
+        line.trim().startsWith('*') || 
+        /^\d+\./.test(line.trim())
+      );
+      recommendations.push(...recs.map(p => p.replace(/^[-*\d.]\s*|\*\*/g, '').trim()));
+    }
+    
+    return recommendations;
+  };
+  
+  // Helper function to create default recommendations if none found
+  const createDefaultRecommendations = (topic: string, audience: string): string[] => {
+    return [
+      `${topic} provides unique solutions that address the specific needs of ${audience}`,
+      `Highlight the key features and benefits of ${topic} that resonate most with ${audience}`,
+      `Share real success stories and testimonials about ${topic} to build credibility`,
+      `Explain how ${topic} solves common problems faced by ${audience}`,
+      `Present the competitive advantages that make ${topic} the preferred choice`
+    ];
+  };
+  
+  // Update Facebook post generator to better incorporate topic information
+  const generateFacebookPost = (topic: string, details: ContentDetails) => {
+    console.log(`Generating Facebook post about ${topic}`);
+    // Using ${currentYear} best practices for Facebook:
+    // - Emotional storytelling approach with authenticity
+    // - Video-friendly text format
+    // - Conversation starter questions
+    // - Clear value proposition
+    
+    // Create an engaging introduction mentioning the specific topic
+    const intro = `✨ Excited to share these game-changing insights about ${topic} that are transforming results for ${details.targetAudience}!`;
+    
+    // Format recommendations as engaging points with emojis
+    const body = extractRecommendationsFromResearch(researchResults?.perplexityResearch || '', topic).slice(0, 3).map((rec, index) => {
+      const emoji = ['💫', '🌿', '⚡️'][index % 3];
+      return `${emoji} ${rec}`;
+    }).join('\n\n');
+    
+    // Add a conversation-starting conclusion that mentions the topic
+    const conclusion = `What aspect of ${topic} has made the biggest difference for you? Share your experience below and let's learn from each other!`;
+    
+    return `${intro}\n\n${body}\n\n${conclusion}`;
+  };
+  
+  // Generate placeholder content based on settings
+  const generatePlaceholderContent = (
+    contentDetails: ContentDetails,
+    isTransontRelated: boolean
+  ): string => {
+    // Sample recommendations array
+    const recommendations = [
+      'Focus on value-driven content that educates your audience',
+      'Use storytelling to connect emotionally with your audience',
+      'Include clear calls to action in your posts',
+      'Optimize content length for each specific platform',
+      'Utilize relevant hashtags to increase visibility'
+    ];
+
+    // Sample hashtags
+    const hashtags = ['#ContentStrategy', '#DigitalMarketing', '#SocialMedia'];
+
+    // Extract audience from content details
+    const audience = contentDetails.targetAudience || 'general audience';
+    
+    // Get topic for content generation
+    const topicForContent = contentDetails.researchTopic || 'general topic';
+    
+    // Generate appropriate content based on content type and specific platform
+    let generatedContent = '';
+    
+    switch (contentDetails.contentType) {
+      case 'Social Media Post':
+        switch (contentDetails.platform) {
+          case 'Facebook':
+            const fbRecommendations = extractRecommendationsFromDetails(contentDetails);
+            const fbAudience = contentDetails.targetAudience || 'general audience';
+            const fbHashtags = extractHashtagsFromDetails(contentDetails);
+            
+            generatedContent = isTransontRelated ? 
+              generateTransontFacebookPost(fbRecommendations, fbAudience, fbHashtags, topicForContent) :
+              generateFacebookPost(topicForContent, contentDetails);
+            break;
+          case 'Instagram':
+            const igRecommendations = extractRecommendationsFromDetails(contentDetails);
+            const igAudience = contentDetails.targetAudience || 'general audience';
+            const igHashtags = extractHashtagsFromDetails(contentDetails);
+            
+            generatedContent = isTransontRelated ?
+              generateTransontInstagramPost(igRecommendations, igAudience, igHashtags, topicForContent) :
+              generateInstagramPost(topicForContent, contentDetails);
+            break;
+          case 'Twitter':
+            const twitterRecommendations = extractRecommendationsFromDetails(contentDetails);
+            const twitterAudience = contentDetails.targetAudience || 'general audience';
+            const twitterHashtags = extractHashtagsFromDetails(contentDetails);
+            
+            generatedContent = isTransontRelated ?
+              generateTransontTwitterPost(twitterRecommendations, twitterAudience, twitterHashtags, topicForContent) :
+              generateTwitterPost(topicForContent, contentDetails);
+            break;
+          case 'LinkedIn':
+            const linkedinRecommendations = extractRecommendationsFromDetails(contentDetails);
+            const linkedinAudience = contentDetails.targetAudience || 'general audience';
+            const linkedinHashtags = extractHashtagsFromDetails(contentDetails);
+            
+            generatedContent = isTransontRelated ?
+              generateTransontLinkedInPost(linkedinRecommendations, linkedinAudience, linkedinHashtags, topicForContent) :
+              generateLinkedInPost(topicForContent, contentDetails);
+            break;
+          default:
+            const socialRecommendations = extractRecommendationsFromDetails(contentDetails);
+            const socialAudience = contentDetails.targetAudience || 'general audience';
+            const socialHashtags = extractHashtagsFromDetails(contentDetails);
+            const socialTopic = topicForContent;
+            
+            // Update with correct number of arguments
+            generatedContent = isTransontRelated ?
+              generateTransontSocialPost(socialRecommendations, socialAudience, socialHashtags, socialTopic) :
+              generateGenericSocialPost(socialRecommendations, socialAudience, socialHashtags, socialTopic);
+        }
+        break;
+      case 'Blog Post':
+        const blogRecommendations = extractRecommendationsFromDetails(contentDetails);
+        const blogAudience = contentDetails.targetAudience || 'general audience';
+        const blogTopic = topicForContent;
+        
+        // Handle different blog platforms
+        switch (contentDetails.platform) {
+          case 'WordPress':
+            // Special handling for WordPress blogs
+            generatedContent = isTransontRelated ?
+              generateTransontWordPressBlogPost(blogRecommendations, blogAudience, blogTopic) :
+              generateWordPressBlogPost(blogRecommendations, blogAudience, blogTopic);
+            break;
+          case 'Medium':
+            // Medium-specific blog format
+            generatedContent = isTransontRelated ?
+              generateTransontMediumBlogPost(blogRecommendations, blogAudience, blogTopic) :
+              generateMediumBlogPost(blogRecommendations, blogAudience, blogTopic);
+            break;
+          case 'Company Blog':
+            // Company blog format
+            generatedContent = isTransontRelated ?
+              generateTransontCompanyBlogPost(blogRecommendations, blogAudience, blogTopic) :
+              generateCompanyBlogPost(blogRecommendations, blogAudience, blogTopic);
+            break;
+          default:
+            // Generic blog format
+            generatedContent = isTransontRelated ?
+              generateTransontBlogPost(blogRecommendations, blogAudience, blogTopic) :
+              generateBlogPost(blogRecommendations, blogAudience, blogTopic);
+        }
+        break;
+      case 'Email':
+        const emailRecommendations = extractRecommendationsFromDetails(contentDetails);
+        const emailAudience = contentDetails.targetAudience || 'general audience';
+        const emailTopic = topicForContent;
+        
+        generatedContent = isTransontRelated ?
+          generateTransontEmailContent(emailRecommendations, emailAudience, emailTopic) :
+          generateEmailContent(emailRecommendations, emailAudience, emailTopic);
+        break;
+      case 'Video Script':
+        const videoRecommendations = extractRecommendationsFromDetails(contentDetails);
+        const videoAudience = contentDetails.targetAudience || 'general audience';
+        const videoTopic = topicForContent;
+        
+        generatedContent = isTransontRelated ?
+          generateTransontVideoScript(videoRecommendations, videoAudience, videoTopic) :
+          generateVideoScript(videoRecommendations, videoAudience, videoTopic);
+        break;
+      default:
+        const genericRecommendations = extractRecommendationsFromDetails(contentDetails);
+        const genericAudience = contentDetails.targetAudience || 'general audience';
+        const genericHashtags = extractHashtagsFromDetails(contentDetails);
+        const genericTopic = topicForContent;
+        
+        generatedContent = isTransontRelated ?
+          generateTransontGenericContent(genericRecommendations, genericAudience, genericHashtags, genericTopic) :
+          generateGenericContent(genericRecommendations, genericAudience, genericHashtags, genericTopic);
+    }
+    
+    return generatedContent;
+  };
+  
+  // Helper functions for generating different content types
+  
+  const generateInstagramPost = (topic: string, details: ContentDetails) => {
+    console.log(`Generating Instagram post about ${topic}`);
+    // Using ${currentYear} best practices for Instagram:
+    // - Carousel-style text format
+    // - Save-worthy content structure
+    // - Strong visual language
+    // - Engagement questions
+    
+    // Create a save-worthy introduction with topic focus
+    const intro = `📌 SAVE THIS POST: Essential insights about ${topic} for ${details.targetAudience} that you'll want to reference later 👇\n\n`;
+    
+    // Format as carousel-style content with strong benefits
+    const body = extractRecommendationsFromResearch(researchResults?.perplexityResearch || '', topic).slice(0, 3).map((rec, index) => {
+      const emoji = ['1️⃣', '2️⃣', '3️⃣'][index];
+      return `${emoji} ${rec}`;
+    }).join('\n\n');
+    
+    // Add save prompt and question to drive engagement
+    const conclusion = `\nDouble tap to save this ${topic} guide for later! 💯\n\nWhich of these points about ${topic} resonates most with you? Share in the comments below!`;
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  const generateTwitterPost = (topic: string, details: ContentDetails) => {
+    console.log(`Generating Twitter/X post about ${topic}`);
+    // Using ${currentYear} best practices for Twitter/X:
+    // - Front-loaded value in first 45 chars
+    // - Designed for thread format
+    // - Concise, specific benefit
+    // - Data point for credibility
+    // - Clear conversation starter
+    
+    // For Twitter, we need to be very concise
+    // Choose the best recommendation
+    let mainPoint = '';
+    if (extractRecommendationsFromResearch(researchResults?.perplexityResearch || '', topic).length > 0) {
+      // Prefer a recommendation that mentions the topic
+      const topicRecommendation = extractRecommendationsFromResearch(researchResults?.perplexityResearch || '', topic).find(rec => 
+        rec.toLowerCase().includes(topic.toLowerCase())
+      );
+      
+      mainPoint = topicRecommendation || extractRecommendationsFromResearch(researchResults?.perplexityResearch || '', topic)[0];
+      
+      // Ensure it's not too long
+      mainPoint = mainPoint.split('.')[0]; // Get first sentence
+      mainPoint = mainPoint.length > 170 ? mainPoint.substring(0, 167) + '...' : mainPoint;
+    } else {
+      mainPoint = `Key insight about ${topic} for ${details.targetAudience}`;
+    }
+    
+    // Create a thread opener that features the topic
+    const intro = `THREAD: Essential ${topic} insights for ${details.targetAudience} that drive results 👇`;
+    
+    // First tweet in the thread includes the main point
+    const tip = `1/ ${mainPoint}`;
+    
+    // Add an engagement question related to the topic
+    const engagement = `What's your experience with ${topic}? Reply with your insights or questions and I'll share specific solutions.`;
+    
+    return `${intro}\n\n${tip}\n\n${engagement}`;
+  };
+  
+  const generateLinkedInPost = (topic: string, details: ContentDetails) => {
+    console.log(`Generating LinkedIn post about ${topic}`);
+    // Using ${currentYear} best practices for LinkedIn:
+    // - Personal narrative style
+    // - Professional context
+    // - Problem-solution framework
+    // - Clear formatting
+    // - Engagement question
+    
+    const intro = `For the past year, I've been helping ${details.targetAudience} transform their wellness journey with Tranont products. The results have been nothing short of remarkable.\n\n`;
+    
+    // Use professional, detailed style for LinkedIn
+    let body = "Here's what makes Tranont's approach so effective:\n\n";
+    
+    body += extractRecommendationsFromResearch(researchResults?.perplexityResearch || '', topic).slice(0, 3).map((rec, index) => {
+      return `🔹 ${rec}`;
+    }).join('\n\n');
+    
+    // Add professional conclusion
+    const conclusion = `\nAs wellness professionals, we have a responsibility to share solutions that actually work. I'd love to hear from others who value evidence-based approaches to health optimization.\n\nWhat wellness products have made the biggest difference for you or your clients?`;
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  const generateGenericSocialPost = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    // Using universal best practices that work across platforms:
+    // - Clear, concise messaging
+    // - Valuable, actionable information
+    // - Engagement prompt
+    // - Scannable format
+    
+    // Create a headline that features the topic prominently
+    const headline = `📣 Essential ${topic} insights that ${audience} needs to know:\n\n`;
+    
+    // Format content in a scannable way with emojis
+    const content = recommendations.slice(0, 3).map((rec, index) => {
+      const emoji = ['🔑', '💡', '⭐️'][index % 3];
+      return `${emoji} ${rec}`;
+    }).join('\n\n');
+    
+    // Add an engagement prompt focused on the topic
+    const engagement = `\n\nWhat's your biggest question about ${topic}? Drop it in the comments below and let's discuss!`;
+    
+    return `${headline}${content}${engagement}`;
+  };
+  
+  // Update the blog post generator to accept a topic parameter
+  const generateBlogPost = (recommendations: string[], audience: string, topic: string) => {
+    // Using current year best practices for blog posts:
+    // - Strong, clear headline
+    // - Comprehensive, well-structured content
+    // - SEO optimization
+    // - Scannable format with subheadings
+    
+    // Create a compelling title that incorporates the topic
+    const title = `# ${topic}: A Comprehensive Guide for ${audience}\n\n`;
+    
+    // Add an engaging introduction
+    const intro = `In today's rapidly evolving landscape, understanding ${topic} has become essential for ${audience}. This guide provides actionable insights based on the latest research and industry best practices.\n\n`;
+    
+    // Format the main content with subheadings and detailed explanations
+    const body = recommendations.map((rec, index) => {
+      return `## ${index + 1}. ${rec}\n\nMore details would go here explaining this approach in depth.\n\n`;
+    }).join('');
+    
+    // Add a conclusion with next steps
+    const conclusion = `## Summary\n\nImplementing these ${topic} strategies effectively requires consistent application and monitoring. Start with the approach that aligns most closely with your current goals and gradually incorporate the others.\n\n`;
+    
+    return `${title}${intro}${body}${conclusion}`;
+  };
+  
+  // Update the email content generator to accept a topic parameter
+  const generateEmailContent = (recommendations: string[], audience: string, topic: string) => {
+    // Using current year best practices for email content:
+    // - Personalized, focused subject line
+    // - Scannable content with clear sections
+    // - Value-first approach
+    // - Clear call to action
+    
+    // Create a compelling subject line with the topic
+    const subject = `Subject: Essential ${topic} Insights for ${audience}\n\n`;
+    
+    // Add a personalized greeting
+    const greeting = `Hello,\n\nI wanted to share some valuable insights about ${topic} that have been particularly effective for ${audience} like yourself.\n\n`;
+    
+    // Format the recommendations as clear, value-focused points
+    const body = recommendations.map((rec, index) => {
+      return `${index + 1}. ${rec}\n\n`;
+    }).join('');
+    
+    // Add a call to action and signature
+    const conclusion = `I hope you find these insights valuable. If you'd like to discuss how these ${topic} strategies could be applied to your specific situation, feel free to reply to this email.\n\nBest regards,\n[Your Name]\n\n`;
+    
+    return `${subject}${greeting}${body}${conclusion}`;
+  };
+  
+  // Update the video script generator to accept a topic parameter and use research data
+  const generateVideoScript = (recommendations: string[], audience: string, topic: string) => {
+    // Format the topic for improved display
+    const formattedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
+    
+    // Instead of using a hard-coded format, we'll prepare key information from recommendations
+    // The actual formatting will be handled by the Claude API based on research results
+    
+    // Extract key points from recommendations
+    const keyPoints = recommendations.slice(0, Math.min(5, recommendations.length));
+    
+    // Create a basic structure that Claude will enhance with current best practices
+    // based on the research phase
+    return `# Video Script for ${formattedTopic}
+
+Topic: ${formattedTopic}
+Target Audience: ${audience}
+Content Type: Video Script
+
+Key Points to Cover:
+${keyPoints.map((point, index) => `${index + 1}. ${point}`).join('\n')}
+
+Note: This script should follow the current best practices for video script formatting as determined during research.
+
+The script should include appropriate elements like:
+- Professional opening and closing
+- Clear scene descriptions where appropriate
+- Speaker attributions when needed
+- Any other elements that reflect current best practices for video scripts
+`;
+  };
+  
+  // Update the generic content generator to accept a topic parameter
+  const generateGenericContent = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    // Generic content that can be adapted to various formats
+    // Focusing on clarity, value, and engagement
+    
+    // Create a title that incorporates the topic
+    const intro = `# ${topic} Strategies for ${audience}\n\n`;
+    
+    // Format recommendations as clear sections
+    const body = recommendations.map((rec, index) => {
+      return `## ${index + 1}. ${rec}\n\nMore details would go here explaining this point about ${topic} in depth.\n\n`;
+    }).join('');
+    
+    // Add a conclusion that reinforces the topic focus
+    const conclusion = `## Conclusion\n\nImplementing these ${topic} strategies can significantly enhance outcomes for ${audience}. Start with one approach and measure results before expanding to others.\n\n`;
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  // Helper functions for generating Tranont content
+  
+  const generateTransontFacebookPost = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    // Using current year best practices for Facebook:
+    // - Authentic storytelling approach
+    // - Video-friendly text structure (as if accompanying a video)
+    // - Personal testimony format
+    // - Clear value proposition
+    // - Conversation starter question
+    
+    // Extract product names from recommendations if they exist
+    let productMentions = '';
+    let specificProducts: string[] = [];
+    let productDescriptions: {[key: string]: string} = {};
+    
+    // First, look for specific product details in the recommendations
+    const productDetails = recommendations.filter(rec => rec.includes(':'));
+    
+    if (productDetails.length > 0) {
+      // Extract product names and descriptions
+      productDetails.forEach(detail => {
+        const [product, description] = detail.split(':').map(p => p.trim());
+        specificProducts.push(product);
+        productDescriptions[product] = description;
+      });
+      
+      // Format product mentions for the intro
+      if (specificProducts.length === 1) {
+        productMentions = specificProducts[0];
+      } else if (specificProducts.length === 2) {
+        productMentions = `${specificProducts[0]} and ${specificProducts[1]}`;
+      } else if (specificProducts.length > 2) {
+        const firstTwo = specificProducts.slice(0, 2).join(' and ');
+        productMentions = `${firstTwo} (and other amazing products)`;
+      }
+    } else {
+      // Fallback if no specific products found
+      productMentions = "Tranont's wellness products";
+      specificProducts = ["ICARIA Life", "VIBE Energy Supplement"];
+    }
+    
+    const intro = `For the past year, I've been helping ${audience} transform their wellness journey with Tranont products like ${productMentions}. The results have been nothing short of remarkable.\n\n`;
+    
+    // Use professional, detailed style for LinkedIn
+    let body = '';
+    
+    // If we have product details, create a formatted list
+    if (productDetails.length > 0) {
+      body = "Here's what makes these products so effective:\n\n";
+      
+      body += productDetails.slice(0, 3).map((detail, index) => {
+        const [product, description] = detail.split(':').map(p => p.trim());
+        return `🔹 ${product}: ${description}`;
+      }).join('\n\n');
+    } else {
+      // Otherwise use the recommendations
+      body = "Here's what makes Tranont's approach so effective:\n\n";
+      
+      body += recommendations.slice(0, 3).map((rec, index) => {
+        return `🔹 ${rec}`;
+      }).join('\n\n');
+    }
+    
+    // Add professional conclusion
+    const conclusion = `\nAs wellness professionals, we have a responsibility to share solutions that actually work. I'd love to hear from others who value evidence-based approaches to health optimization.\n\nWhat wellness products have made the biggest difference for you or your clients?`;
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  const generateTransontInstagramPost = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    // Using current year best practices for Instagram:
+    // - Vertical/carousel format reference
+    // - Authentic, person-centered approach
+    // - Save-worthy content
+    // - Strong visual language
+    // - Direct engagement prompt
+    
+    const intro = `Transform your wellness journey with what's working NOW for ${audience} 👇\n\n`;
+    
+    // Format as carousel-style content with strong benefits
+    const body = recommendations.slice(0, 3).map((rec, index) => {
+      const emoji = ['1️⃣', '2️⃣', '3️⃣'][index];
+      return `${emoji} ${rec}`;
+    }).join('\n\n');
+    
+    // Add save prompt and question to drive engagement
+    const conclusion = `\nSave this post for your wellness journey! 🔖\n\nDouble tap if you're passionate about natural health solutions, and tell me which Tranont product you're most curious about!`;
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  const generateTransontTwitterPost = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    // Using current year best practices for Twitter/X:
+    // - Concise, value-first format
+    // - Thread-ready structure
+    // - Strong hook in first tweet
+    // - Conversation starter
+    
+    const intro = `My ${audience} clients are seeing amazing results with Tranont products. Here's why: [THREAD]`;
+    
+    // Format recommendations as concise, tweet-friendly points
+    let body = '';
+    if (recommendations.length > 0) {
+      body = recommendations[0];
+    }
+    
+    // Add question to drive engagement
+    const conclusion = `What health goals are you working on this month? Tranont products might be the solution you've been searching for.`;
+    
+    return `${intro}\n\n${body}\n\n${conclusion}`;
+  };
+  
+  const generateTransontSocialPost = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    // Generic cross-platform post optimized for:
+    // - Authentic storytelling
+    // - Clear value proposition
+    // - Engagement prompt
+    
+    const intro = `I've been helping ${audience} transform their health with Tranont products, and the results have been incredible! 💫\n\n`;
+    
+    // Format recommendations as clear, value-focused points
+    const body = recommendations.slice(0, 3).map((rec, index) => {
+      const emoji = ['✨', '🌟', '💯'][index % 3];
+      return `${emoji} ${rec}`;
+    }).join('\n\n');
+    
+    // Add engagement prompt
+    const conclusion = "\nWhat health goals are you working on? Comment below with your biggest wellness challenge, and I'll share which Tranont products might help!";
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  const generateTransontBlogPost = (recommendations: string[], audience: string, topic: string) => {
+    const title = `# Tranont Products and Business Opportunities: A Guide for ${audience}\n\n`;
+    const intro = `Tranont has been transforming lives through their premium health products and business opportunities for associates. This guide explores both aspects of Tranont and how they can benefit ${audience}.\n\n`;
+    
+    const body = recommendations.map((rec, index) => {
+      return `## ${index + 1}. ${rec}\n\nMore details would go here explaining this point about Tranont products or business opportunities in depth.\n\n`;
+    }).join('');
+    
+    const conclusion = `## Conclusion\n\nWhether you're interested in Tranont's health products or the business opportunity, there are significant benefits available for ${audience}. Consider reaching out to a Tranont associate to learn more about which options might be right for you.\n\n`;
+    
+    return `${title}${intro}${body}${conclusion}`;
+  };
+  
+  const generateTransontEmailContent = (recommendations: string[], audience: string, topic: string) => {
+    const subject = `Subject: Discover Tranont Products and Business Opportunities for ${audience}\n\n`;
+    const greeting = `Dear valued customer,\n\n`;
+    const intro = `I wanted to share some information about how Tranont's products and business opportunities have been helping ${audience} like yourself:\n\n`;
+    
+    const body = recommendations.map((rec, index) => {
+      return `${index + 1}. ${rec}\n\n`;
+    }).join('');
+    
+    const conclusion = `We're here to help you learn more about Tranont products or the associate program. Feel free to reply to this email with any questions.\n\n`;
+    const signature = `Warm regards,\n\n[Your Name]\nTranont Associate\n[Your Contact Information]`;
+    
+    return `${subject}${greeting}${intro}${body}${conclusion}${signature}`;
+  };
+  
+  const generateTransontVideoScript = (recommendations: string[], audience: string, topic: string) => {
+    const intro = `# Video Script: Tranont Products and Opportunities for ${audience}\n\n`;
+    const opening = `[OPENING SCENE: People using Tranont products and successful associates]\n\nVOICEOVER: Discover how Tranont is transforming lives through premium health products and business opportunities. Especially for ${audience}.\n\n`;
+    
+    const segments = recommendations.map((rec, index) => {
+      return `[SEGMENT ${index + 1}]\n\nVOICEOVER: ${rec}\n\n[VISUAL: Show Tranont products or associates in action, with graphical overlays highlighting key benefits]\n\n`;
+    }).join('');
+    
+    const conclusion = `[CLOSING SCENE]\n\nVOICEOVER: Ready to transform your health or create a new income stream? Contact a Tranont associate today to learn how these products and opportunities can work for you.\n\n[DISPLAY CONTACT INFORMATION AND CALL TO ACTION]`;
+    
+    return `${intro}${opening}${segments}${conclusion}`;
+  };
+  
+  const generateTransontGenericContent = (recommendations: string[], audience: string, hashtags: string[], topic: string) => {
+    const intro = `# Tranont Products and Business Opportunities for ${audience}\n\n`;
+    const body = recommendations.map((rec, index) => `## ${index + 1}. ${rec}\n\nMore details would go here explaining this approach in depth.\n\n`).join('');
+    const conclusion = `## Summary\n\nTranont offers both premium health products and business opportunities that can benefit ${audience}. Explore these options to find the right fit for your needs and goals.\n\n`;
+    
+    return `${intro}${body}${conclusion}`;
+  };
+  
+  // Helper functions for styling and formatting content
+  
+  const applyContentStyle = (content: string, style: string) => {
+    // If the content is a video script, identify it
+    const isVideoScript = content.includes('// TITLE:') && 
+                         (content.includes('[SCENE') || content.includes('[OPENING SCENE'));
+    
+    // If it's a video script and using ariastar style, apply a simplified version of the style
+    // that preserves the script format
+    if (isVideoScript && style === 'ariastar') {
+      // Apply a lighter version of AriaStar style that preserves formatting
+      let scriptContent = content;
+      
+      // Find narrator sections and apply style to those only
+      scriptContent = scriptContent.replace(/NARRATOR \(V\.O\):\s*([^\[]+)/g, (match, p1) => {
+        // Apply casual, friendly voice to narrator lines only
+        let narratorText = p1;
+        narratorText = narratorText.replace(/reliable internet/gi, "reliable internet (finally!)");
+        narratorText = narratorText.replace(/connectivity/gi, "real connectivity");
+        narratorText = narratorText.replace(/but too often/gi, "but let's be real -");
+        narratorText = narratorText.replace(/your connection/gi, "your digital lifeline");
+        
+        // Add some personality with occasional emoji
+        narratorText = narratorText.replace(/privacy/gi, "privacy ✨");
+        
+        return `NARRATOR (V.O.):\n${narratorText}`;
+      });
+      
+      // For customer testimonials, make them more authentic
+      scriptContent = scriptContent.replace(/CUSTOMER:\s*"([^"]+)"/g, (match, p1) => {
+        let testimonial = p1;
+        testimonial = testimonial.replace(/we had to choose/gi, "I was SO tired of choosing");
+        testimonial = testimonial.replace(/couldn't handle/gi, "was a total nightmare for");
+        testimonial = testimonial.replace(/solved both problems/gi, "changed EVERYTHING");
+        
+        return `CUSTOMER:\n"${testimonial}"`;
+      });
+      
+      // Modify title to be more AriaStar-like
+      scriptContent = scriptContent.replace(/\/\/ TITLE: ([^\n]+)/, '// TITLE: The Internet Connection That Actually Gets You ✨');
+      
+      return scriptContent;
+    }
+    
+    // If it's a different video script style or not a video script, proceed with normal styling
+    switch (style) {
+      case 'professional':
+        // Already professional, no change needed
+        return content;
+      case 'casual':
+        // Replace some phrases to sound more casual
+        return content
+          .replace(/essential/gi, 'important')
+          .replace(/significantly/gi, 'really')
+          .replace(/solutions/gi, 'options')
+          .replace(/implementing/gi, 'trying')
+          .replace(/connectivity/gi, 'internet')
+          .replace(/challenges/gi, 'problems');
+      case 'enthusiastic':
+        // Add more excitement
+        return content
+          .replace(/\./g, '!')
+          .replace(/important/gi, 'critical')
+          .replace(/good/gi, 'amazing')
+          .replace(/better/gi, 'fantastic')
+          .replace(/improved/gi, 'transformed');
+      case 'informative':
+        // Add more technical terms
+        return content
+          .replace(/internet/gi, 'broadband connectivity')
+          .replace(/fast/gi, 'high-bandwidth')
+          .replace(/reliable/gi, 'low-latency')
+          .replace(/better/gi, 'optimized');
+      case 'ariastar':
+        // Transform content into AriaStar's witty, relatable style with analogies
+        let ariaContent = content;
+        
+        // Check if content already has AriaStar's signature elements before transforming
+        const hasSignatureOpener = content.includes("Let's get real for a sec") || 
+                                  content.includes("# Let's get real");
+        const hasTransformationStory = content.includes("changed EVERYTHING") || 
+                                     content.includes("$1200/month");
+        const hasSAMEPhrase = content.includes("SAME.");
+        const hasWildTruth = content.includes("wild truth");
+        
+        // Only add opener if it doesn't already exist
+        if (!hasSignatureOpener) {
+          // First make sentences shorter and punchier - split long sentences
+          ariaContent = ariaContent.replace(/(\. )([A-Z])/g, '.\n\n$2');
+          
+          // Add AriaStar's signature openings and hooks
+          ariaContent = ariaContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Let's get real for a sec ✨\n\n$1$2$3");
+          
+          if (!hasSAMEPhrase) {
+            ariaContent = ariaContent.replace(/^(?!#)(.*?)([\.\?\!])(\s|$)/m, "Ever been $1 and wondering if there's more to life? SAME.$3");
+          }
+        }
+        
+        // Only add transformation elements if they don't exist
+        if (!hasTransformationStory) {
+          // Add storytelling elements
+          ariaContent = ariaContent.replace(/you should consider/gi, "I was there too - exhausted and wondering if");
+          ariaContent = ariaContent.replace(/It is important to/gi, "Here's my wild truth: I needed to");
+          ariaContent = ariaContent.replace(/Benefits include/gi, "Then I found something that changed EVERYTHING. Not just my");
+        }
+        
+        // Add AriaStar's signature humor and relatability - these can be applied even if some elements exist
+        ariaContent = ariaContent.replace(/improve your/gi, "transform your \"why am I even trying this??\"");
+        ariaContent = ariaContent.replace(/can help/gi, "swoops in like a caffeinated superhero to help");
+        ariaContent = ariaContent.replace(/consider/gi, "imagine (while binge-watching at 2am)");
+        
+        // Make it more conversational with AriaStar's voice
+        ariaContent = ariaContent.replace(/Furthermore/gi, "Okay, but get this -");
+        ariaContent = ariaContent.replace(/In addition/gi, "And listen -");
+        ariaContent = ariaContent.replace(/It is recommended/gi, "Trust me on this one -");
+        ariaContent = ariaContent.replace(/Note that/gi, "Let's be real for a sec:");
+        ariaContent = ariaContent.replace(/As a result/gi, "The life-changing result?");
+        
+        // Add AriaStar's visual style
+        ariaContent = ariaContent.replace(/(\n\n|^)(\w[^.!?]*?tips\b)/gi, "$1• $2");
+        ariaContent = ariaContent.replace(/(\n\n|^)(\w[^.!?]*?advice\b)/gi, "$1• $2");
+        ariaContent = ariaContent.replace(/(\n\n|^)(\w[^.!?]*?steps\b)/gi, "$1• $2");
+        ariaContent = ariaContent.replace(/(\n\n|^)(\w[^.!?]*?ways\b)/gi, "$1• $2");
+        
+        // Add emoji for emphasis
+        ariaContent = ariaContent.replace(/\b(amazing|incredible|fantastic)\b/gi, "$1 ✨");
+        ariaContent = ariaContent.replace(/\b(tired|exhausted|overwhelmed)\b/gi, "$1 😩");
+        ariaContent = ariaContent.replace(/\b(earn|money|income)\b/gi, "$1 💰");
+        ariaContent = ariaContent.replace(/\b(health|wellness|energy)\b/gi, "$1 💫");
+        
+        // Add AriaStar's call to action style
+        ariaContent = ariaContent.replace(/contact us/gi, "drop a \"👋\" below and I'll send you the 3-minute video");
+        ariaContent = ariaContent.replace(/learn more/gi, "if you're nodding along, drop a \"✨\" below");
+        ariaContent = ariaContent.replace(/for more information/gi, "Life's too short for regrets and missed opportunities! 💕");
+        
+        // Add a signature AriaStar closing if none exists
+        if (!ariaContent.includes("P.S.")) {
+          ariaContent += "\n\nP.S. No pressure to reply, but if you're curious, I'm here! Best decision I made this year (besides getting that extra streaming subscription)! 💕";
+        }
+        
+        ariaContent = ariaContent.replace(/Do you have any questions\?/gi, "Questions? Drop 'em below and I'll answer while scrolling through TikTok at midnight! 😂✨");
+        
+        return ariaContent;
+      case 'specialist_mentor':
+        // Transform content into MentorPro's authoritative but accessible mentor style
+        let mentorContent = content;
+        
+        // Add clear section headers and organization
+        mentorContent = mentorContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Let's Master This Together: $1$2$3");
+        
+        // Add frameworks and step-based approaches
+        if (!mentorContent.includes("Step 1:") && !mentorContent.includes("First,")) {
+          const stepText = "**Step 1:** $2$3";
+          mentorContent = mentorContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${stepText}`);
+        }
+        
+        // Add expertise signaling phrases
+        mentorContent = mentorContent.replace(/important/gi, "essential");
+        mentorContent = mentorContent.replace(/you should/gi, "my clients find success when they");
+        mentorContent = mentorContent.replace(/good/gi, "effective");
+        
+        // Add data points and social proof elements
+        if (!mentorContent.includes("%")) {
+          mentorContent += "\n\n**The Results Speak For Themselves:** 76% higher engagement rates when you apply these principles consistently.";
+        }
+        
+        // Add mentor-style call to action
+        if (!mentorContent.includes("action plan") && !mentorContent.includes("next steps")) {
+          mentorContent += "\n\n## Your Next Steps\nIdentify one technique from above that resonates most with you. Implement it this week and track your results. Remember: consistent application is key to mastery.";
+        }
+        
+        return mentorContent;
+      case 'ai_collaborator':
+        // Transform content into AllInsight's transparent AI collaboration style
+        let aiContent = content;
+        
+        // Add collaboration framing
+        aiContent = aiContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Human+AI Collaboration: $1$2$3\n\n_This content was created through my partnership with AI tools. Here's the transparent process:_\n\n");
+        
+        // Add details about the AI collaboration process
+        if (!aiContent.includes("collaboration") && !aiContent.includes("partnership")) {
+          const processText = "**What I Contributed:** The creative direction, subject expertise, and human perspective.\n\n**What AI Added:** Data organization, language refinement, and pattern recognition.\n\n$2$3";
+          aiContent = aiContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${processText}`);
+        }
+        
+        // Add behind-the-scenes insights
+        if (!aiContent.includes("behind the scenes")) {
+          aiContent += "\n\n## Behind The Scenes\nThe most interesting challenge in creating this was balancing technical accuracy with accessibility. I refined the AI output three times to achieve this balance.";
+        }
+        
+        // Add ethical AI usage statement
+        aiContent += "\n\n_I believe in ethical AI use that enhances human creativity rather than replacing it. All AI-assisted content is fact-checked and aligned with my personal values._";
+        
+        return aiContent;
+      case 'synthesis_maker':
+        // Transform content into SynthesisSage's synthesis-making style
+        let synthesisContent = content;
+        
+        // Add pattern connection framing
+        synthesisContent = synthesisContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Connecting The Dots: $1$2$3\n\n_Where seemingly unrelated ideas converge_\n\n");
+        
+        // Add interdisciplinary connections
+        if (!synthesisContent.includes("connection") && !synthesisContent.includes("intersection")) {
+          const connectionText = "**Unexpected Connection:** This concept parallels developments in [different field], where we see a similar pattern of [shared principle].\n\n$2$3";
+          synthesisContent = synthesisContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${connectionText}`);
+        }
+        
+        // Add mental models and frameworks
+        if (!synthesisContent.includes("framework") && !synthesisContent.includes("model")) {
+          synthesisContent += "\n\n## Synthesis Framework\nViewing this through a cross-disciplinary lens reveals three convergent principles:\n1. **Pattern Recognition:** [Principle explanation]\n2. **Contextual Transfer:** [Principle explanation]\n3. **Adaptive Application:** [Principle explanation]";
+        }
+        
+        // Add meta-level insight
+        synthesisContent += "\n\n**Meta Perspective:** This analysis isn't just about the topic itself, but about how different systems of thought approach similar challenges. The meta-pattern here reveals why isolated expertise is increasingly insufficient.";
+        
+        // Add intellectual curiosity call to action
+        synthesisContent += "\n\n_What connections do you see between this and your field? The most valuable insights often emerge at these unexpected intersections._";
+        
+        return synthesisContent;
+      case 'sustainable_advocate':
+        // Transform content into EcoEssence's values-based sustainability style
+        let ecoContent = content;
+        
+        // Add sustainability framing
+        ecoContent = ecoContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Mindful Living: $1$2$3\n\n_Small choices, meaningful impact_\n\n");
+        
+        // Connect to broader values
+        ecoContent = ecoContent.replace(/important/gi, "sustainable");
+        ecoContent = ecoContent.replace(/benefit/gi, "regenerative benefit");
+        ecoContent = ecoContent.replace(/good/gi, "eco-conscious");
+        
+        // Add personal journey elements
+        if (!ecoContent.includes("journey") && !ecoContent.includes("path")) {
+          const journeyText = "**My Journey:** When I first started exploring this, I was overwhelmed. Now I've found balance by focusing on progress, not perfection.";
+          ecoContent = ecoContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${journeyText}\n\n$2$3`);
+        }
+        
+        // Add practical, accessible sustainability tips
+        if (!ecoContent.includes("tip") && !ecoContent.includes("simple way")) {
+          ecoContent += "\n\n## Three Simple Shifts\n1. **Start Where You Are:** One mindful choice daily\n2. **Connect With Community:** Shared efforts amplify impact\n3. **Value Alignment:** Choose brands that reflect your values";
+        }
+        
+        // Add values-based call to action
+        ecoContent += "\n\n_What one small shift feels aligned with your values today? This isn't about perfection—it's about intention._";
+        
+        return ecoContent;
+      case 'data_visualizer':
+        // Transform content into DataStory's data visualization style
+        let dataContent = content;
+        
+        // Add data visualization framing
+        dataContent = dataContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# The Data Tells A Story: $1$2$3\n\n_[Data Visualization: Topic Trend Analysis 2023-2025]_\n\n");
+        
+        // Add data-driven sections
+        if (!dataContent.includes("trend") && !dataContent.includes("analysis")) {
+          const trendSection = "**Key Trend:** $2$3\n\n```chart\nType: line\nData points: 2023: 34%, 2024: 62%, 2025: 89%\nLabel: Adoption Rate\n```\n\n";
+          dataContent = dataContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${trendSection}`);
+        }
+        
+        // Add contextual interpretation
+        if (!dataContent.includes("interpretation") && !dataContent.includes("means")) {
+          dataContent += "\n\n## Data Interpretation\nThe visualized trend reveals not just the what, but the why: organizations adopting this approach show 89% higher retention rates year-over-year.";
+        }
+        
+        // Add methodology transparency
+        dataContent += "\n\n**Methodology Note:** Data sourced from industry surveys (n=1,250) and verified performance metrics across sectors. Outliers were identified and analyzed separately.";
+        
+        return dataContent;
+      case 'multiverse_curator':
+        // Transform content into NexusVerse's multiverse experience style
+        let nexusContent = content;
+        
+        // Add immersive experience framing
+        nexusContent = nexusContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Transcend The Ordinary: $1$2$3\n\n_Experience this content across dimensions_\n\n");
+        
+        // Add cross-platform pathway
+        if (!nexusContent.includes("experience") && !nexusContent.includes("journey")) {
+          const pathwayText = "**Cross-Platform Journey:**\n🎧 Audio immersion available\n🌐 AR companion experience\n💬 Community story expansion\n\n$2$3";
+          nexusContent = nexusContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${pathwayText}`);
+        }
+        
+        // Add sensory-rich descriptors
+        nexusContent = nexusContent.replace(/see/gi, "visualize");
+        nexusContent = nexusContent.replace(/hear/gi, "experience");
+        nexusContent = nexusContent.replace(/feel/gi, "sense deeply");
+        
+        // Add worldbuilding elements
+        if (!nexusContent.includes("world") && !nexusContent.includes("universe")) {
+          nexusContent += "\n\n## Universe Expansion\nThis narrative continues in our connected experiences, where community members have already created 37 unique storyline branches.";
+        }
+        
+        // Add immersive call to action
+        nexusContent += "\n\n_Which dimension of this experience resonates with you? Scan the QR code to transition to your preferred medium._";
+        
+        return nexusContent;
+      case 'ethical_tech':
+        // Transform content into TechTranslate's ethical tech translation style
+        let techContent = content;
+        
+        // Add ethical tech framing
+        techContent = techContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Tech That Serves Humanity: $1$2$3\n\n_Technology explained with ethics at the center_\n\n");
+        
+        // Add technical context with accessibility
+        if (!techContent.includes("technical") && !techContent.includes("works by")) {
+          const techText = "**How This Works:** The technical mechanism is [technical explanation], which in human terms means [accessible explanation]. This matters because [ethical implication].\n\n$2$3";
+          techContent = techContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${techText}`);
+        }
+        
+        // Add ethical considerations
+        if (!techContent.includes("ethical") && !techContent.includes("implications")) {
+          techContent += "\n\n## Ethical Considerations\nEvery technology comes with responsibilities. Here's what to be aware of:\n1. **Data Privacy:** [Privacy implications explained]\n2. **Accessibility:** [Who might be excluded]\n3. **Environmental Impact:** [Sustainability considerations]";
+        }
+        
+        // Add technical-ethical balance
+        techContent += "\n\n**Technical Brilliance ≠ Human Value:** Technology is only as good as its service to humanity. This solution balances technical capabilities with ethical guardrails.";
+        
+        return techContent;
+      case 'niche_community':
+        // Transform content into CommunityForge's niche community cultivation style
+        let communityContent = content;
+        
+        // Add community-focused framing
+        communityContent = communityContent.replace(/^(.*?)([\.\?\!])(\s|$)/m, "# Our Shared Journey: $1$2$3\n\n_Where [niche interest] enthusiasts find their people_\n\n");
+        
+        // Add community narrative elements
+        if (!communityContent.includes("community") && !communityContent.includes("we share")) {
+          const communityText = "**From The Community:** When I first connected with fellow enthusiasts, everything changed. What was once a solitary pursuit became a rich tapestry of shared wisdom.\n\n$2$3";
+          communityContent = communityContent.replace(/(\. )([A-Z][^\.]+\.)(\s)/g, `$1\n\n${communityText}`);
+        }
+        
+        // Add community-building advice
+        if (!communityContent.includes("build") && !communityContent.includes("connect")) {
+          communityContent += "\n\n## Cultivating Connection\nGrowing our community happens through intentional practices:\n1. **Shared Rituals:** Our monthly virtual meetups create continuity\n2. **Knowledge Exchange:** The mentor-mentee program deepens bonds\n3. **Safe Exploration:** Our community guidelines ensure all feel welcome";
+        }
+        
+        // Add inclusivity statement
+        communityContent += "\n\n**Belonging Note:** Our community welcomes people at all stages of the journey. Your unique perspective enriches our collective wisdom.";
+        
+        return communityContent;
+      default:
+        return content;
+    }
+  };
+  
+  const adjustContentLength = (content: string, length: string) => {
+    const sentences = content.match(/[^.!?]+[.!?]+/g) || [];
+    
+    switch (length) {
+      case 'short':
+        // Reduce to approximately 30-50% of original length
+        const shortLength = Math.max(1, Math.floor(sentences.length * 0.4));
+        return sentences.slice(0, shortLength).join(' ');
+      case 'medium':
+        // Keep as is or slightly trim
+        return content;
+      case 'long':
+        // Expand content by approximately 30-50%
+        const expandedSentences = [...sentences];
+        
+        // Add elaboration to some sentences
+        for (let i = 0; i < Math.floor(sentences.length * 0.3); i++) {
+          const index = Math.floor(Math.random() * sentences.length);
+          const elaborations = [
+            ' This is particularly important in today\'s environment.',
+            ' Many experts in the field agree with this assessment.',
+            ' Research has consistently shown this to be effective.',
+            ' This approach has been validated in multiple case studies.',
+            ' Consider implementing this as a core strategy.'
+          ];
+          const elaboration = elaborations[Math.floor(Math.random() * elaborations.length)];
+          
+          if (expandedSentences[index]) {
+            expandedSentences[index] = expandedSentences[index].replace(/[.!?]+$/, elaboration + '.');
+          }
+        }
+        
+        return expandedSentences.join(' ');
+      default:
+        return content;
+    }
+  };
+  
+  const addCallToAction = (content: string, contentType: string, platform: string, isTransontRelated: boolean) => {
+    let cta = '';
+    
+    if (isTransontRelated) {
+      if (contentType.includes('social')) {
+        cta = '\n\n🌟 Want to learn more about Tranont products or business opportunities? Contact me today for a free consultation and discover how Tranont can transform your life.';
+      } else if (contentType.includes('blog')) {
+        cta = '\n\n## Ready to transform your life with Tranont?\n\nWhether you\'re interested in premium health products or building a business as an associate, Tranont has something for you. [Contact me](https://tranont.example.com/consult) to learn more about Tranont\'s offerings.';
+      } else if (contentType.includes('email')) {
+        cta = '\n\nReady to learn more about Tranont? Reply to this email or call (555) 123-4567 to schedule a free consultation about Tranont products or business opportunities.';
+      } else if (contentType.includes('video')) {
+        cta = '\n\n[CALL TO ACTION]\nVOICEOVER: Visit tranont.com today or contact your local Tranont associate to learn more about our products and business opportunities.';
+      } else {
+        cta = '\n\n## Contact Us\n\nReady to learn more about Tranont? Contact us today for more information about our products and business opportunities: (555) 123-4567 or visit tranont.com';
+      }
+    } else {
+      if (contentType.includes('social')) {
+        if (platform === 'facebook' || platform === 'instagram') {
+          cta = '\n\n📞 Need reliable rural internet? Contact us today for a free consultation and find out which solution is right for your location. Link in bio/comments.';
+        } else if (platform === 'linkedin') {
+          cta = '\n\n📞 Need reliable rural internet? Softcom specializes in connectivity solutions for underserved areas. Contact us today for a free consultation: [Contact Link]';
+        } else {
+          cta = '\n\n📞 Need better rural internet? Contact us for a free consultation: https://softcom.net';
+        }
+      } else if (contentType.includes('blog')) {
+        cta = '\n\n## Ready to improve your connectivity?\n\nSoftcom offers tailored solutions for rural homes and businesses. [Schedule a free consultation](https://softcom.example.com/consult) to discover the perfect option for your specific location and needs.';
+      } else if (contentType.includes('email')) {
+        cta = '\n\nReady to improve your connectivity? Reply to this email or call (555) 123-4567 to schedule a free consultation with one of our rural internet specialists.';
+      } else if (contentType.includes('video')) {
+        cta = '\n\n[CALL TO ACTION]\nVOICEOVER: Visit softcom.example.com today or call (555) 123-4567 to schedule your free connectivity consultation.';
+      } else {
+        cta = '\n\n## Contact Us\n\nReady to improve your connectivity? Contact Softcom today for a free consultation: (555) 123-4567 or visit softcom.example.com';
+      }
+    }
+    
+    return content + cta;
+  };
+  
+  const addHashtags = (content: string, hashtags: string[]) => {
+    // Check if this is Tranont-related content
+    const isTransontRelated = contentDetails.targetAudience?.toLowerCase().includes('tranont') || 
+                             contentDetails.researchTopic?.toLowerCase().includes('tranont') ||
+                             contentDetails.businessType?.toLowerCase().includes('tranont');
+    
+    if (hashtags.length === 0) {
+      // Default hashtags if none found in research
+      if (isTransontRelated) {
+        hashtags = ['#Tranont', '#HealthAndWellness', '#BusinessOpportunity', '#MLM', '#NetworkMarketing'];
+      } else {
+        hashtags = ['#RuralInternet', '#Connectivity', '#DigitalInclusion', '#Broadband', '#TechForAll'];
+      }
+    }
+    
+    // Filter out any hashtags that might already be in the content
+    const existingHashtags = (content.match(/#\w+/g) || []).map(tag => tag.toLowerCase());
+    const filteredHashtags = hashtags
+      .filter(tag => !existingHashtags.includes(tag.toLowerCase()))
+      .slice(0, 5); // Limit to 5 additional hashtags
+    
+    if (filteredHashtags.length > 0) {
+      return content + '\n\n' + filteredHashtags.join(' ');
+    }
+    
+    return content;
+  };
+
+  // Helper function to get content type text for display
+  const getContentTypeText = () => {
+    const { contentType, platform } = contentDetails;
+    
+    let typeText = contentType || 'content';
+    let platformText = platform || '';
+    
+    // Map content type IDs to readable text
+    switch (contentType) {
+      case 'social-media':
+        typeText = 'Social Media Post';
+        break;
+      case 'blog-post':
+        typeText = 'Blog Post';
+        break;
+      case 'email':
+        typeText = 'Email';
+        break;
+      case 'video-script':
+        typeText = 'Video Script';
+        break;
+      case 'youtube-script':
+        typeText = 'YouTube Script';
+        break;
+    }
+    
+    // Map platform IDs to readable text
+    switch (platform) {
+      case 'facebook':
+        platformText = 'Facebook';
+        break;
+      case 'instagram':
+        platformText = 'Instagram';
+        break;
+      case 'twitter':
+        platformText = 'Twitter';
+        break;
+      case 'linkedin':
+        platformText = 'LinkedIn';
+        break;
+      case 'tiktok':
+        platformText = 'TikTok';
+        break;
+    }
+    
+    return typeText + (platformText ? ` for ${platformText}` : '');
+  };
+
+  // Copy content to clipboard
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(generatedContent)
+      .then(() => {
+        alert('Content copied to clipboard!');
+      })
+      .catch(err => {
+        console.error('Failed to copy content: ', err);
+        alert('Failed to copy content. Please try selecting and copying manually.');
+      });
+  };
+
+  // Handle export functionality
+  const handleExport = () => {
+    setShowExportModal(true);
+  };
+
+  // Function to generate PDF from content
+  const handlePdfExport = () => {
+    try {
+      // Save current URL to navigate back after download
+      const currentUrl = window.location.href;
+      
+      // Format date for filename
+      const date = new Date();
+      const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      
+      // Prepare content details for the PDF
+      const contentTitle = `${contentDetails.contentType} for ${contentDetails.platform || 'General Use'}`;
+      const audience = contentDetails.targetAudience || 'General Audience';
+      const style = contentSettings.style || 'Standard';
+      
+      // For long content, use localStorage instead of URL parameters
+      localStorage.setItem('printContent', generatedContent);
+      localStorage.setItem('printTitle', contentTitle);
+      localStorage.setItem('printAudience', audience);
+      localStorage.setItem('printStyle', style);
+      localStorage.setItem('printDate', formattedDate);
+      
+      // Navigate to print page with a flag to use localStorage
+      const printUrl = `/print?useLocalStorage=true`;
+      
+      // Open print URL in new tab for PDF saving
+      window.open(printUrl, '_blank');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. The content might be too large. Try copying and pasting into a document instead.');
+    }
+  };
+
+  // Add toggle function for content preview expansion
+  const toggleContentExpansion = () => {
+    setIsContentExpanded(!isContentExpanded);
+  };
+
+  // Function to generate a Tranont-specific LinkedIn post
+  const generateTransontLinkedInPost = (
+    recommendations: string[],
+    audience: string,
+    hashtags: string[],
+    topic: string
+  ): string => {
+    // Use personal narrative style for LinkedIn - best practice for current year
+    const intro = `🔍 I've discovered something that's changing the game for ${audience}...
+
+When I first heard about ${topic} through Tranont, I was skeptical. But after seeing the results firsthand, I had to share this with my network.`;
+
+    // Format recommendations in a problem-solution framework
+    const formattedRecommendations = recommendations
+      .slice(0, 3)
+      .map((rec, i) => `${i + 1}. ${rec}`)
+      .join('\n\n');
+
+    // Professional call to action
+    const cta = `🤝 I'd love to connect with fellow professionals who are interested in ${topic}. Has anyone else experienced similar results with Tranont's solutions?
+
+Drop your thoughts in the comments or DM me to continue the conversation!`;
+
+    // Combine all sections
+    const post = `${intro}
+
+Here's what makes Tranont's approach to ${topic} so effective:
+
+${formattedRecommendations}
+
+${cta}`;
+
+    return post;
+  };
+
+  // Add testing functions for APIs
+  const testClaudeApi = async () => {
+    try {
+      const response = await fetch('/api/claude/content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: "This is a test message",
+          research: "Test research data",
+          platform: "Test platform",
+          audience: "Test audience",
+          topic: "Test topic",
+          contentType: "Test content type"
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.error) {
+        alert(`Claude API Test Error: ${data.error}`);
+        return;
+      }
+      
+      // Check if it's a simulated response
+      if (typeof data.model === 'string' && data.model.includes("simulation")) {
+        alert("Claude API Test: Using simulated response. Please set up a valid API key for production use.");
+      } else {
+        alert(`Claude API Test: Success! Using real Claude API with model: ${data.model}`);
+      }
+    } catch (error) {
+      console.error('Error testing Claude API:', error);
+      alert(`Claude API Test Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
+  const testPerplexityApi = async () => {
+    try {
+      const response = await fetch('/api/perplexity/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ test: true }),
+      });
+
+      const data = await response.json();
+      
+      if (data.error) {
+        alert(`Perplexity API Test Error: ${data.error}`);
+        return;
+      }
+      
+      alert(`Perplexity API Test Results:
+- API Key Exists: ${data.exists ? 'Yes' : 'No'}
+- First characters: ${data.firstChars || 'N/A'}
+- Valid: ${data.valid ? 'Yes' : 'No'}
+- Message: ${data.message || 'No message'}`);
+      
+    } catch (error) {
+      console.error('Error testing Perplexity API:', error);
+      alert(`Perplexity API Test Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
+  // Add the API status indicators in the correct location
+  // Make sure to add this to the component's JSX, such as above or below the content editor
+
+  // In your JSX, add this before or after the content editor
+  {/* Add this in the appropriate place in your JSX, such as before or after the editor */}
+  {apiMode === 'error' && (
+    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+      <div className="flex items-start">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <h4 className="text-sm font-medium text-red-800">Content Generation Error</h4>
+          <p className="text-xs text-red-700 mt-1">
+            {apiErrorDetails || 'The AI content generation API encountered an error.'}
+          </p>
+          <p className="text-xs text-red-700 mt-2">
+            Please check your API key configuration and ensure you have sufficient credits available.
+          </p>
+        </div>
+      </div>
+    </div>
+  )}
+
+  // Now update the contextual reference in the startup message
+  // Removing this line as it causes infinite renders by setting state during render
+  // setStatusMessage(`Analyzing ${contentDetails.targetAudience} and ${contentDetails.platform} best practices for ${new Date().getFullYear()}...`);
+
+  // Handle content generation with Claude API
+  const generateContent = async () => {
+    // Prevent multiple simultaneous calls using debounce
+    if (isGenerating || isStartGenerationDebounced) return;
+    
+    // Set debounce flag to prevent multiple calls
+    setIsStartGenerationDebounced(true);
+    
+    setIsGenerating(true);
+    setError(null);
+    setApiMode('normal');
+    setApiErrorDetails(null);
+    
+    // Set up more realistic progress tracking
+    setGenerationProgress(5); // Start at 5%
+    console.log("Generation started: Progress 5%");
+    setStatusMessage(`Preparing content request for ${new Date().getFullYear()} best practices...`);
+    
+    try {
+      // Construct context with all available information
+      let context = `Content Type: ${contentDetails.contentType || 'article'}, Platform: ${contentDetails.platform || 'general'}, Target Audience: ${contentDetails.targetAudience || 'general'}`;
+      
+      // Add research information if available
+      if (researchResults?.perplexityResearch) {
+        context += `, Research: Available`;
+      }
+      
+      // Add YouTube transcript information if available
+      if (youtubeTranscript) {
+        context += `, YouTube Content: Available`;
+      }
+      
+      setGenerationProgress(10);
+      console.log("Building prompt: Progress 10%");
+      setStatusMessage("Building content prompt...");
+      
+      // Show realistic expected time based on content complexity
+      const baseTime = 60; // Base time in seconds (1 minute)
+      let estimatedTime = baseTime;
+      
+      // Add time for research and transcript if present
+      if (researchResults?.perplexityResearch) estimatedTime += 30;
+      if (youtubeTranscript) estimatedTime += 30;
+      
+      // Adjust based on content type (video scripts take longer)
+      if (contentDetails.contentType === 'Video Script') estimatedTime += 30;
+      
+      // Update message with realistic estimate (1-3 minutes)
+      const estimatedMinutes = Math.ceil(estimatedTime / 60);
+      setStatusMessage(`Generating content with Claude 3.7 Sonnet (est. 1-${Math.min(estimatedMinutes, 3)} minutes)...`);
+      
+      // Build the prompt based on content settings
+      const enhancedPrompt = {
+        prompt: `Create ${contentDetails.contentType} content for ${contentDetails.platform} targeting ${contentDetails.targetAudience}.`,
+        topic: contentDetails.researchTopic || contentDetails.targetAudience,
+        context,
+        contentType: contentDetails.contentType,
+        platform: contentDetails.platform,
+        audience: contentDetails.targetAudience,
+        researchData: researchResults?.perplexityResearch || '',
+        youtubeTranscript,
+        youtubeUrl,
+        style: contentSettings.style,
+        language // Use the language from the hook
+      };
+      
+      console.log('Generating content with Claude API...');
+      console.log('Language for content generation:', language);
+      
+      // Progress simulation that's more realistic
+      // Claude usually takes 20-40 seconds for content generation
+      setGenerationProgress(15);
+      console.log("Starting progress simulation: Progress 15%");
+      
+      // Progressive updates during the API call
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            console.log("Progress reached 90%, stopping interval");
+            return prev;
+          }
+          // Slowly increment progress, slower at the beginning, faster in the middle
+          const increment = prev < 30 ? 2 : prev < 60 ? 4 : prev < 80 ? 2 : 1;
+          const newProgress = prev + increment;
+          console.log(`Progress updated: ${newProgress}%`);
+          return newProgress;
+        });
+      }, 1000);
+      
+      // Call the API
+      const response = await fetch('/api/claude/content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(enhancedPrompt),
+      });
+      
+      // Clear the interval when we get a response
+      clearInterval(progressInterval);
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        // Handle API error with detailed information
+        console.error('API error:', data);
+        setApiMode('error');
+        setApiErrorDetails(data.message || data.error || 'Unknown API error');
+        throw new Error(data.message || data.error || 'Failed to generate content');
+      }
+      
+      const generatedContent = data.content;
+      if (!generatedContent) {
+        throw new Error('No content was generated');
+      }
+      
+      // Apply style transformations and length adjustments to the content
+      // First apply the selected style
+      let formattedContent = applyContentStyle(generatedContent, contentSettings.style);
+      
+      // Then adjust for length preference
+      formattedContent = adjustContentLength(formattedContent, contentSettings.length);
+      
+      // Apply call-to-action if enabled
+      if (contentSettings.includeCTA) {
+        formattedContent = addCallToAction(formattedContent, contentDetails.contentType, contentDetails.platform, false);
+      }
+      
+      // Add hashtags if enabled
+      if (contentSettings.includeHashtags) {
+        const hashtags = contentSettings.customHashtags 
+          ? contentSettings.customHashtags.split(',').map(tag => tag.trim())
+          : extractHashtagsFromDetails(contentDetails);
+        formattedContent = addHashtags(formattedContent, hashtags);
+      }
+      
+      // Complete the progress
+      setGenerationProgress(100);
+      console.log("Generation complete: Progress 100%");
+      setStatusMessage(t('contentPage.generated'));
+      
+      setGeneratedContent(formattedContent);
+      setIsGenerating(false);
+      
+      // Clear status message after a delay
+      setTimeout(() => {
+        setStatusMessage("");
+        setGenerationProgress(0);
+      }, 2000);
+      
+    } catch (error: any) {
+      console.error('Error generating content:', error);
+      setError(error.message || 'An error occurred while generating content');
+      setIsGenerating(false);
+      setGenerationProgress(0);
+    } finally {
+      // Clear the debounce flag after a short delay
+      setTimeout(() => {
+        setIsStartGenerationDebounced(false);
+      }, 1000);
+    }
+  };
+
+  // Handle feedback submission to refine content
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackText.trim()) return;
+    
+    setIsRefining(true);
+    
+    // Store current version in history
+    const currentVersion = generatedContent;
+    setContentVersions([...contentVersions, currentVersion]);
+    
+    try {
+      const response = await fetch('/api/claude/refine-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          originalContent: generatedContent,
+          feedback: feedbackText,
+          contentType: contentDetails.contentType,
+          platform: contentDetails.platform,
+          style: contentSettings.style,
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to refine content');
+      
+      const data = await response.json();
+      setGeneratedContent(data.content);
+      setFeedbackText('');
+      
+      // Show success message
+      toast.success('Content refined successfully!');
+      
+    } catch (error) {
+      console.error('Error refining content:', error);
+      setError(`Failed to refine content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error('Failed to refine content. Please try again.');
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  // Add missing functions for exporting
+  const exportAsText = () => {
+    if (!generatedContent) return;
+    // Create and download a text file
+    const element = document.createElement('a');
+    const file = new Blob([generatedContent], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = `content-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const exportAsPDF = () => {
+    if (!generatedContent) return;
+    // For PDF export, we would typically use a library like jsPDF
+    // For now, just alert that the feature is coming soon
+    alert('PDF export functionality will be implemented soon.');
+  };
+
+  // Rename or define regenerateContent function
+  const regenerateContent = () => {
+    if (isGenerating) return;
+    
+    // If we have previous content, save it to the version history
+    if (generatedContent) {
+      setContentVersions([...contentVersions, generatedContent]);
+    }
+    
+    // Start the generation process
+    startGeneration();
+  };
+
+  // Add global styles for the loader
+  useEffect(() => {
+    // Add loader styles to document
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .loader {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      // Clean up when component unmounts
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  // Helper functions for generating blog content for different platforms
+  
+  // WordPress blog post generator
+  const generateWordPressBlogPost = (recommendations: string[], audience: string, topic: string): string => {
+    console.log(`Generating WordPress blog about ${topic} for ${audience}`);
+    
+    // WordPress-specific blog format with SEO focus
+    const title = `# ${topic}: A Comprehensive Guide for ${audience}\n\n`;
+    
+    // WordPress SEO-friendly introduction
+    const intro = `## Introduction\n\nIn today's digital landscape, understanding ${topic} is crucial for ${audience}. This comprehensive guide explores key aspects and provides actionable insights based on current best practices.\n\n`;
+    
+    // Format recommendations as WordPress content sections with headers
+    const formattedRecommendations = recommendations
+      .slice(0, 5)
+      .map((rec, index) => {
+        return `## ${index + 1}. ${rec}\n\nWhen considering ${topic}, it's important to understand that ${rec.toLowerCase()}. This approach has proven effective for ${audience} because it addresses specific needs and challenges.\n\n![Related image for ${rec}](https://via.placeholder.com/600x400)\n\n`;
+      })
+      .join('');
+    
+    // WordPress-specific conclusion with SEO and CTAs
+    const conclusion = `## Conclusion\n\nImplementing these strategies for ${topic} will help ${audience} achieve better results and overcome common challenges. Remember that consistency and adaptation to emerging trends are key to long-term success.\n\n`;
+    
+    // WordPress-specific metadata section
+    const metadata = `<!-- wp:seo-data -->\n<!-- Categories: ${topic}, Best Practices, Guide -->\n<!-- Tags: ${topic.split(' ').join(', ')}, advice for ${audience}, comprehensive guide -->\n<!-- Featured Image: URL to featured image -->\n<!-- excerpt: A comprehensive guide to ${topic} designed specifically for ${audience}, covering best practices and actionable insights. -->\n<!-- /wp:seo-data -->\n\n`;
+    
+    return metadata + title + intro + formattedRecommendations + conclusion;
+  };
+  
+  // Medium blog post generator
+  const generateMediumBlogPost = (recommendations: string[], audience: string, topic: string): string => {
+    console.log(`Generating Medium blog about ${topic} for ${audience}`);
+    
+    // Medium-specific blog format with storytelling focus
+    const title = `# ${topic}: What ${audience} Need to Know in ${new Date().getFullYear()}\n\n`;
+    
+    // Medium-style introduction with hook
+    const intro = `## The Landscape Has Changed\n\nRemember when understanding ${topic} seemed straightforward? Those days are long gone. For ${audience}, navigating this complex terrain requires new insights and approaches.\n\n`;
+    
+    // Personal anecdote (Medium style)
+    const personalTouch = `> *"When I first approached ${topic}, I made countless mistakes that cost me time and resources. I'm sharing these insights so you don't have to learn the hard way."*\n\n`;
+    
+    // Format recommendations as Medium-style sections
+    const formattedRecommendations = recommendations
+      .slice(0, 5)
+      .map((rec, index) => {
+        return `## ${index + 1}. ${rec}\n\n${rec} might sound obvious, but its implementation is where most ${audience} stumble. Let me explain why this matters and how to get it right.\n\n`;
+      })
+      .join('');
+    
+    // Medium-style conclusion with reflection
+    const conclusion = `## Moving Forward\n\nAs we navigate the ever-evolving landscape of ${topic}, remember that what works today might not work tomorrow. The key is to stay adaptable, continue learning, and focus on delivering value to your audience.\n\nWhat strategies have you found effective for ${topic}? Share your experiences in the responses below.\n\n`;
+    
+    return title + intro + personalTouch + formattedRecommendations + conclusion;
+  };
+  
+  // Company blog post generator
+  const generateCompanyBlogPost = (recommendations: string[], audience: string, topic: string): string => {
+    console.log(`Generating Company blog about ${topic} for ${audience}`);
+    
+    // Company blog format with professional, authoritative tone
+    const title = `# ${topic}: Expert Insights for ${audience}\n\n`;
+    
+    // Professional introduction
+    const intro = `## Overview\n\nOur team of experts has analyzed current trends and best practices in ${topic} specifically as they relate to ${audience}. This guide presents our findings and actionable recommendations to help you achieve your goals.\n\n`;
+    
+    // Executive summary
+    const executiveSummary = `## Executive Summary\n\nThis analysis of ${topic} reveals that ${audience} can benefit most from focusing on structured implementation, measurement, and continuous optimization. The following sections provide detailed guidance on each key area.\n\n`;
+    
+    // Format recommendations as professional sections
+    const formattedRecommendations = recommendations
+      .slice(0, 5)
+      .map((rec, index) => {
+        return `## ${index + 1}. ${rec}\n\n**Analysis:** Our research indicates that ${rec.toLowerCase()} is a critical factor for success in ${topic}.\n\n**Implementation:** We recommend a phased approach that begins with assessment, followed by strategic planning and measured execution.\n\n**Expected Outcomes:** ${audience} who implement this approach typically see improvements in key performance indicators within 3-6 months.\n\n`;
+      })
+      .join('');
+    
+    // Professional conclusion with next steps
+    const conclusion = `## Conclusion and Next Steps\n\nImplementing these evidence-based strategies for ${topic} will position ${audience} for success in today's competitive environment. Our team is available for consultation to help tailor these approaches to your specific needs.\n\n`;
+    
+    return title + intro + executiveSummary + formattedRecommendations + conclusion;
+  };
+  
+  // Tranont versions for different blog platforms
+  
+  const generateTransontWordPressBlogPost = (recommendations: string[], audience: string, topic: string): string => {
+    console.log(`Generating Tranont WordPress blog about ${topic} for ${audience}`);
+    
+    const title = `# How Tranont's Approach to ${topic} is Transforming Results for ${audience}\n\n`;
+    
+    const intro = `## The Tranont Difference\n\nIn the world of health and wellness, Tranont stands apart with its unique approach to ${topic}. For ${audience} seeking real results, Tranont's science-backed products and supportive community create a powerful combination.\n\n`;
+    
+    // Format recommendations as WordPress content sections with headers
+    const formattedRecommendations = recommendations
+      .slice(0, 5)
+      .map((rec, index) => {
+        return `## ${index + 1}. ${rec}\n\nTranont's approach to ${rec.toLowerCase()} has proven particularly effective for ${audience}. Our community members report significant improvements when incorporating Tranont products into their daily routine.\n\n![Tranont product results](https://via.placeholder.com/600x400)\n\n`;
+      })
+      .join('');
+    
+    const conclusion = `## Join the Tranont Community\n\nThe journey to better health through ${topic} is one you don't have to take alone. Tranont offers both premium products and a supportive community of like-minded individuals and experts ready to help ${audience} achieve their goals.\n\n`;
+    
+    const metadata = `<!-- wp:seo-data -->\n<!-- Categories: Tranont, ${topic}, Wellness -->\n<!-- Tags: Tranont products, solutions for ${audience}, health journey -->\n<!-- Featured Image: URL to Tranont product image -->\n<!-- excerpt: Discover how Tranont's unique approach to ${topic} is helping ${audience} achieve breakthrough results with premium health products and business opportunities. -->\n<!-- /wp:seo-data -->\n\n`;
+    
+    return metadata + title + intro + formattedRecommendations + conclusion;
+  };
+  
+  const generateTransontMediumBlogPost = (recommendations: string[], audience: string, topic: string): string => {
+    console.log(`Generating Tranont Medium blog about ${topic} for ${audience}`);
+    
+    const title = `# My Journey with Tranont: How ${topic} Changed Everything for This ${audience.split(' ')[0]}\n\n`;
+    
+    const intro = `## The Turning Point\n\nSix months ago, I was like many ${audience} – struggling with ${topic} and looking for real solutions. That's when I discovered Tranont, and everything changed.\n\n`;
+    
+    const personalTouch = `> *"Before Tranont, I tried everything for ${topic}. Nothing provided the results I was looking for until I found their premium health products and supportive community."*\n\n`;
+    
+    const formattedRecommendations = recommendations
+      .slice(0, 5)
+      .map((rec, index) => {
+        return `## ${index + 1}. ${rec}\n\nWhat makes Tranont's approach to ${rec.toLowerCase()} different is their commitment to quality and science. As a ${audience.split(' ')[0]}, I immediately noticed the difference in how I felt and the results I achieved.\n\n`;
+      })
+      .join('');
+    
+    const conclusion = `## My Invitation to You\n\nIf you're a ${audience} struggling with ${topic}, know that there's a better way. Tranont has transformed my approach to health and wellness, and it can do the same for you.\n\nReach out if you'd like to learn more about my personal journey or how Tranont's products might help with your specific goals.\n\n`;
+    
+    return title + intro + personalTouch + formattedRecommendations + conclusion;
+  };
+  
+  const generateTransontCompanyBlogPost = (recommendations: string[], audience: string, topic: string): string => {
+    console.log(`Generating Tranont Company blog about ${topic} for ${audience}`);
+    
+    const title = `# Tranont's Approach to ${topic}: A Guide for ${audience}\n\n`;
+    
+    const intro = `## Tranont's Mission\n\nAt Tranont, we're committed to helping ${audience} achieve optimal health and wellness through our premium products and supportive community. Our approach to ${topic} is based on scientific research, quality ingredients, and real-world results.\n\n`;
+    
+    const executiveSummary = `## Product Overview\n\nTranont offers several key products that address different aspects of ${topic}, each formulated with high-quality ingredients and manufactured in FDA-registered facilities. Our solutions are specifically designed to meet the needs of ${audience}.\n\n`;
+    
+    const formattedRecommendations = recommendations
+      .slice(0, 5)
+      .map((rec, index) => {
+        return `## ${index + 1}. ${rec}\n\n**Tranont Solution:** Our approach to ${rec.toLowerCase()} combines premium products with community support and education.\n\n**Customer Results:** ${audience} using our products report significant improvements in ${topic.toLowerCase()}-related challenges within weeks of consistent use.\n\n**Expert Insight:** Tranont's health professionals recommend combining our products with lifestyle modifications for optimal results.\n\n`;
+      })
+      .join('');
+    
+    const conclusion = `## Begin Your Tranont Journey\n\nWhether you're interested in addressing ${topic} through our premium health products or exploring the business opportunity as a Tranont associate, our team is here to support you every step of the way.\n\nContact a Tranont associate today to learn which products are best suited for your specific needs as a ${audience}.\n\n`;
+    
+    return title + intro + executiveSummary + formattedRecommendations + conclusion;
+  };
+
+  // Add this function before the return statement
+  const handleSaveContent = async () => {
+    try {
+      if (!generatedContent.trim()) {
+        toast.error('No content to save. Please generate content first.');
+        return;
+      }
+
+      // Get current user from auth
+      const { auth } = await import('@/lib/firebase/firebase');
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        toast.error('You must be logged in to save content. Please log in and try again.');
+        return;
+      }
+      
+      console.log('Saving content to dashboard with user ID:', currentUser.uid);
+      
+      // Extract title from content or use the research topic
+      let title = contentDetails.researchTopic || 'Untitled Content';
+      
+      // Try to extract title from the first heading in the content
+      const titleMatch = generatedContent.match(/^# (.+)$/m);
+      if (titleMatch && titleMatch[1]) {
+        title = titleMatch[1];
+      }
+      
+      // Create tags from the content details
+      const tags = [
+        contentDetails.contentType,
+        contentDetails.platform,
+        ...(contentDetails.researchTopic ? [contentDetails.researchTopic.split(' ')[0]] : [])
+      ].filter(Boolean);
+      
+      // Create the content data
+      const contentData = {
+        title,
+        content: generatedContent,
+        tags,
+        platform: contentDetails.platform || 'general',
+        subPlatform: contentDetails.subPlatform || '',
+        persona: contentSettings.style || 'ariastar',
+        status: 'draft' as const,
+        contentType: contentDetails.contentType || 'general',
+        mediaUrls: [],
+        userId: currentUser.uid,
+      };
+      
+      console.log('Saving content with data:', contentData);
+      
+      // Try saving content using the hook
+      const contentId = await saveContent(contentData);
+      console.log('Content saved successfully with ID:', contentId);
+      
+      toast.success('Content saved successfully to your dashboard!');
+      
+      // Redirect to dashboard after a slight delay
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Error saving content:', error);
+      toast.error(error instanceof Error ? error.message : 'There was an error saving your content. Please try again.');
+      
+      // Try direct Firestore access as fallback
+      try {
+        console.log('Attempting direct Firestore save as fallback...');
+        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase/firebase');
+        const { auth } = await import('@/lib/firebase/firebase');
+        
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('User not authenticated');
+        }
+        
+        // Extract title from content or use the research topic
+        let title = contentDetails.researchTopic || 'Untitled Content';
+        
+        // Try to extract title from the first heading in the content
+        const titleMatch = generatedContent.match(/^# (.+)$/m);
+        if (titleMatch && titleMatch[1]) {
+          title = titleMatch[1];
+        }
+        
+        // Create tags from the content details
+        const tags = [
+          contentDetails.contentType,
+          contentDetails.platform,
+          ...(contentDetails.researchTopic ? [contentDetails.researchTopic.split(' ')[0]] : [])
+        ].filter(Boolean);
+        
+        const docRef = await addDoc(collection(db, 'content'), {
+          title,
+          content: generatedContent,
+          tags,
+          platform: contentDetails.platform || 'general',
+          subPlatform: contentDetails.subPlatform || '',
+          persona: contentSettings.style || 'ariastar',
+          status: 'draft' as const,
+          contentType: contentDetails.contentType || 'general',
+          mediaUrls: [],
+          userId: currentUser.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log('Content saved directly to Firestore with ID:', docRef.id);
+        toast.success('Content saved directly to your dashboard!');
+        
+        // Redirect to dashboard after a slight delay
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 1500);
+      } catch (fallbackError) {
+        console.error('Fallback save failed:', fallbackError);
+        toast.error('All attempts to save content failed. Please try again later.');
+      }
+    }
+  };
+
+  return (
+    <AppShell hideHeader={true}>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-6">Content Creator</h1>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">{t('contentPage.title')}</h1>
+          <p className="text-gray-600">
+            {t('contentPage.subtitle')}
+          </p>
+          
+          {/* AI Enhancement Indicator */}
+          <div className="mt-4 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-100">
+            <div className="mr-3 bg-blue-100 p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-blue-800">
+                <strong>{t('contentPage.aiPowered.title')}</strong> {t('contentPage.aiPowered.description')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">{t('contentPage.details')}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500 font-medium">{t('contentPage.contentTypeLabel')}</p>
+              <p className="font-medium">{getContentTypeText()}</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500 font-medium">{t('contentPage.targetAudienceLabel')}</p>
+              <p className="font-medium">{contentDetails?.targetAudience || '-'}</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500 font-medium">{t('contentPage.researchTopicLabel')}</p>
+              <p className="font-medium">{contentDetails?.researchTopic || '-'}</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Content Settings Section */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <div>
+            <section className="bg-white rounded-lg shadow-md p-6 h-full">
+              <h2 className="text-xl font-semibold mb-4">{t('contentPage.aiSettings')}</h2>
+              
+              {/* Content Style */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('contentPage.settings.style')}
+                </label>
+                <select 
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={contentSettings.style}
+                  onChange={(e) => setContentSettings({...contentSettings, style: e.target.value})}
+                >
+                  {CONTENT_STYLES[(contentDetails?.contentType && CONTENT_STYLES[contentDetails.contentType]) ? contentDetails.contentType : 
+                   (contentDetails?.contentType && CONTENT_STYLES[contentDetails.contentType.replace(/-/g, ' ')]) ? contentDetails.contentType.replace(/-/g, ' ') : 
+                   'default'].map((style) => (
+                    <option key={style.id} value={style.id}>
+                      {style.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Content Length */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('contentPage.settings.length')}
+                </label>
+                <select 
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={contentSettings.length}
+                  onChange={(e) => setContentSettings({...contentSettings, length: e.target.value})}
+                >
+                  <option value="short">{t('contentPage.lengthOptions.short')}</option>
+                  <option value="medium">{t('contentPage.lengthOptions.medium')}</option>
+                  <option value="long">{t('contentPage.lengthOptions.long')}</option>
+                </select>
+              </div>
+              
+              {/* CTA Checkbox - Only show for applicable content types */}
+              {shouldShowSocialOptions() && (
+                <div className="mb-6">
+                  <label className="flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={contentSettings.includeCTA}
+                      onChange={(e) => setContentSettings({...contentSettings, includeCTA: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">{t('contentPage.settings.includeCTA')}</span>
+                  </label>
+                </div>
+              )}
+              
+              {/* Hashtags Checkbox - Only show for applicable content types */}
+              {shouldShowSocialOptions() && (
+                <div className="mb-6">
+                  <label className="flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={contentSettings.includeHashtags}
+                      onChange={(e) => setContentSettings({...contentSettings, includeHashtags: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">{t('contentPage.settings.includeHashtags')}</span>
+                  </label>
+                </div>
+              )}
+              
+              <button
+                onClick={regenerateContent}
+                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                disabled={isGenerating}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {t('contentPage.buttons.regenerate')}
+              </button>
+            </section>
+          </div>
+          
+          <div className="md:col-span-2">
+            <section className="bg-white rounded-lg shadow-md p-6 h-full">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">{t('contentPage.generatedContent')}</h2>
+                <div className="flex space-x-2">
+                  <button 
+                    onClick={copyToClipboard}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <IconCopy className="h-4 w-4 mr-1" />
+                    {t('contentPage.buttons.copy')}
+                  </button>
+                  <button 
+                    onClick={exportAsText}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <IconFileText className="h-4 w-4 mr-1" />
+                    {t('contentPage.buttons.exportText')}
+                  </button>
+                  <button 
+                    onClick={exportAsPDF}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
+                  >
+                    <IconFile className="h-4 w-4 mr-1" />
+                    {t('contentPage.buttons.exportPDF')}
+                    <span className="absolute -top-2 -right-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Soon
+                    </span>
+                  </button>
+                </div>
+              </div>
+              
+              {isGenerating ? (
+                <div className="flex flex-col items-center justify-center p-10 bg-white rounded-lg shadow-sm border border-gray-100">
+                  <div className="w-16 h-16 mb-4 relative">
+                    <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-t-blue-500 rounded-full animate-spin"></div>
+                  </div>
+                  <h3 className="text-xl font-medium mb-2">{t('contentPage.generating')}</h3>
+                  <p className="text-gray-500 mb-4 text-center">
+                    {statusMessage || t('contentPage.generatingMessage')}
+                  </p>
+                  
+                  {/* Progress bar */}
+                  <div className="w-full max-w-md mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-blue-700">{t('contentPage.progress.status')}</span>
+                      <span className="text-sm font-medium text-blue-700">{generationProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out" 
+                        style={{ width: `${generationProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-gray-600 mt-4 text-sm">
+                    {generationProgress < 30 && t('contentPage.progress.preparing')}
+                    {generationProgress >= 30 && generationProgress < 60 && t('contentPage.progress.generating')}
+                    {generationProgress >= 60 && generationProgress < 90 && t('contentPage.progress.formatting')}
+                    {generationProgress >= 90 && t('contentPage.progress.finalizing')}
+                  </div>
+                </div>
+              ) : generatedContent ? (
+                <div className="mt-6">
+                  <PersonaStyledContent
+                    content={generatedContent}
+                    persona={contentSettings.style || 'professional'}
+                    contentType={contentDetails.contentType || 'General Content'}
+                    platform={contentDetails.platform || 'General Use'}
+                    isExpanded={isContentExpanded}
+                    onToggleExpand={toggleContentExpansion}
+                  />
+                  
+                  <div className="mt-6 flex flex-wrap gap-4">
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700"
+                    >
+                      <IconCopy size={16} />
+                      Copy to Clipboard
+                    </button>
+                    
+                    <button
+                      onClick={handleExport}
+                      className="flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700"
+                    >
+                      <IconDownload size={16} />
+                      Export
+                    </button>
+                    
+                    <button
+                      onClick={handleSaveContent}
+                      className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      Save to Dashboard
+                    </button>
+                    
+                    <button
+                      onClick={regenerateContent}
+                      className="flex items-center gap-2 rounded-md bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm ring-1 ring-inset ring-indigo-300 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:ring-indigo-700 dark:hover:bg-indigo-800/30"
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <div className="loader mr-2"></div>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                      )}
+                      {isGenerating ? "Generating..." : "Regenerate"}
+                    </button>
+                </div>
+                  
+                  {/* Content Feedback Section */}
+                  <div className="mt-8">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">Refine Your Content</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Not completely satisfied? Provide feedback to refine your content.
+                    </p>
+                    <div className="mt-4">
+                  <textarea 
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                        placeholder="Example: Make it more conversational, add more data points, focus more on the benefits..."
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                        rows={3}
+                      ></textarea>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                  <button 
+                    onClick={handleFeedbackSubmit}
+                        disabled={!feedbackText.trim() || isRefining}
+                        className="flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:bg-indigo-700 dark:hover:bg-indigo-600"
+                  >
+                    {isRefining ? (
+                      <>
+                            <div className="loader mr-2"></div>
+                            Refining...
+                      </>
+                    ) : (
+                          'Refine Content'
+                    )}
+                  </button>
+                    </div>
+                  </div>
+                  
+                  {/* Version history */}
+                  {contentVersions.length > 0 && (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <button
+                        onClick={() => setShowVersionHistory(!showVersionHistory)}
+                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {showVersionHistory ? 'Hide Version History' : 'Show Version History'}
+                      </button>
+                      
+                      {showVersionHistory && (
+                        <div className="mt-2 space-y-1">
+                          <h4 className="text-sm font-medium mb-2">Previous Versions</h4>
+                          <div className="space-y-1">
+                            {contentVersions.map((_, index) => (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  // Store current version to allow switching back
+                                  const currentVersion = generatedContent;
+                                  // Set the content to the selected previous version
+                                  setGeneratedContent(contentVersions[index]);
+                                  // Update versions array with current version at the end
+                                  const newVersions = [...contentVersions];
+                                  newVersions.splice(index, 1); // Remove the one we're restoring
+                                  setContentVersions([...newVersions, currentVersion]);
+                                }}
+                                className="block w-full text-left text-sm text-blue-600 hover:text-blue-800 py-1 px-2 hover:bg-blue-50 rounded"
+                              >
+                                Version {index + 1}
+                              </button>
+                            ))}
+                            <div className="block w-full text-left text-sm font-medium text-blue-800 py-1 px-2 bg-blue-50 rounded">
+                              Current Version
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">{t('contentPage.noContent')}</p>
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+        
+        <div className="flex justify-between">
+          <Link href="/create/research" className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            {t('common.back')}
+          </Link>
+        </div>
+      </div>
+    </AppShell>
+  );
+} 
