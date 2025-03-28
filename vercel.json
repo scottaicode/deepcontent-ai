@@ -8,5 +8,13 @@
   },
   "github": {
     "silent": true
-  }
+  },
+  "rewrites": [
+    { "source": "/create", "destination": "/create.html" },
+    { "source": "/create/", "destination": "/create.html" }
+  ],
+  "routes": [
+    { "src": "/create", "dest": "/create.html" },
+    { "src": "/create/(.*)", "dest": "/create.html" }
+  ]
 }

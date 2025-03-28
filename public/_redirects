@@ -1,0 +1,3 @@
+/create              /create.html   200
+/create/             /create.html   200
+/create/*            /create.html   200 
