@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Debugging Tool</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .info {
+      background-color: #e0f2fe;
+      color: #0c4a6e;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .test-btn {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .test-btn:hover {
+      background-color: #2563eb;
+    }
+    .result {
+      background-color: #f9fafb;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    h1, h2 {
+      color: #1f2937;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f9fafb;
+    }
+  </style>
+</head>
+<body>
+  <h1>Route Debugging Tool</h1>
+  
+  <div class="info">
+    This tool helps diagnose routing issues on Vercel deployments.
+  </div>
+  
+  <div class="card">
+    <h2>Environment Information</h2>
+    <table>
+      <tr>
+        <th>Property</th>
+        <th>Value</th>
+      </tr>
+      <tr>
+        <td>Current URL</td>
+        <td id="current-url"></td>
+      </tr>
+      <tr>
+        <td>Pathname</td>
+        <td id="pathname"></td>
+      </tr>
+      <tr>
+        <td>User Agent</td>
+        <td id="user-agent"></td>
+      </tr>
+      <tr>
+        <td>Window Location</td>
+        <td id="window-location"></td>
+      </tr>
+    </table>
+  </div>
+  
+  <div class="card">
+    <h2>Test Routes</h2>
+    <p>Click the buttons below to test different routes:</p>
+    
+    <div>
+      <button class="test-btn" onclick="testFetch('/')">Test /</button>
+      <button class="test-btn" onclick="testFetch('/create')">Test /create</button>
+      <button class="test-btn" onclick="testFetch('/create.html')">Test /create.html</button>
+      <button class="test-btn" onclick="testFetch('/test.html')">Test /test.html</button>
+      <button class="test-btn" onclick="testFetch('/api/health-check')">Test API</button>
+    </div>
+    
+    <div class="result" id="fetch-result">Results will appear here...</div>
+  </div>
+  
+  <div class="card">
+    <h2>Direct Navigation</h2>
+    <p>Navigate directly to:</p>
+    
+    <div>
+      <a href="/" class="test-btn">Home</a>
+      <a href="/create" class="test-btn">Create</a>
+      <a href="/create.html" class="test-btn">create.html</a>
+      <a href="/test.html" class="test-btn">test.html</a>
+    </div>
+  </div>
+  
+  <script>
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('current-url').textContent = window.location.href;
+      document.getElementById('pathname').textContent = window.location.pathname;
+      document.getElementById('user-agent').textContent = navigator.userAgent;
+      document.getElementById('window-location').textContent = JSON.stringify({
+        host: window.location.host,
+        hostname: window.location.hostname,
+        protocol: window.location.protocol,
+        origin: window.location.origin
+      }, null, 2);
+      
+      // Log debug info
+      console.log('[DEBUG] Debug routes page loaded at ' + new Date().toISOString());
+      console.log('[DEBUG] User agent:', navigator.userAgent);
+      console.log('[DEBUG] Window location:', window.location);
+    });
+    
+    // Test fetch function
+    async function testFetch(url) {
+      const resultElement = document.getElementById('fetch-result');
+      resultElement.textContent = 'Fetching ' + url + '...';
+      
+      try {
+        const startTime = new Date().getTime();
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'text/html',
+            'X-Debug': 'true'
+          }
+        });
+        const endTime = new Date().getTime();
+        
+        const responseText = await response.text();
+        const responsePreview = responseText.substring(0, 100) + '...';
+        
+        resultElement.textContent = `Status: ${response.status} ${response.statusText}
+Time: ${endTime - startTime}ms
+URL: ${response.url}
+Type: ${response.type}
+Headers: ${JSON.stringify(Object.fromEntries([...response.headers]), null, 2)}
+Preview: ${responsePreview}`;
+
+        console.log('[DEBUG] Fetch result for ' + url, {
+          status: response.status,
+          headers: Object.fromEntries([...response.headers]),
+          preview: responsePreview
+        });
+      } catch (error) {
+        resultElement.textContent = 'Error: ' + error.message;
+        console.error('[DEBUG] Fetch error for ' + url, error);
+      }
+    }
+  </script>
+</body>
+</html> 

@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    { 
+      "source": "/create", 
+      "destination": "/create.html" 
+    },
+    { 
+      "source": "/create/:path*", 
+      "destination": "/create.html" 
+    }
+  ]
+} 

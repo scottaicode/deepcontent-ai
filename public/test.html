@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Static File Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .success {
+      background-color: #d1fae5;
+      color: #064e3b;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    h1 {
+      color: #1f2937;
+      margin-bottom: 20px;
+    }
+  </style>
+  <script>
+    console.log('[DEBUG] Test HTML loaded at ' + new Date().toISOString());
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add load time to the page
+      document.getElementById('loadTime').textContent = new Date().toISOString();
+      document.getElementById('path').textContent = window.location.pathname;
+      document.getElementById('fullUrl').textContent = window.location.href;
+    });
+  </script>
+</head>
+<body>
+  <h1>Static File Test</h1>
+  
+  <div class="success">
+    If you can see this page, static HTML files are being served correctly!
+  </div>
+  
+  <div>
+    <p><strong>Page loaded at:</strong> <span id="loadTime"></span></p>
+    <p><strong>Path:</strong> <span id="path"></span></p>
+    <p><strong>Full URL:</strong> <span id="fullUrl"></span></p>
+  </div>
+  
+  <div style="margin-top: 30px;">
+    <p>Test navigation links:</p>
+    <ul>
+      <li><a href="/">Home page</a></li>
+      <li><a href="/create">Create route</a></li>
+      <li><a href="/create.html">Direct access to create.html</a></li>
+    </ul>
+  </div>
+</body>
+</html> 
