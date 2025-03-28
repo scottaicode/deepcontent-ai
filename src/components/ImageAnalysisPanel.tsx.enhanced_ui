@@ -1,0 +1,191 @@
+import React, { useState } from 'react';
+import { Image, Lightbulb, Loader2, Sparkles } from 'lucide-react';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useToast } from '@/lib/hooks/useToast';
+import ImageUploader from './ImageUploader';
+
+interface ImageAnalysisPanelProps {
+  contextType?: 'general' | 'social-media' | 'landing-page' | 'research';
+  onAnalysisComplete?: (analysis: string) => void;
+  customPrompt?: string;
+  className?: string;
+}
+
+const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({
+  contextType = 'general',
+  onAnalysisComplete,
+  customPrompt,
+  className = '',
+}) => {
+  const { t, language } = useTranslation();
+  const { toast } = useToast();
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [customUserPrompt, setCustomUserPrompt] = useState(customPrompt || '');
+
+  const handleImageUpload = (file: File, previewUrl: string) => {
+    setImageFile(file);
+    setImagePreview(previewUrl);
+    
+    // Reset analysis when a new image is uploaded
+    setAnalysis('');
+  };
+
+  const handleImageRemove = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setAnalysis('');
+  };
+
+  const analyzeImage = async () => {
+    if (!imageFile) {
+      toast({
+        title: t('imageAnalysis.noImage', { defaultValue: 'No image' }),
+        description: t('imageAnalysis.uploadFirst', { defaultValue: 'Please upload an image first' }),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      // Create form data to send to the API
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      
+      if (customUserPrompt) {
+        formData.append('prompt', customUserPrompt);
+      }
+      
+      formData.append('contextType', contextType);
+      formData.append('language', language);
+
+      // Call the API
+      const response = await fetch('/api/claude/analyze-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to analyze image');
+      }
+
+      const data = await response.json();
+      setAnalysis(data.analysis);
+      
+      if (onAnalysisComplete) {
+        onAnalysisComplete(data.analysis);
+      }
+
+      toast({
+        title: t('imageAnalysis.success', { defaultValue: 'Analysis complete' }),
+        description: t('imageAnalysis.successDesc', { defaultValue: 'Claude has analyzed your image' }),
+      });
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      toast({
+        title: t('imageAnalysis.error', { defaultValue: 'Analysis failed' }),
+        description: t('imageAnalysis.errorDesc', { 
+          defaultValue: 'Could not analyze the image. Please try again.'
+        }),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  return (
+    <div className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow transition-all duration-300 ${className}`}>
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-t-xl border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+          <div className="p-2 bg-blue-100 dark:bg-blue-800/30 rounded-full">
+            <Image className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          {t('imageAnalysis.title', { defaultValue: 'Image Analysis' })}
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 ml-9">
+          {t('imageAnalysis.description', { 
+            defaultValue: 'Upload an image for Claude to analyze and provide insights for your content.'
+          })}
+        </p>
+      </div>
+      
+      <div className="p-5">
+        <ImageUploader 
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
+          initialImage={imagePreview || undefined}
+          maxSizeMB={10}
+          className="mb-1"
+        />
+        
+        {imagePreview && (
+          <div className="mt-5 transition-all duration-300">
+            <div className="flex flex-col space-y-3">
+              <label 
+                htmlFor="custom-prompt" 
+                className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2"
+              >
+                <Sparkles className="h-4 w-4 text-blue-500" />
+                {t('imageAnalysis.customPrompt', { defaultValue: 'Custom Analysis Instructions (Optional)' })}
+              </label>
+              <textarea
+                id="custom-prompt"
+                rows={2}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white transition-colors duration-200"
+                placeholder={t('imageAnalysis.promptPlaceholder', { 
+                  defaultValue: 'E.g., Analyze this product image and suggest selling points...' 
+                })}
+                value={customUserPrompt}
+                onChange={(e) => setCustomUserPrompt(e.target.value)}
+              />
+            </div>
+            
+            <button
+              type="button"
+              onClick={analyzeImage}
+              disabled={isAnalyzing}
+              className="mt-4 w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                  {t('imageAnalysis.analyzing', { defaultValue: 'Analyzing with Claude...' })}
+                </>
+              ) : (
+                <>
+                  <Lightbulb className="mr-2 h-4 w-4" />
+                  {t('imageAnalysis.analyze', { defaultValue: 'Analyze with Claude' })}
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        
+        {analysis && (
+          <div className="mt-5 p-4 bg-gradient-to-r from-blue-50/50 to-white border border-blue-100 rounded-xl dark:from-blue-900/10 dark:to-gray-800 dark:border-blue-900/30 transition-all duration-300">
+            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-3 flex items-center">
+              <Sparkles className="h-4 w-4 mr-2" />
+              {t('imageAnalysis.results', { defaultValue: 'Analysis Results' })}
+            </h4>
+            <div className="prose dark:prose-invert prose-sm max-w-none text-gray-700 dark:text-gray-300">
+              {analysis.split('\n').map((line, index) => (
+                <React.Fragment key={index}>
+                  {line}
+                  <br />
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ImageAnalysisPanel; 
