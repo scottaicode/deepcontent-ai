@@ -2,10 +2,15 @@
   "version": 2,
   "buildCommand": null,
   "outputDirectory": "public",
+  "public": true,
   "cleanUrls": true,
   "trailingSlash": false,
+  "github": {
+    "silent": true
+  },
   "routes": [
+    { "handle": "filesystem" },
     { "src": "/create", "dest": "/create.html" },
-    { "src": "/", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/$1.html" }
   ]
 }
