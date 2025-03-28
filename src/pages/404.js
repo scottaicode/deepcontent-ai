@@ -6,22 +6,36 @@ export default function Custom404() {
   const [path, setPath] = useState('');
   const [redirecting, setRedirecting] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(5);
+  const [detectTime, setDetectTime] = useState(new Date().toISOString());
+  const [routeStatus, setRouteStatus] = useState('');
 
   useEffect(() => {
     // Log debugging information
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
     console.log('[DEBUG] 404 page loaded for path:', currentPath);
+    console.log('[DEBUG] Full URL:', currentUrl);
     setPath(currentPath);
     
-    // Check if this is the create route
-    if (currentPath === '/create') {
-      console.log('[DEBUG] Detected /create route, special handling');
-      // If this is the create route, redirect immediately to our create page
-      window.location.href = '/create';
+    // VERY IMPORTANT: Special handling for /create route
+    if (currentPath === '/create' || currentPath.startsWith('/create/')) {
+      console.log('[DEBUG] Detected /create route, immediate action needed');
+      setRouteStatus('Create route detected, attempting to fix...');
+      
+      // Try multiple approaches
+      // 1. Try to access the static HTML first 
+      window.location.href = '/create/index.html';
+      
+      // 2. If that doesn't work after a short delay, try direct navigation to create.js
+      setTimeout(() => {
+        console.log('[DEBUG] Trying fallback approach for /create');
+        window.location.href = '/create?bypass=true';
+      }, 500);
+      
       return;
     }
     
-    // Set up countdown for redirection
+    // Set up countdown for redirection for other routes
     const countdown = setInterval(() => {
       setSecondsLeft(prev => {
         if (prev <= 1) {
@@ -45,6 +59,17 @@ export default function Custom404() {
     console.log('[DEBUG] Redirection cancelled by user');
   };
 
+  // Special function to try alternative routes
+  const tryAlternativeRoutes = () => {
+    if (path === '/create' || path.startsWith('/create/')) {
+      console.log('[DEBUG] Manual attempt to fix create route');
+      
+      // Try a different approach
+      const targetUrl = '/create?manual=true&time=' + new Date().getTime();
+      window.location.href = targetUrl;
+    }
+  };
+
   return (
     <>
       <Head>
@@ -61,9 +86,19 @@ export default function Custom404() {
         <div className="mb-8 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-left max-w-md">
           <h3 className="text-md font-semibold mb-2">Debug Information:</h3>
           <p className="text-sm mb-2"><strong>Requested path:</strong> {path}</p>
+          <p className="text-sm mb-2"><strong>Detected at:</strong> {detectTime}</p>
+          <p className="text-sm mb-2"><strong>Status:</strong> {routeStatus || 'Standard 404'}</p>
+          {path === '/create' && (
+            <button 
+              onClick={tryAlternativeRoutes}
+              className="mt-2 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors"
+            >
+              Try Alternative Route
+            </button>
+          )}
         </div>
         
-        {redirecting ? (
+        {redirecting && path !== '/create' ? (
           <>
             <p className="text-sm mb-8">Redirecting to homepage in {secondsLeft} seconds...</p>
             <div className="flex space-x-4">
