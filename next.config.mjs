@@ -30,6 +30,14 @@ const nextConfig = {
         source: "/api/:path*",
         destination: "https://api.openai.com/:path*",
       },
+      {
+        source: "/create",
+        destination: "/create",
+      },
+      {
+        source: "/create/:path*",
+        destination: "/create/:path*",
+      },
     ];
   },
   // Ensure trailing slashes are handled consistently
