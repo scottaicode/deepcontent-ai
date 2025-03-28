@@ -1,0 +1,2 @@
+3:import { enhanceWithPersonaTraits, getPersonaDisplayName } from '@/app/lib/personaUtils';
+72:    const enhancedContent = enhanceWithPersonaTraits(responseText, style, styleIntensity || 1, language || 'en');

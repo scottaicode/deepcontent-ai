@@ -24,12 +24,17 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  // Explicitly use the Pages Router
+  experimental: {
+    appDir: false, // Disable App Router
+  },
   async rewrites() {
     return [
       {
         source: "/api/:path*",
         destination: "https://api.openai.com/:path*",
       },
+      // Add explicit handling for /create route
       {
         source: "/create",
         destination: "/create",
@@ -49,6 +54,10 @@ const nextConfig = {
     // number of pages that should be kept simultaneously without being disposed
     pagesBufferLength: 4,
   },
+  // Generate detailed output during build
+  distDir: '.next',
+  poweredByHeader: false,
+  reactStrictMode: true,
 };
 
 export default nextConfig;
