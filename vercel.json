@@ -1,22 +1,6 @@
 {
-  "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
-  "framework": "nextjs",
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "github": {
-    "silent": true
-  },
   "rewrites": [
-    { 
-      "source": "/create", 
-      "destination": "/create.html" 
-    },
-    { 
-      "source": "/create/:path*", 
-      "destination": "/create.html" 
-    }
+    { "source": "/create", "destination": "/create.html" },
+    { "source": "/generator", "destination": "/generator.html" }
   ]
-}
+} 

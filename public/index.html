@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepContent AI</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+  <div class="flex flex-col items-center justify-center min-h-screen text-center">
+    <h1 class="text-5xl font-bold mb-4">DeepContent AI</h1>
+    <p class="text-xl mb-12">An AI-powered content creation and management platform</p>
+    
+    <div class="flex gap-4 mb-8">
+      <a 
+        href="/create" 
+        class="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+      >
+        Create Content
+      </a>
+      <a 
+        href="/generator" 
+        class="px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-lg font-medium"
+      >
+        Content Generator
+      </a>
+    </div>
+    
+    <div class="mt-8 text-gray-600">
+      <p>Test direct access to static files:</p>
+      <div class="flex flex-col mt-2">
+        <a href="/create.html" class="text-blue-600 hover:underline">create.html</a>
+        <a href="/generator.html" class="text-blue-600 hover:underline">generator.html</a>
+        <a href="/test.html" class="text-blue-600 hover:underline">test.html</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html> 
