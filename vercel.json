@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "public": true,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "github": {
+    "silent": true
+  },
+  "routes": [
+    {
+      "src": "/create",
+      "dest": "/create"
+    },
+    {
+      "src": "/create/(.*)",
+      "dest": "/create/$1"
+    }
+  ]
+}
