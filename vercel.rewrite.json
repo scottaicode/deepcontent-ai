@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    { 
+      "source": "/create", 
+      "destination": "/create" 
+    },
+    { 
+      "source": "/create/:path*", 
+      "destination": "/create" 
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
+    }
+  ]
+} 

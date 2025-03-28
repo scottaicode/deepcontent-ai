@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "outputDirectory": "public",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
   "public": true,
   "cleanUrls": true,
   "trailingSlash": false,
