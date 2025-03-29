@@ -128,6 +128,10 @@ export async function GET(request: NextRequest) {
       }
     } else {
       console.log('YouTube Transcript API: Supadata API key not configured, skipping');
+      errors.push({ 
+        method: 'supadata', 
+        error: 'Supadata API key is not configured. Please add SUPADATA_API_KEY to your environment variables.'
+      });
     }
     
     // 2. Third try: youtube-transcript library

@@ -256,14 +256,10 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
           console.error('🔍 CLIENT DIAGNOSTIC: Video validation failed - video may not exist');
         }
       } catch (validationError) {
-        console.warn('🔍 CLIENT DIAGNOSTIC: Video validation check failed', validationError);
-        // Continue even if validation fails - the transcript API will give appropriate errors
+        console.error('🔍 CLIENT DIAGNOSTIC: Video validation error', validationError);
       }
       
-      // Use our direct API endpoint with hardcoded API key for testing
-      console.log('🔍 CLIENT DIAGNOSTIC: Requesting transcript from API...');
-      console.time('transcript-fetch');
-      
+      // Now make the actual API request
       const response = await fetch(`/api/youtube-direct?videoId=${videoId}`, {
         method: 'GET',
         headers: {
@@ -271,56 +267,29 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
         },
       });
       
-      console.timeEnd('transcript-fetch');
-      console.log('🔍 CLIENT DIAGNOSTIC: Transcript API response received', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type')
-      });
+      const data = await response.json();
       
-      let responseText = '';
-      try {
-        responseText = await response.text();
-        console.log('🔍 CLIENT DIAGNOSTIC: Response text received', {
-          length: responseText.length, 
-          preview: responseText.substring(0, 100)
+      // Check for API configuration errors specifically
+      if (data.error && data.error.includes('{0}')) {
+        // This is our generic error template with a missing parameter
+        setError('API configuration error: The YouTube transcript service is not properly configured. Please check the API Configuration.');
+        toast({
+          title: 'API Configuration Error',
+          description: 'The YouTube transcript service is not properly configured. Please add your Supadata API key to the .env file.',
+          variant: 'destructive'
         });
-      } catch (textError) {
-        console.error('🔍 CLIENT DIAGNOSTIC: Failed to read response text', textError);
-        throw new Error('Failed to read API response');
+        throw new Error('API Configuration Error');
       }
       
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = JSON.parse(responseText);
-          console.error('🔍 CLIENT DIAGNOSTIC: API returned error', errorData);
-        } catch (parseError) {
-          console.error('🔍 CLIENT DIAGNOSTIC: Failed to parse error response', {
-            parseError, 
-            responseText: responseText.substring(0, 200)
-          });
-          throw new Error(`Error fetching transcript: ${response.status} ${response.statusText}`);
-        }
-        
-        throw new Error(errorData.error || `Error fetching transcript: ${response.status}`);
+      // Handle other error cases
+      if (data.error) {
+        setError(getErrorMessage({ message: data.error }));
+        throw new Error(data.error);
       }
       
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log('🔍 CLIENT DIAGNOSTIC: Successfully parsed response', {
-          hasTranscript: !!data.transcript,
-          transcriptLength: data.transcript?.length || 0,
-          source: data.source || 'unknown'
-        });
-      } catch (parseError) {
-        console.error('🔍 CLIENT DIAGNOSTIC: JSON parse error', {
-          error: parseError,
-          responsePreview: responseText.substring(0, 200)
-        });
-        throw new Error('Failed to parse transcript data from API');
+      if (!data.transcript) {
+        setError('No transcript was returned from the API. The video may not have captions available.');
+        throw new Error('No transcript returned');
       }
       
       // Process the transcript - check for error messages in the content
@@ -467,7 +436,7 @@ ${text}
     
     try {
       // Call our diagnostic endpoint
-      const response = await fetch('/api/youtube/check-api');
+      const response = await fetch('/api/youtube-direct/check-api');
       const data = await response.json();
       
       setDiagnosticInfo(JSON.stringify(data, null, 2));
@@ -611,124 +580,49 @@ ${text}
     
     setIsLoading(true);
     setError(null);
-    setClientSideExtractionMode(true);
     
     try {
-      console.log('🔍 CLIENT EXTRACTION: Initializing YouTube player for caption extraction');
+      // Fall back to server-side method first
+      await handleFetchTranscript();
+    } catch (err) {
+      // Server-side method failed, show a simple message about captions
+      console.error('Server-side extraction failed, providing fallback message');
       
-      // Ensure the container exists
-      if (!playerContainerRef.current) {
-        throw new Error('Player container not found');
-      }
+      // Create a fallback message
+      const videoTitle = 'YouTube Video';
+      const transcriptText = `# YouTube Video Analysis
+
+## Video ID: ${youtubeId}
+
+YouTube's API restrictions prevent us from automatically extracting the full transcript for this video.
+
+If this video has closed captions available, you can view them by:
+
+1. Opening the video directly: https://www.youtube.com/watch?v=${youtubeId}
+2. Clicking the "CC" button in the YouTube player
+
+For your research, consider watching the video with captions enabled and taking notes on key points.
+`;
       
-      // Create a player instance
-      if (window.YT && window.YT.Player) {
-        // Clear any existing player
-        if (playerInstanceRef.current) {
-          playerInstanceRef.current.destroy();
-          playerInstanceRef.current = null;
-        }
-        
-        // Create new player
-        let transcriptText = '';
-        let captionsFound = false;
-        
-        // Create a hidden player to check for captions
-        const player = new window.YT.Player(playerContainerRef.current, {
-          videoId: youtubeId,
-          width: '320',
-          height: '180',
-          playerVars: {
-            autoplay: 0,
-            controls: 1,
-            cc_load_policy: 1, // Force closed captions
-            cc_lang_pref: 'en',
-            modestbranding: 1,
-            origin: window.location.origin
-          },
-          events: {
-            onReady: (event) => {
-              console.log('🔍 CLIENT EXTRACTION: YouTube player ready');
-              setPlayerReady(true);
-              playerInstanceRef.current = event.target;
-              
-              // Check if this video has captions
-              const hasCapModules = event.target.hasModule && event.target.hasModule('captions');
-              const hasCCOption = event.target.getOptions && event.target.getOptions('captions').length > 0;
-              
-              captionsFound = hasCapModules || hasCCOption;
-              console.log('🔍 CLIENT EXTRACTION: Caption detection:', { 
-                hasCapModules, 
-                hasCCOption,
-                captionsFound
-              });
-              
-              // Get video title for the transcript
-              const videoData = event.target.getVideoData();
-              const videoTitle = videoData?.title || 'YouTube Video';
-              
-              // If captions are available, we'll use that information in the response
-              if (captionsFound) {
-                transcriptText = `# YouTube Video Transcript\n\nTitle: ${videoTitle}\nVideo ID: ${youtubeId}\n\n`;
-                transcriptText += `This video has captions available in the YouTube player. To view them:\n\n`;
-                transcriptText += `1. Go to the video: https://www.youtube.com/watch?v=${youtubeId}\n`;
-                transcriptText += `2. Click the "CC" button in the YouTube player\n\n`;
-                transcriptText += `Our system detected that this video has captions, but we couldn't extract the full text automatically due to YouTube API restrictions.\n\n`;
-                transcriptText += `You can analyze this video by watching it with captions enabled.`;
-              } else {
-                throw new Error('No captions detected for this video');
-              }
-              
-              // Mute the player and stop video
-              event.target.mute();
-              setTimeout(() => {
-                event.target.stopVideo();
-                
-                // Process the transcript and complete the flow
-                if (transcriptText) {
-                  // Format the transcript
-                  const formattedTranscript = formatTranscript(
-                    transcriptText, 
-                    'en', 
-                    `https://youtube.com/watch?v=${youtubeId}`,
-                    true // Treat as pre-formatted
-                  );
-                  
-                  // Call the callback with the transcript and URL
-                  onTranscriptFetched(formattedTranscript, url);
-                  
-                  // Show guidance toast
-                  toast({
-                    title: 'Captions Detected',
-                    description: 'This video has captions, but due to YouTube restrictions, we can only confirm their existence, not extract the full text.',
-                    variant: 'default',
-                  });
-                }
-              }, 2000);
-            },
-            onError: (event) => {
-              console.error('🔍 CLIENT EXTRACTION: YouTube player error:', event.data);
-              throw new Error(`YouTube player error: ${event.data}`);
-            }
-          }
-        });
-      } else {
-        throw new Error('YouTube iframe API not available');
-      }
-    } catch (err: any) {
-      console.error('🔍 CLIENT EXTRACTION: Error:', err);
-      setError(getErrorMessage(err));
-      setClientSideExtractionMode(false);
+      // Format and display the fallback message
+      const formattedTranscript = formatTranscript(
+        transcriptText, 
+        'en', 
+        `https://youtube.com/watch?v=${youtubeId}`,
+        true // Treat as pre-formatted
+      );
+      
+      // Call the callback with the transcript and URL
+      onTranscriptFetched(formattedTranscript, url);
+      
+      // Show guidance toast
       toast({
-        title: 'Error checking for captions',
-        description: getErrorMessage(err),
-        variant: 'destructive',
+        title: 'Alternative Method',
+        description: 'We provided guidance on how to access captions for this video directly on YouTube.',
+        variant: 'default',
       });
     } finally {
-      // We don't set isLoading to false immediately since the player onReady event will complete the process
-      if (!playerReady) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   };
 
@@ -822,85 +716,37 @@ ${text}
         )}
 
         {/* Error Message */}
-        {error && !isLoading && (
-          <div className="mt-2 p-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <div className="flex items-start">
+        {error && (
+          <div className="mt-4 p-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <div className="flex">
               <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-400 dark:text-red-300" />
+                <AlertTriangle className="h-5 w-5 text-red-400" />
               </div>
-              <div className="ml-3 w-full">
-                <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error</h3>
-                <p className="mt-1 text-sm text-red-700 dark:text-red-200">{error}</p>
-                
-                {/* User guidance for API key errors */}
-                {error.includes('API key') && (
-                  <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-md border border-red-100 dark:border-red-900/30">
-                    <h4 className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('common.whatToDo', { defaultValue: "What to do:" })}</h4>
-                    <ul className="mt-1 text-xs text-gray-700 dark:text-gray-300 space-y-1 ml-4 list-disc">
-                      <li>{t('youtubeTranscript.apiKeyRequired', { defaultValue: "This feature requires a valid Supadata API key" })}</li>
-                      <li>{t('youtubeTranscript.checkApiKey', { defaultValue: "If you're the administrator, check your API key configuration in settings" })}</li>
-                      <li>{t('youtubeTranscript.contactAdmin', { defaultValue: "Users should contact their administrator for assistance" })}</li>
-                    </ul>
-                    <div className="mt-2 flex space-x-3">
-                      <a 
-                        href="/settings/api-keys" 
-                        className="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
-                        <span className="inline-flex items-center">Go to API settings <ChevronRight className="ml-1 h-3 w-3" /></span>
-                      </a>
-                      <a 
-                        href="/api-test" 
-                        className="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
-                        <span className="inline-flex items-center">Diagnose API Issues <ChevronRight className="ml-1 h-3 w-3" /></span>
-                      </a>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Diagnostic checks */}
-                <div className="mt-3 space-y-2">
-                  <button
-                    type="button"
-                    onClick={checkApiKey}
-                    className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-800/50 dark:text-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                  >
-                    <RefreshCw className="mr-1 h-3 w-3" />
-                    {t('youtubeTranscript.checkApiConfig', { defaultValue: "Check API Configuration" })}
-                  </button>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
+                  {t('youtubeTranscript.error', { defaultValue: "Error" })}
+                </h3>
+                <div className="mt-2 text-sm text-red-700 dark:text-red-400">
+                  <p>{error}</p>
                   
-                  {apiStatus === 'checking' && (
-                    <div className="text-sm text-red-700 dark:text-red-300 flex items-center">
-                      <Loader2 className="animate-spin mr-1 h-3 w-3" />
-                      {t('youtubeTranscript.checkingApi', { defaultValue: "Checking API configuration..." })}
-                    </div>
-                  )}
-                  
-                  {apiStatus === 'success' && (
-                    <div className="text-sm text-green-700 dark:text-green-300 flex items-center">
-                      <Check className="mr-1 h-3 w-3" />
-                      {t('youtubeTranscript.apiValid', { defaultValue: "API configuration is valid" })}
-                    </div>
-                  )}
-                  
-                  {apiStatus === 'error' && (
-                    <div className="text-sm text-red-700 dark:text-red-300 flex items-center">
-                      <X className="mr-1 h-3 w-3" />
-                      {t('youtubeTranscript.apiFailed', { defaultValue: "API configuration failed" })}
-                    </div>
-                  )}
-                  
-                  {/* Only show technical details in a collapsible section */}
-                  {diagnosticInfo && (
-                    <div className="mt-2">
-                      <details className="text-xs">
-                        <summary className="cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                          {t('youtubeTranscript.technicalDetails', { defaultValue: "Technical details (for administrators)" })}
-                        </summary>
-                        <div className="mt-1 p-2 bg-red-50 dark:bg-red-900/40 rounded border border-red-200 dark:border-red-800/50 font-mono overflow-auto max-h-32">
-                          {diagnosticInfo}
-                        </div>
-                      </details>
+                  {error.includes('API configuration') && (
+                    <div className="mt-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded border border-red-200 dark:border-red-800">
+                      <h4 className="font-medium mb-2">Configuration Instructions:</h4>
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>Add <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">SUPADATA_API_KEY=your_api_key</code> to your <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">.env</code> file</li>
+                        <li>Get your API key from <a href="https://supadata.io/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Supadata Dashboard</a></li>
+                        <li>Restart your development server</li>
+                      </ol>
+                      
+                      <div className="mt-3">
+                        <button
+                          onClick={checkApiKey}
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:text-indigo-100 dark:bg-indigo-700/30 dark:hover:bg-indigo-700/50"
+                        >
+                          <RefreshCw className="mr-1 h-3 w-3" />
+                          Check API Configuration
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
