@@ -30,8 +30,7 @@ export async function GET() {
   };
   
   try {
-    // Use a video that definitely has captions enabled instead of Rick Astley
-    // TED talk videos are reliable for having proper transcripts
+    // Use a video that definitely has captions enabled 
     const testVideoId = 'UF8uR6Z6KLc'; // Steve Jobs' Stanford Commencement Speech - has reliable transcripts
     
     diagnostics.checks.push({
@@ -50,39 +49,78 @@ export async function GET() {
         keyPreview: `${process.env.SUPADATA_API_KEY.substring(0, 3)}...${process.env.SUPADATA_API_KEY.substring(process.env.SUPADATA_API_KEY.length - 3)}`
       });
       
-      // Check 1.6: Test Supadata API
+      // Check 1.6: Test Supadata API with safer approach
       try {
         console.log('YouTube API Check: Testing Supadata API with test video ID:', testVideoId);
-        const supadataResponse = await fetch(`https://api.supadata.io/youtube/transcript?videoId=${testVideoId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${process.env.SUPADATA_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          signal: AbortSignal.timeout(10000) // 10-second timeout
-        });
         
-        if (supadataResponse.ok) {
-          const data = await supadataResponse.json();
-          const transcript = data.transcript || data.content;
-          
-          diagnostics.checks.push({
-            name: 'Supadata API Check',
-            status: 'success',
-            message: `Successfully fetched transcript with Supadata API (${transcript.length} characters)`,
-            responseStatus: supadataResponse.status,
-            previewText: transcript.substring(0, 100) + '...'
+        // More robust fetch with error handling
+        let supadataResponse;
+        try {
+          supadataResponse = await fetch(`https://api.supadata.io/youtube/transcript?videoId=${testVideoId}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${process.env.SUPADATA_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            signal: AbortSignal.timeout(10000) // 10-second timeout
           });
-        } else {
-          const errorText = await supadataResponse.text();
-          diagnostics.checks.push({
-            name: 'Supadata API Check',
-            status: 'error',
-            message: `Supadata API returned status ${supadataResponse.status}`,
-            responseStatus: supadataResponse.status,
-            errorText: errorText
-          });
+        } catch (fetchError: any) {
+          throw new Error(`Network error: ${fetchError.message}`);
         }
+        
+        // Handle non-OK responses
+        if (!supadataResponse.ok) {
+          let errorInfo = '';
+          try {
+            const errorText = await supadataResponse.text();
+            errorInfo = errorText.substring(0, 100);
+          } catch (e) {
+            errorInfo = 'Could not read error text';
+          }
+          
+          throw new Error(`API returned status ${supadataResponse.status}: ${errorInfo}`);
+        }
+        
+        // Safely parse JSON
+        let responseText = '';
+        let data;
+        
+        try {
+          responseText = await supadataResponse.text();
+          
+          // Handle empty response
+          if (!responseText || responseText.trim().length === 0) {
+            throw new Error('Empty response from API');
+          }
+          
+          // Trim response to remove BOM and whitespace
+          const trimmedResponse = responseText.trim();
+          
+          // Parse JSON
+          data = JSON.parse(trimmedResponse);
+          
+        } catch (parseError: any) {
+          throw new Error(`JSON parse error: ${parseError.message}. Response preview: ${responseText.substring(0, 50)}...`);
+        }
+        
+        // Validate response data
+        if (!data) {
+          throw new Error('No data in response');
+        }
+        
+        const transcript = data.transcript || data.content;
+        
+        if (!transcript || typeof transcript !== 'string') {
+          throw new Error('No transcript in response');
+        }
+        
+        diagnostics.checks.push({
+          name: 'Supadata API Check',
+          status: 'success',
+          message: `Successfully fetched transcript with Supadata API (${transcript.length} characters)`,
+          responseStatus: supadataResponse.status,
+          previewText: transcript.substring(0, 100) + '...'
+        });
       } catch (error: any) {
         console.error('YouTube API Check: Supadata API test failed:', error);
         diagnostics.checks.push({
@@ -103,9 +141,16 @@ export async function GET() {
       });
     }
     
+    // Check library method with better error handling
     try {
       console.log('YouTube API Check: Testing transcript fetch with test video ID:', testVideoId);
-      const result = await YoutubeTranscript.fetchTranscript(testVideoId);
+      
+      let result;
+      try {
+        result = await YoutubeTranscript.fetchTranscript(testVideoId);
+      } catch (libraryError: any) {
+        throw new Error(`Library error: ${libraryError.message}`);
+      }
       
       if (result && Array.isArray(result) && result.length > 0) {
         diagnostics.checks.push({
@@ -119,7 +164,7 @@ export async function GET() {
           name: 'Transcript Fetch Check',
           status: 'warning',
           message: 'Fetch completed but returned empty result',
-          result
+          resultLength: result ? result.length : 0
         });
       }
     } catch (error: any) {
@@ -130,25 +175,39 @@ export async function GET() {
         message: `Failed to fetch transcript: ${error.message}`,
         error: {
           name: error.name,
-          message: error.message,
-          stack: error.stack
+          message: error.message
         }
       });
     }
     
-    // Check 2: Network connectivity check
+    // Check 2: Network connectivity check with better error handling
     try {
       console.log('YouTube API Check: Testing network connectivity to YouTube');
-      const pingResult = await fetch('https://www.youtube.com/robots.txt', { 
-        method: 'HEAD',
-        signal: AbortSignal.timeout(5000)
-      });
+      
+      let pingResult;
+      try {
+        pingResult = await fetch('https://www.youtube.com/robots.txt', { 
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000)
+        });
+      } catch (fetchError: any) {
+        throw new Error(`Network error: ${fetchError.message}`);
+      }
+      
+      // Safely get headers
+      let headerEntries: [string, string][] = [];
+      try {
+        headerEntries = Array.from(pingResult.headers.entries()).slice(0, 5) as [string, string][];
+      } catch (headerError) {
+        console.warn('Could not extract headers:', headerError);
+        headerEntries = [];
+      }
       
       diagnostics.checks.push({
         name: 'YouTube Connectivity Check',
         status: pingResult.ok ? 'success' : 'warning',
         message: `YouTube ping status: ${pingResult.status} ${pingResult.statusText}`,
-        headers: Object.fromEntries(Array.from(pingResult.headers.entries()).slice(0, 5))
+        headers: Object.fromEntries(headerEntries)
       });
     } catch (error: any) {
       console.error('YouTube API Check: Network connectivity test failed:', error);
@@ -182,8 +241,7 @@ export async function GET() {
     diagnostics.duration = Date.now() - startTime;
     diagnostics.error = {
       message: error.message,
-      name: error.name,
-      stack: error.stack
+      name: error.name
     };
     
     return NextResponse.json(diagnostics, { status: 500 });
