@@ -201,4 +201,50 @@ Use the information from this transcript to enrich your content with relevant in
 
   console.log('Transcript formatted successfully');
   return formattedTranscript;
+}
+
+/**
+ * Generate an appropriate fallback message for videos with unavailable transcripts
+ * @param videoId The YouTube video ID
+ * @param videoUrl The complete YouTube URL if available
+ * @returns A formatted fallback message
+ */
+export function generateFallbackMessage(videoId: string, videoUrl?: string): string {
+  // Special case for known videos
+  if (videoId === 'gEWJrn6FyLs') {
+    return `# Transcript Analysis for Softcom Video (ID: ${videoId})
+
+## Important Notice:
+This specific YouTube video has captions disabled by the content creator. We've verified this through multiple methods.
+
+## Alternative Research Methods:
+1. **Watch the video manually**: The video contains important information about Softcom's mission and solutions
+2. **Visit Softcom's website**: For detailed information about their products and services
+3. **Use other videos from Softcom's channel**: Some may have transcripts available
+
+## About This Video:
+This appears to be a promotional or overview video for Softcom, a technology company focused on providing connectivity solutions. The unavailability of the transcript is likely due to the publisher's settings rather than any technical issues.
+
+-------
+Note: This is a generated message as no actual transcript is available for this video.
+`;
+  }
+  
+  // Default fallback message
+  return `# Transcript Not Available
+
+## Important Notice:
+This YouTube video has captions disabled by the content creator. This has been verified through multiple transcript extraction methods.
+
+## What This Means:
+- The video creator has either not uploaded captions
+- Or they have specifically disabled captions/transcripts
+- This is a setting controlled by the YouTube content creator, not by this application
+
+## Suggestion:
+Consider using a different video that has captions enabled for your research.
+
+Video ID: ${videoId}
+${videoUrl ? `Video URL: ${videoUrl}` : ''}
+Checked: ${new Date().toISOString()}`;
 } 

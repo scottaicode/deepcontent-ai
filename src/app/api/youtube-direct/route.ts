@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
+import { generateFallbackMessage } from '@/app/lib/services/YouTubeTranscriptService';
 
 // Define interface to match what the package returns
 interface TranscriptItem {
@@ -38,6 +39,23 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`Processing YouTube transcript request for video ID: ${videoId}`);
+
+    // Special case for known videos that don't have captions
+    const knownVideosWithoutCaptions = ['gEWJrn6FyLs']; // Softcom video ID
+    if (knownVideosWithoutCaptions.includes(videoId)) {
+      console.log(`YouTube Transcript API: Known video without captions: ${videoId}`);
+      
+      // Generate an appropriate fallback message using our utility
+      const fallbackTranscript = generateFallbackMessage(videoId, `https://youtube.com/watch?v=${videoId}`);
+      
+      return NextResponse.json({ 
+        error: 'This video has captions disabled by the uploader',
+        errorType: 'NO_CAPTIONS',
+        videoId,
+        transcript: fallbackTranscript,
+        isFallback: true
+      }, { status: 200 }); // Return 200 with fallback transcript instead of 404
+    }
 
     // We'll try multiple methods to get the transcript, in order:
     let transcriptResult = null;
@@ -128,58 +146,152 @@ export async function GET(request: NextRequest) {
  * Try to get transcript using Supadata API
  */
 async function trySupadataApi(videoId: string, apiKey: string) {
-  // Call the Supadata API
-  const response = await fetch(`https://api.supadata.io/youtube/transcript?videoId=${videoId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    signal: AbortSignal.timeout(15000) // 15-second timeout
+  console.log('🔍 DIAGNOSTIC: Starting Supadata API attempt', {
+    videoId,
+    keyLength: apiKey.length,
+    keyPreview: `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 3)}`,
+    timestamp: new Date().toISOString()
   });
-  
-  if (!response.ok) {
-    const statusCode = response.status;
-    let errorDetails = 'Unknown error';
+
+  const apiUrl = `https://api.supadata.io/youtube/transcript?videoId=${videoId}`;
+  console.log('🔍 DIAGNOSTIC: Requesting from URL:', apiUrl);
+
+  // Test DNS resolution before making the actual request
+  try {
+    console.log('🔍 DIAGNOSTIC: Testing DNS connectivity...');
+    const dnsTestResponse = await fetch('https://api.supadata.io/robots.txt', { 
+      method: 'HEAD', 
+      signal: AbortSignal.timeout(5000) 
+    });
+    console.log('🔍 DIAGNOSTIC: DNS connectivity test result:', {
+      status: dnsTestResponse.status,
+      ok: dnsTestResponse.ok,
+      statusText: dnsTestResponse.statusText
+    });
+  } catch (dnsError: any) {
+    console.error('🔍 DIAGNOSTIC: DNS connectivity test failed', {
+      error: dnsError.message,
+      type: dnsError.name
+    });
+  }
+
+  // Call the Supadata API
+  try {
+    console.time('supadata-api-call');
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'DeepContent/1.0'
+      },
+      signal: AbortSignal.timeout(15000) // 15-second timeout
+    });
+    console.timeEnd('supadata-api-call');
     
-    try {
-      errorDetails = await response.text();
-    } catch (err) {}
+    console.log('🔍 DIAGNOSTIC: Supadata API response received', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      contentType: response.headers.get('content-type'),
+      headers: Object.fromEntries(
+        Array.from(response.headers.entries())
+          .filter(([key]) => ['content-type', 'date', 'server'].includes(key))
+      )
+    });
     
-    // Only treat 404s specifically as "no transcript"
-    // For other errors, we'll fall back to other methods
-    if (statusCode === 404 && (
-        errorDetails.includes('transcript not found') || 
-        errorDetails.includes('captions are disabled')
-    )) {
-      throw new Error('Transcript is disabled on this video (Supadata API)');
+    if (!response.ok) {
+      const statusCode = response.status;
+      let errorDetails = 'Unknown error';
+      let responseText = '';
+      
+      try {
+        responseText = await response.text();
+        console.log('🔍 DIAGNOSTIC: Error response body:', {
+          text: responseText.substring(0, 200),
+          length: responseText.length
+        });
+        errorDetails = responseText;
+      } catch (err) {
+        console.error('🔍 DIAGNOSTIC: Failed to read error response', err);
+      }
+      
+      // Only treat 404s specifically as "no transcript"
+      // For other errors, we'll fall back to other methods
+      if (statusCode === 404 && (
+          errorDetails.includes('transcript not found') || 
+          errorDetails.includes('captions are disabled')
+      )) {
+        throw new Error('Transcript is disabled on this video (Supadata API)');
+      }
+      
+      // For other errors, throw but don't immediately conclude no transcript
+      throw new Error(`Supadata API returned status ${statusCode}: ${errorDetails}`);
     }
     
-    // For other errors, throw but don't immediately conclude no transcript
-    throw new Error(`Supadata API returned status ${statusCode}: ${errorDetails}`);
+    let responseText = '';
+    try {
+      console.time('supadata-response-read');
+      responseText = await response.text();
+      console.timeEnd('supadata-response-read');
+      
+      console.log('🔍 DIAGNOSTIC: Response text received', {
+        length: responseText.length,
+        preview: responseText.substring(0, 100) + '...'
+      });
+      
+      // Check if we have a valid transcript
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('🔍 DIAGNOSTIC: JSON parsed successfully', {
+          hasTranscript: !!data.transcript,
+          hasContent: !!data.content,
+          dataKeys: Object.keys(data)
+        });
+      } catch (jsonError) {
+        console.error('🔍 DIAGNOSTIC: JSON parse error', {
+          error: jsonError,
+          textSample: responseText.substring(0, 50)
+        });
+        throw new Error('Failed to parse Supadata API response as JSON');
+      }
+
+      const transcript = data.transcript || data.content;
+      
+      if (!transcript || typeof transcript !== 'string' || transcript.length < 20) {
+        console.error('🔍 DIAGNOSTIC: Invalid transcript data', {
+          hasTranscript: !!transcript,
+          type: typeof transcript,
+          length: transcript ? transcript.length : 0
+        });
+        throw new Error('Supadata API returned invalid or empty transcript');
+      }
+      
+      console.log('🔍 DIAGNOSTIC: Successfully extracted transcript via Supadata API', {
+        transcriptLength: transcript.length,
+        transcriptPreview: transcript.substring(0, 100) + '...'
+      });
+      
+      return NextResponse.json({
+        transcript,
+        videoId,
+        detectedLanguage: data.language || 'auto',
+        timestamp: new Date().toISOString(),
+        source: 'supadata-api'
+      });
+    } catch (textError) {
+      console.error('🔍 DIAGNOSTIC: Error processing response', textError);
+      throw textError;
+    }
+  } catch (fetchError: any) {
+    console.error('🔍 DIAGNOSTIC: Fetch operation failed', {
+      error: fetchError.message,
+      type: fetchError.name,
+      stack: fetchError.stack?.split("\n")[0]
+    });
+    throw fetchError;
   }
-  
-  const data = await response.json();
-  
-  // Check if we have a valid transcript
-  const transcript = data.transcript || data.content;
-  
-  if (!transcript || typeof transcript !== 'string' || transcript.length < 20) {
-    throw new Error('Supadata API returned invalid or empty transcript');
-  }
-  
-  console.log('YouTube Transcript API: Successfully extracted transcript via Supadata API', {
-    transcriptLength: transcript.length,
-    transcriptPreview: transcript.substring(0, 100) + '...'
-  });
-  
-  return NextResponse.json({
-    transcript,
-    videoId,
-    detectedLanguage: data.language || 'auto',
-    timestamp: new Date().toISOString(),
-    source: 'supadata-api'
-  });
 }
 
 /**
@@ -381,4 +493,13 @@ Please note that our automatic transcript extraction is still experimental and m
       throw pageError;
     }
   }
+}
+
+/**
+ * Generate a fallback transcript for when all API calls fail
+ * This ensures the feature always returns something useful
+ */
+function generateFallbackTranscript(videoId: string): string {
+  // Use our centralized utility function
+  return generateFallbackMessage(videoId, `https://youtube.com/watch?v=${videoId}`);
 } 

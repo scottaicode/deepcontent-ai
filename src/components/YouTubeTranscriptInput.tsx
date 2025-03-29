@@ -16,6 +16,16 @@ import { useToast } from '@/lib/hooks/useToast';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { Loader2, Play, Sparkles, Youtube, PlayCircle, AlertTriangle, Check, RefreshCw, Lightbulb, X, Copy, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 
+// Import markdown rendering utilities
+import { marked } from 'marked';
+import DOMPurify from 'isomorphic-dompurify';
+
+// Utility function to convert markdown to HTML safely
+const markdownToHtml = (markdown: string): string => {
+  const rawHtml = marked.parse(markdown) as string;
+  return DOMPurify.sanitize(rawHtml);
+};
+
 interface YouTubeTranscriptInputProps {
   url: string;
   onUrlChange: (url: string) => void;
@@ -106,16 +116,48 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
     setError('');
     setApiStatus('idle');
     
+    console.log('🔍 CLIENT DIAGNOSTIC: Starting transcript fetch', {
+      url,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       // Validate URL format
       if (!isValidYouTubeUrl(url)) {
+        console.error('🔍 CLIENT DIAGNOSTIC: Invalid YouTube URL format', {url});
         throw new Error('Invalid YouTube URL. Please enter a valid YouTube video link.');
       }
       
       const videoId = extractYouTubeVideoId(url);
-      console.log('Fetching transcript for video ID:', videoId);
+      console.log('🔍 CLIENT DIAGNOSTIC: Extracted video ID', {videoId, url});
+      
+      // First check if video exists and has captions
+      try {
+        console.log('🔍 CLIENT DIAGNOSTIC: Performing pre-request validation...');
+        const validationResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log('🔍 CLIENT DIAGNOSTIC: Video validation result', {
+          status: validationResponse.status,
+          ok: validationResponse.ok
+        });
+        
+        if (!validationResponse.ok) {
+          console.error('🔍 CLIENT DIAGNOSTIC: Video validation failed - video may not exist');
+        }
+      } catch (validationError) {
+        console.warn('🔍 CLIENT DIAGNOSTIC: Video validation check failed', validationError);
+        // Continue even if validation fails - the transcript API will give appropriate errors
+      }
       
       // Use our direct API endpoint with hardcoded API key for testing
+      console.log('🔍 CLIENT DIAGNOSTIC: Requesting transcript from API...');
+      console.time('transcript-fetch');
+      
       const response = await fetch(`/api/youtube-direct?videoId=${videoId}`, {
         method: 'GET',
         headers: {
@@ -123,12 +165,57 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
         },
       });
       
+      console.timeEnd('transcript-fetch');
+      console.log('🔍 CLIENT DIAGNOSTIC: Transcript API response received', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type')
+      });
+      
+      let responseText = '';
+      try {
+        responseText = await response.text();
+        console.log('🔍 CLIENT DIAGNOSTIC: Response text received', {
+          length: responseText.length, 
+          preview: responseText.substring(0, 100)
+        });
+      } catch (textError) {
+        console.error('🔍 CLIENT DIAGNOSTIC: Failed to read response text', textError);
+        throw new Error('Failed to read API response');
+      }
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+          console.error('🔍 CLIENT DIAGNOSTIC: API returned error', errorData);
+        } catch (parseError) {
+          console.error('🔍 CLIENT DIAGNOSTIC: Failed to parse error response', {
+            parseError, 
+            responseText: responseText.substring(0, 200)
+          });
+          throw new Error(`Error fetching transcript: ${response.status} ${response.statusText}`);
+        }
+        
         throw new Error(errorData.error || `Error fetching transcript: ${response.status}`);
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('🔍 CLIENT DIAGNOSTIC: Successfully parsed response', {
+          hasTranscript: !!data.transcript,
+          transcriptLength: data.transcript?.length || 0,
+          source: data.source || 'unknown'
+        });
+      } catch (parseError) {
+        console.error('🔍 CLIENT DIAGNOSTIC: JSON parse error', {
+          error: parseError,
+          responsePreview: responseText.substring(0, 200)
+        });
+        throw new Error('Failed to parse transcript data from API');
+      }
       
       // Process the transcript - check for error messages in the content
       if (data.content && typeof data.content === 'string' && data.content.includes('"error"')) {
@@ -136,20 +223,23 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
           // Try to parse error information from content
           const errorInfo = JSON.parse(data.content);
           if (errorInfo.error) {
+            console.error('🔍 CLIENT DIAGNOSTIC: Error information in content', errorInfo);
             throw new Error(errorInfo.message || errorInfo.error);
           }
         } catch (parseError) {
           // If we can't parse it, just continue with the content as is
-          console.warn('Could not parse potential error in content:', parseError);
+          console.warn('🔍 CLIENT DIAGNOSTIC: Could not parse potential error in content:', parseError);
         }
       }
       
       // Process the transcript
       let transcriptText = '';
+      let isFallback = false;
       
       if (data.transcript) {
         // If the API returns a transcript field directly
         transcriptText = data.transcript;
+        isFallback = !!data.isFallback;
       } else if (data.content && Array.isArray(data.content)) {
         // If the API returns content as an array of segments
         transcriptText = data.content
@@ -161,26 +251,54 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
         // If content is already a string
         transcriptText = data.content;
       } else {
+        console.error('🔍 CLIENT DIAGNOSTIC: Unexpected response format', {
+          dataKeys: Object.keys(data),
+          hasTranscript: !!data.transcript,
+          hasContent: !!data.content,
+          contentType: typeof data.content
+        });
         throw new Error('Unexpected response format from transcript service');
       }
       
       if (!transcriptText || transcriptText.length < 10) {
+        console.error('🔍 CLIENT DIAGNOSTIC: Transcript too short or empty', {
+          length: transcriptText.length,
+          preview: transcriptText
+        });
         throw new Error('Transcript is too short or empty');
       }
       
-      console.log('Transcript fetched successfully');
+      console.log('🔍 CLIENT DIAGNOSTIC: Transcript processed successfully', {
+        length: transcriptText.length,
+        preview: transcriptText.substring(0, 100) + '...',
+        isFallback
+      });
       
       // Format the transcript with video info if available
-      const formattedTranscript = formatTranscript(transcriptText, data.lang, url);
+      const formattedTranscript = formatTranscript(transcriptText, data.lang, url, isFallback);
       
       // Call the callback with the transcript and URL
       onTranscriptFetched(formattedTranscript, url);
       
-      // Clear the input field after successful fetch
-      onUrlChange('');
+      // Only clear if not a fallback transcript
+      if (!isFallback) {
+        // Clear the input field after successful fetch
+        onUrlChange('');
+      } else {
+        // Show additional help tooltip for fallback
+        toast({
+          title: 'Notice: Fallback Content',
+          description: 'This video does not have captions available. A fallback message has been provided instead.',
+          variant: 'default',
+        });
+      }
       
     } catch (err: any) {
-      console.error('Error fetching transcript:', err);
+      console.error('🔍 CLIENT DIAGNOSTIC: Error fetching transcript:', {
+        error: err.message,
+        stack: err.stack,
+        url,
+      });
       setError(getErrorMessage(err));
       toast({
         title: 'Error fetching transcript',
@@ -189,13 +307,19 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
       });
     } finally {
       setIsLoading(false);
+      console.log('🔍 CLIENT DIAGNOSTIC: Transcript fetch operation completed');
     }
   };
   
   // Helper to create a nicely formatted transcript with metadata
-  const formatTranscript = (text: string, lang?: string, url?: string): string => {
+  const formatTranscript = (text: string, lang?: string, url?: string, isFallback?: boolean): string => {
     const videoId = url ? extractYouTubeVideoId(url) : null;
     const langInfo = lang ? ` (${lang.toUpperCase()})` : '';
+    
+    // For fallback transcripts, just return the text as is since it's already formatted
+    if (isFallback) {
+      return text;
+    }
     
     // Create a formatted transcript with metadata - use translations
     // Make sure we're using the correct translation keys that exist in both language files
@@ -478,11 +602,20 @@ ${text}
 
         {/* Transcript Output */}
         {transcript && !isLoading && (
-          <div className="mt-4 p-4 bg-gradient-to-r from-red-50/50 to-white border border-red-100 rounded-xl dark:from-red-900/10 dark:to-gray-800 dark:border-red-900/30 transition-all duration-300">
+          <div className={`mt-4 p-4 bg-gradient-to-r from-red-50/50 to-white border border-red-100 rounded-xl dark:from-red-900/10 dark:to-gray-800 dark:border-red-900/30 transition-all duration-300 ${transcript.includes('Transcript Not Available') || transcript.includes('Important Notice') ? 'border-yellow-300 dark:border-yellow-600 from-yellow-50/50 dark:from-yellow-900/10' : ''}`}>
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center">
-                <Sparkles className="h-4 w-4 mr-2" />
-                {t('youtubeTranscript.transcriptResults', { defaultValue: "Transcript Results" })}
+                {transcript.includes('Transcript Not Available') || transcript.includes('Important Notice') ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4 mr-2 text-yellow-600 dark:text-yellow-400" />
+                    {t('youtubeTranscript.transcriptUnavailable', { defaultValue: "Transcript Unavailable" })}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {t('youtubeTranscript.transcriptResults', { defaultValue: "Transcript Results" })}
+                  </>
+                )}
               </h4>
               <div className="flex space-x-2">
                 <button
@@ -514,13 +647,21 @@ ${text}
                 )}
               </div>
             </div>
-            <div className={`prose dark:prose-invert prose-sm max-w-none text-gray-700 dark:text-gray-300 transition-all duration-300 ${showFullTranscript ? '' : 'max-h-40 overflow-hidden'}`}>
-              {transcript.split('\n').map((line, index) => (
-                <React.Fragment key={index}>
-                  {line}
-                  <br />
-                </React.Fragment>
-              ))}
+            <div className={`prose dark:prose-invert prose-sm max-w-none text-gray-700 dark:text-gray-300 transition-all duration-300 ${showFullTranscript ? '' : 'max-h-40 overflow-hidden relative'}`}>
+              {/* Render the transcript as markdown if it contains formatting */}
+              {transcript.includes('#') ? (
+                <div dangerouslySetInnerHTML={{ 
+                  __html: markdownToHtml(transcript) 
+                }} />
+              ) : (
+                // Otherwise use the simple line break rendering
+                transcript.split('\n').map((line, index) => (
+                  <React.Fragment key={index}>
+                    {line}
+                    <br />
+                  </React.Fragment>
+                ))
+              )}
             </div>
             {!showFullTranscript && transcript.length > 300 && (
               <div className="h-8 bg-gradient-to-t from-white dark:from-gray-800 to-transparent absolute bottom-1 left-0 right-0"></div>

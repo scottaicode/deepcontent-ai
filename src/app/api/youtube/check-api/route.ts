@@ -88,6 +88,13 @@ export async function GET() {
         try {
           responseText = await supadataResponse.text();
           
+          // Debug log the raw response
+          console.log('YouTube API Check: Raw response preview:', {
+            length: responseText.length,
+            preview: responseText.substring(0, 50),
+            contentType: supadataResponse.headers.get('content-type')
+          });
+          
           // Handle empty response
           if (!responseText || responseText.trim().length === 0) {
             throw new Error('Empty response from API');
@@ -96,8 +103,28 @@ export async function GET() {
           // Trim response to remove BOM and whitespace
           const trimmedResponse = responseText.trim();
           
-          // Parse JSON
-          data = JSON.parse(trimmedResponse);
+          // Safer JSON parsing with validation first
+          if (!trimmedResponse.startsWith('{') && !trimmedResponse.startsWith('[')) {
+            throw new Error(`Invalid JSON response format: ${trimmedResponse.substring(0, 20)}...`);
+          }
+          
+          try {
+            // Parse JSON
+            data = JSON.parse(trimmedResponse);
+          } catch (jsonError: any) {
+            // Try to fix common JSON issues
+            console.warn('Initial JSON parse failed, attempting to sanitize:', jsonError.message);
+            
+            // Attempt to remove any invalid characters at the beginning
+            const cleanedResponse = trimmedResponse.replace(/^\s*[^\[{]/, '');
+            
+            if (cleanedResponse.startsWith('{') || cleanedResponse.startsWith('[')) {
+              data = JSON.parse(cleanedResponse);
+              console.log('Sanitized JSON parsing succeeded');
+            } else {
+              throw jsonError; // Re-throw if sanitization didn't help
+            }
+          }
           
         } catch (parseError: any) {
           throw new Error(`JSON parse error: ${parseError.message}. Response preview: ${responseText.substring(0, 50)}...`);
@@ -218,6 +245,102 @@ export async function GET() {
       });
     }
     
+    // Additional DNS connectivity check to diagnose network issues
+    try {
+      console.log('YouTube API Check: Testing DNS connectivity to API endpoints');
+      
+      // Test connectivity to all used API endpoints
+      const endpoints = [
+        'https://api.supadata.io/ping',
+        'https://yt-downloader-eight.vercel.app/api/status',
+        'https://chromecast-subtitle-extractor.onrender.com/health'
+      ];
+      
+      const dnsResults = await Promise.all(
+        endpoints.map(async (endpoint) => {
+          try {
+            const response = await fetch(endpoint, { 
+              method: 'HEAD',
+              signal: AbortSignal.timeout(5000)
+            });
+            return {
+              endpoint,
+              status: response.status,
+              ok: response.ok
+            };
+          } catch (e: any) {
+            return {
+              endpoint,
+              error: e.message,
+              ok: false
+            };
+          }
+        })
+      );
+      
+      diagnostics.checks.push({
+        name: 'DNS Connectivity Check',
+        status: dnsResults.some(r => r.ok) ? 'warning' : 'error',
+        message: dnsResults.some(r => r.ok) 
+          ? 'Some API endpoints are reachable' 
+          : 'Failed to connect to any API endpoints',
+        results: dnsResults
+      });
+    } catch (error: any) {
+      console.error('YouTube API Check: DNS connectivity test failed:', error);
+      diagnostics.checks.push({
+        name: 'DNS Connectivity Check',
+        status: 'error',
+        message: `Failed to test DNS connectivity: ${error.message}`
+      });
+    }
+    
+    // Add a specific check for Softcom video to verify our special case handling
+    try {
+      console.log('YouTube API Check: Testing known video without captions (Softcom)');
+      
+      const softcomVideoId = 'gEWJrn6FyLs'; // The Softcom video ID
+      const directApiResponse = await fetch(`/api/youtube-direct?videoId=${softcomVideoId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000) // 10-second timeout
+      });
+      
+      // Parse response
+      const softcomData = await directApiResponse.json();
+      
+      // Check if our fallback handling is working
+      const hasFallback = softcomData.isFallback === true || 
+                          (softcomData.transcript && softcomData.transcript.includes('Important Notice'));
+      
+      diagnostics.checks.push({
+        name: 'Softcom Video Special Case',
+        status: hasFallback ? 'success' : 'warning',
+        message: hasFallback 
+          ? 'Special case for Softcom video is functioning correctly' 
+          : 'Softcom video special case may not be handling correctly',
+        response: {
+          status: directApiResponse.status,
+          isFallback: softcomData.isFallback,
+          hasTranscript: !!softcomData.transcript,
+          errorType: softcomData.errorType,
+          error: softcomData.error
+        }
+      });
+    } catch (softcomError: any) {
+      console.error('YouTube API Check: Softcom video check failed:', softcomError);
+      diagnostics.checks.push({
+        name: 'Softcom Video Special Case',
+        status: 'error',
+        message: `Failed to test Softcom video special case: ${softcomError.message}`,
+        error: {
+          name: softcomError.name,
+          message: softcomError.message
+        }
+      });
+    }
+    
     // Calculate overall status
     const hasErrors = diagnostics.checks.some((check: any) => check.status === 'error');
     const hasWarnings = diagnostics.checks.some((check: any) => check.status === 'warning');
@@ -241,7 +364,8 @@ export async function GET() {
     diagnostics.duration = Date.now() - startTime;
     diagnostics.error = {
       message: error.message,
-      name: error.name
+      name: error.name,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n')
     };
     
     return NextResponse.json(diagnostics, { status: 500 });
