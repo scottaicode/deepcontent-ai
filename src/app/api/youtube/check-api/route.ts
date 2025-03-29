@@ -30,8 +30,9 @@ export async function GET() {
   };
   
   try {
-    // Check 1: Test the YouTube transcript library with a known video
-    const testVideoId = 'dQw4w9WgXcQ'; // Popular video with transcript
+    // Use a video that definitely has captions enabled instead of Rick Astley
+    // TED talk videos are reliable for having proper transcripts
+    const testVideoId = 'UF8uR6Z6KLc'; // Steve Jobs' Stanford Commencement Speech - has reliable transcripts
     
     diagnostics.checks.push({
       name: 'Library Import Check',

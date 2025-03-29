@@ -64,16 +64,18 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
     
     if (msg.includes('transcript-unavailable') || 
         msg.includes('No transcript is available') ||
-        msg.includes('No transcript available')) {
+        msg.includes('No transcript available') ||
+        msg.includes('Transcript is disabled')) {
       return t('youtubeTranscript.errors.noTranscript', { 
-        defaultValue: 'This video does not have a transcript available. Please try a different video that has captions enabled.' 
+        defaultValue: 'This video does not have captions or transcripts available. Please try a different video that has captions enabled.' 
       });
     }
     
     if (msg.includes('Network error') || 
         msg.includes('Failed to fetch') || 
         msg.includes('Unable to connect') ||
-        msg.includes('internet connection')) {
+        msg.includes('internet connection') ||
+        msg.includes('fetch failed')) {
       return t('youtubeTranscript.errors.connection', { 
         defaultValue: 'Unable to connect to the transcript service. Please check your internet connection and try again.' 
       });
@@ -82,6 +84,12 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
     if (msg.includes('Invalid YouTube URL')) {
       return t('youtubeTranscript.errors.invalidUrl', { 
         defaultValue: 'Please enter a valid YouTube video URL (e.g., https://www.youtube.com/watch?v=XXXXXX).' 
+      });
+    }
+
+    if (msg.includes('videoId')) {
+      return t('youtubeTranscript.errors.missingId', { 
+        defaultValue: 'Could not identify a valid YouTube video ID in the URL. Please ensure you\'re using a standard YouTube video URL.' 
       });
     }
     

@@ -61,8 +61,30 @@ export async function GET(request: NextRequest) {
       });
       
       if (!response.ok) {
-        console.error(`YouTube Transcript API: Supadata API returned status ${response.status}`);
-        throw new Error(`Supadata API returned status ${response.status}`);
+        const statusCode = response.status;
+        console.error(`YouTube Transcript API: Supadata API returned status ${statusCode}`);
+        
+        // Try to get more detailed error
+        let errorDetails = '';
+        try {
+          const errorData = await response.text();
+          errorDetails = errorData;
+        } catch (err) {
+          errorDetails = 'Could not extract error details';
+        }
+        
+        console.error('Supadata API error details:', errorDetails);
+        
+        if (statusCode === 404 || errorDetails.includes('not found') || errorDetails.includes('unavailable')) {
+          return NextResponse.json({ 
+            error: 'No transcript available for this video. The video might not have captions enabled.',
+            errorType: 'NO_CAPTIONS', 
+            videoId 
+          }, { status: 404 });
+        }
+        
+        // Otherwise fall back to library method
+        throw new Error(`Supadata API returned status ${statusCode}: ${errorDetails}`);
       }
       
       const data = await response.json();
@@ -123,7 +145,11 @@ async function getTranscriptWithLibrary(videoId: string) {
     
     if (!transcriptItems || transcriptItems.length === 0) {
       console.log('YouTube Transcript API: No transcript items returned from library');
-      throw new Error('No transcript available for this video');
+      return NextResponse.json({ 
+        error: 'No transcript available for this video. The video might not have captions enabled.',
+        errorType: 'NO_CAPTIONS',
+        videoId 
+      }, { status: 404 });
     }
     
     // Join the transcript items into a single string
@@ -153,15 +179,44 @@ async function getTranscriptWithLibrary(videoId: string) {
       videoId
     });
     
+    // Check for specific error types to provide better error messages
+    const errorMessage = error.message || 'Unknown error';
+    
+    // Determine error type based on error message
+    let errorType = 'UNKNOWN';
+    let statusCode = 500;
+    let userFriendlyMessage = `Failed to fetch transcript: ${errorMessage}`;
+    
+    if (errorMessage.includes('Transcript is disabled') || 
+        errorMessage.includes('not available') || 
+        errorMessage.includes('Could not retrieve') ||
+        errorMessage.includes('No transcript')) {
+      errorType = 'NO_CAPTIONS';
+      statusCode = 404;
+      userFriendlyMessage = 'No transcript available for this video. The video might not have captions enabled.';
+    } else if (errorMessage.includes('network') || 
+               errorMessage.includes('fetch failed') || 
+               errorMessage.includes('timeout') ||
+               errorMessage.includes('ETIMEDOUT')) {
+      errorType = 'NETWORK_ERROR';
+      statusCode = 503;
+      userFriendlyMessage = 'Network error when connecting to YouTube. Please check your internet connection and try again.';
+    } else if (errorMessage.includes('videoId') || 
+               errorMessage.includes('Invalid') || 
+               errorMessage.includes('not found')) {
+      errorType = 'INVALID_VIDEO_ID';
+      statusCode = 400;
+      userFriendlyMessage = 'Invalid YouTube video ID provided.';
+    }
+    
     return NextResponse.json({ 
-      error: `Failed to fetch transcript: ${error.message || 'Unknown error'}`,
-      videoId,
-      timestamp: new Date().toISOString(),
+      error: userFriendlyMessage,
+      errorType,
       errorDetails: {
-        name: error.name,
-        message: error.message,
-        code: error.code || 'UNKNOWN'
+        originalMessage: errorMessage,
+        type: errorType,
+        videoId
       }
-    }, { status: 500 });
+    }, { status: statusCode });
   }
 } 
