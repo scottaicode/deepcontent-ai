@@ -351,7 +351,7 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
       });
       
       // Format the transcript with video info if available
-      const formattedTranscript = formatTranscript(transcriptText, data.lang, url, isFallback);
+      const formattedTranscript = formatTranscript(transcriptText, data.lang, url, isFallback, data.isAiGenerated);
       
       // Call the callback with the transcript and URL
       onTranscriptFetched(formattedTranscript, url);
@@ -388,24 +388,33 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   };
   
   // Helper to create a nicely formatted transcript with metadata
-  const formatTranscript = (text: string, lang?: string, url?: string, isFallback?: boolean): string => {
-    const videoId = url ? extractYouTubeVideoId(url) : null;
-    const langInfo = lang ? ` (${lang.toUpperCase()})` : '';
+  const formatTranscript = (
+    text: string, 
+    lang?: string, 
+    url?: string, 
+    isFallback?: boolean,
+    isAiGenerated?: boolean
+  ): string => {
+    // Add AI generation notice if applicable
+    let transcriptWithSource = text;
     
-    // For fallback transcripts, just return the text as is since it's already formatted
-    if (isFallback) {
-      return text;
+    if (isAiGenerated) {
+      transcriptWithSource = `${text}\n\n---\n*Note: This transcript was generated using AI speech recognition and may not be 100% accurate.*`;
     }
     
-    // Create a formatted transcript with metadata - use translations
-    // Make sure we're using the correct translation keys that exist in both language files
-    return `## ${t('youtubeTranscript.title')}${langInfo}
-${t('youtubeTranscript.source')}: ${url || t('common.notSpecified')}
-${videoId ? `${t('youtubeSection.videoId')}: ${videoId}` : ''}
-
-${text}
-
-[${t('youtubeTranscript.endOfTranscript')}]`;
+    const langNotice = lang && lang !== 'auto' && lang !== 'en' 
+      ? `\n\nOriginal language: ${lang.toUpperCase()}`
+      : '';
+    
+    const sourceLink = url 
+      ? `\n\nSource: ${url}` 
+      : '';
+    
+    const fallbackNotice = isFallback
+      ? '\n\n*This is a fallback response as no official transcript could be retrieved.*'
+      : '';
+    
+    return `${transcriptWithSource}${langNotice}${sourceLink}${fallbackNotice}`;
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -522,7 +531,7 @@ ${text}
     setError(null);
     
     try {
-      console.log('�� CLIENT DIAGNOSTIC: Running diagnostic test with known working video');
+      console.log('🔍 CLIENT DIAGNOSTIC: Running diagnostic test with known working video');
       
       // Call the API with the test parameter to use a known working video
       const response = await fetch(`/api/youtube-direct?test=working`, {
@@ -554,7 +563,8 @@ ${text}
           data.transcript, 
           data.detectedLanguage, 
           `https://youtube.com/watch?v=${data.videoId}`,
-          false
+          false,
+          data.isAiGenerated
         );
         
         // Call the callback with the transcript and URL
@@ -610,7 +620,8 @@ For your research, consider watching the video with captions enabled and taking 
         transcriptText, 
         'en', 
         `https://youtube.com/watch?v=${youtubeId}`,
-        true // Treat as pre-formatted
+        true, // Treat as pre-formatted
+        false // Not AI generated
       );
       
       // Call the callback with the transcript and URL
@@ -665,6 +676,67 @@ For your research, consider watching the video with captions enabled and taking 
       toast({
         title: 'Backup Method Failed',
         description: 'Could not retrieve transcript with alternative method. The video may not have captions.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Try audio transcription when captions aren't available
+  const handleAudioTranscription = async () => {
+    if (!youtubeId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Attempting audio transcription for video without captions');
+      
+      // Call our audio transcription endpoint
+      const response = await fetch(`/api/youtube-audio-transcription?videoId=${youtubeId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Audio transcription failed:', errorData);
+        throw new Error(errorData.error || `Error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.transcript) {
+        throw new Error('No transcript returned from audio transcription');
+      }
+      
+      // Format the transcript 
+      const formattedTranscript = formatTranscript(
+        data.transcript,
+        'auto',
+        `https://youtube.com/watch?v=${youtubeId}`,
+        false,
+        true // Mark as AI generated
+      );
+      
+      // Call the callback with the transcript and URL
+      onTranscriptFetched(formattedTranscript, url);
+      
+      toast({
+        title: 'Audio Transcription Complete',
+        description: 'Successfully transcribed audio from the video.',
+        variant: 'default',
+      });
+    } catch (err: any) {
+      console.error('Audio transcription failed:', err);
+      setError(`Audio transcription failed: ${err.message}`);
+      
+      toast({
+        title: 'Audio Transcription Failed',
+        description: err.message || 'Failed to transcribe audio from the video.',
         variant: 'destructive',
       });
     } finally {
@@ -801,6 +873,28 @@ For your research, consider watching the video with captions enabled and taking 
                           Try Backup Method
                         </button>
                       </div>
+                    </div>
+                  )}
+
+                  {error.includes('transcript available') && (
+                    <div className="mt-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded border border-red-200 dark:border-red-800">
+                      <h4 className="font-medium mb-2">No Captions Available</h4>
+                      <p>This video doesn't have captions, but we can try to transcribe the audio directly.</p>
+                      
+                      <div className="mt-3">
+                        <button
+                          onClick={handleAudioTranscription}
+                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded text-purple-700 bg-purple-100 hover:bg-purple-200 dark:text-purple-100 dark:bg-purple-700/30 dark:hover:bg-purple-700/50"
+                        >
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Transcribe Audio
+                        </button>
+                      </div>
+                      
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Note: Audio transcription uses AI and may not be as accurate as official captions.
+                        Limited to videos under 10 minutes.
+                      </p>
                     </div>
                   )}
                 </div>
