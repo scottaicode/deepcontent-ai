@@ -1,0 +1,44 @@
+              ))}
+            </div>
+            
+            {/* Information panel removed for cleaner UI */}
+          </div>
+        )}
+
+        {/* Content type information panel removed for cleaner UI */}
+      </div>
+        
+      {/* Transcript Modal */}
+      {showFullTranscript && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-medium">YouTube Transcript</h3>
+              <button
+                onClick={() => setShowFullTranscript(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-grow">
+              <div className="text-sm mb-2">
+                <span className="font-medium">Source:</span> <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{youtubeUrl}</a>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded border text-sm whitespace-pre-wrap max-h-full overflow-y-auto">
+                {youtubeTranscript}
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end">
+              <button
+                onClick={() => setShowFullTranscript(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )} 

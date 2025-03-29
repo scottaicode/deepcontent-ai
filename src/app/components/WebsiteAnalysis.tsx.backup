@@ -1,0 +1,323 @@
+import React, { useState } from 'react';
+import { useLanguage } from './LanguageProvider';
+import toast from 'react-hot-toast';
+import { BiLink, BiCheckCircle, BiErrorCircle, BiChevronDown, BiChevronUp } from 'react-icons/bi';
+
+interface WebsiteAnalysisProps {
+  onScrapedContent?: (content: any) => void;
+}
+
+const WebsiteAnalysis: React.FC<WebsiteAnalysisProps> = ({ onScrapedContent }) => {
+  const { t } = useLanguage();
+  const [url, setUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [scrapedContent, setScrapedContent] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  // Helper function to handle translation fallbacks
+  const safeTrans = (key: string, fallback: string, replacements?: Record<string, string>) => {
+    const result = t(key, replacements);
+    // If the result is the same as the key, it means translation failed, so use fallback
+    return result === key ? fallback : result;
+  };
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUrl(e.target.value);
+    // Reset error state when input changes
+    if (error) setError(null);
+  };
+
+  const handleSubmit = async () => {
+    // Validate URL
+    if (!url) {
+      setError(safeTrans('websiteAnalysis.errors.emptyUrl', 'Please enter a URL'));
+      return;
+    }
+
+    // Simple URL validation
+    try {
+      new URL(url);
+    } catch (e) {
+      setError(safeTrans('websiteAnalysis.errors.invalidUrl', 'Please enter a valid URL'));
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/scrape-website', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url,
+          scrapeType: 'comprehensive', // Use comprehensive mode for better company insights
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to scrape website');
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to extract website content');
+      }
+
+      setScrapedContent(data.data);
+      setExpanded(false); // Reset expanded state when new content is loaded
+      
+      // Call the callback with the scraped content if provided
+      if (onScrapedContent) {
+        onScrapedContent(data.data);
+      }
+
+      // Use the generic toast function instead of toast.success
+      toast(safeTrans('websiteAnalysis.success', 'Website content analyzed successfully'), {
+        icon: '✅',
+        style: {
+          background: '#10B981',
+          color: '#FFFFFF'
+        }
+      });
+      
+      // Reset URL field after successful scraping
+      setUrl('');
+    } catch (err: any) {
+      console.error('Error scraping website:', err);
+      setError(err.message || safeTrans('websiteAnalysis.errors.generic', 'An error occurred while analyzing the website'));
+      
+      // Use the generic toast function instead of toast.error
+      toast(safeTrans('websiteAnalysis.errors.failed', 'Failed to analyze website'), {
+        icon: '❌',
+        style: {
+          background: '#EF4444',
+          color: '#FFFFFF'
+        }
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleExpanded = () => {
+    setExpanded(!expanded);
+  };
+
+  const renderScrapedContentSummary = () => {
+    if (!scrapedContent) return null;
+
+    // Extract key information to display
+    const paragraphCount = scrapedContent.paragraphs?.length || 0;
+    const headingCount = scrapedContent.headings?.length || 0;
+    const title = scrapedContent.title || '';
+    const aboutContent = scrapedContent.aboutContent || '';
+    const contactInfo = scrapedContent.contactInfo || {};
+    const productInfo = scrapedContent.productInfo || '';
+    const paragraphs = scrapedContent.paragraphs || [];
+    const headings = scrapedContent.headings || [];
+
+    return (
+      <div className="mt-3 p-3 bg-green-50 rounded-md border border-green-100 text-sm text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center">
+            <BiCheckCircle className="text-green-500 mr-2" size={18} />
+            <span className="font-medium">{safeTrans('websiteAnalysis.contentExtracted', 'Website content extracted')}</span>
+          </div>
+          
+          <button 
+            onClick={toggleExpanded}
+            className="text-blue-600 hover:text-blue-800 flex items-center dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            {expanded ? (
+              <>
+                <span className="text-xs mr-1">Show less</span>
+                <BiChevronUp size={16} />
+              </>
+            ) : (
+              <>
+                <span className="text-xs mr-1">Show more</span>
+                <BiChevronDown size={16} />
+              </>
+            )}
+          </button>
+        </div>
+        
+        {title && (
+          <div className="mb-2 font-medium">
+            {title}
+          </div>
+        )}
+        
+        <p className="text-xs opacity-80 mb-2">
+          {safeTrans(
+            'websiteAnalysis.contentSummary', 
+            `Extracted ${paragraphCount} paragraphs, ${headingCount} headings, and additional website information`,
+            {
+              paragraphCount: paragraphCount.toString(),
+              headingCount: headingCount.toString()
+            }
+          )}
+        </p>
+        
+        <p className="text-xs opacity-80 mb-2 italic">
+          Note: Analysis only includes content from the main page, not linked pages
+        </p>
+        
+        {!expanded && aboutContent && (
+          <div className="mt-2 border-t border-green-200 dark:border-green-700 pt-2 text-xs">
+            <p className="line-clamp-2">{aboutContent.substring(0, 150)}...</p>
+          </div>
+        )}
+
+        {expanded && (
+          <div className="mt-3 border-t border-green-200 dark:border-green-700 pt-3 text-xs">
+            {/* Title and Meta */}
+            <div className="mb-3">
+              <h4 className="font-semibold mb-1">Website Information</h4>
+              <p><span className="font-medium">Title:</span> {title}</p>
+              {scrapedContent.metaDescription && (
+                <p><span className="font-medium">Meta Description:</span> {scrapedContent.metaDescription}</p>
+              )}
+            </div>
+            
+            {/* About Content */}
+            {aboutContent && (
+              <div className="mb-3">
+                <h4 className="font-semibold mb-1">About</h4>
+                <p className="whitespace-pre-wrap">{aboutContent}</p>
+              </div>
+            )}
+
+            {/* Contact Information */}
+            {contactInfo && (contactInfo.emails?.length > 0 || contactInfo.phones?.length > 0 || contactInfo.socialLinks?.length > 0) && (
+              <div className="mb-3">
+                <h4 className="font-semibold mb-1">Contact Information</h4>
+                {contactInfo.emails?.length > 0 && (
+                  <div className="mb-1">
+                    <span className="font-medium">Emails: </span>
+                    {contactInfo.emails.slice(0, 3).join(', ')}
+                    {contactInfo.emails.length > 3 && '...'}
+                  </div>
+                )}
+                {contactInfo.phones?.length > 0 && (
+                  <div className="mb-1">
+                    <span className="font-medium">Phones: </span>
+                    {contactInfo.phones.slice(0, 3).join(', ')}
+                    {contactInfo.phones.length > 3 && '...'}
+                  </div>
+                )}
+                {contactInfo.socialLinks?.length > 0 && (
+                  <div>
+                    <span className="font-medium">Social Links: </span>
+                    {contactInfo.socialLinks.length} found
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Product Information */}
+            {productInfo && (
+              <div className="mb-3">
+                <h4 className="font-semibold mb-1">Product Information</h4>
+                <p className="whitespace-pre-wrap">{typeof productInfo === 'string' ? productInfo : JSON.stringify(productInfo)}</p>
+              </div>
+            )}
+
+            {/* Key Headings */}
+            {headings.length > 0 && (
+              <div className="mb-3">
+                <h4 className="font-semibold mb-1">Key Headings</h4>
+                <ul className="list-disc pl-5">
+                  {headings.slice(0, 8).map((heading: string, index: number) => (
+                    <li key={index}>{heading}</li>
+                  ))}
+                  {headings.length > 8 && <li>...</li>}
+                </ul>
+              </div>
+            )}
+
+            {/* Main Content Excerpts */}
+            {paragraphs.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-1">Content Excerpts</h4>
+                <div>
+                  {paragraphs.slice(0, 3).map((paragraph: string, index: number) => (
+                    <p key={index} className="mb-2 text-xs">{paragraph}</p>
+                  ))}
+                  {paragraphs.length > 3 && (
+                    <p className="text-xs opacity-70">{paragraphs.length - 3} more paragraphs available...</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="mt-6 mb-6">
+      <div className="flex items-center mb-2">
+        <BiLink className="text-blue-500 mr-2" size={18} />
+        <h3 className="text-md font-medium">{safeTrans('websiteAnalysis.title', 'Website Analysis')}</h3>
+      </div>
+      <p className="text-sm text-gray-600 mb-3 dark:text-gray-300">
+        {safeTrans('websiteAnalysis.description', 'Extract information from company websites to enhance your research.')}
+      </p>
+      
+      <div className="flex flex-wrap items-stretch">
+        <div className="flex-grow mr-2">
+          <input
+            type="text"
+            value={url}
+            onChange={handleUrlChange}
+            placeholder={safeTrans('websiteAnalysis.placeholder', 'Enter website URL (e.g., https://example.com)')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+            disabled={isLoading}
+          />
+          {error && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={isLoading}
+          className={`px-4 py-2 rounded-md shadow-sm font-medium text-white ${
+            isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+          } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+        >
+          {isLoading ? (
+            <>
+              <span className="inline-block animate-spin mr-2">⟳</span>
+              {safeTrans('websiteAnalysis.analyzing', 'Analyzing...')}
+            </>
+          ) : (
+            safeTrans('websiteAnalysis.analyze', 'Analyze Website')
+          )}
+        </button>
+      </div>
+      
+      {renderScrapedContentSummary()}
+      
+      {!scrapedContent && !isLoading && (
+        <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md flex justify-center items-center text-gray-400 dark:bg-gray-800 dark:border-gray-700">
+          <div className="text-center">
+            <BiLink size={30} className="mx-auto mb-2 opacity-50" />
+            <p className="text-sm">
+              {safeTrans('websiteAnalysis.instruction', 'Enter a website URL to extract content for research')}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default WebsiteAnalysis; 

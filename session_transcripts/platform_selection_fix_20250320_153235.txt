@@ -1,0 +1,20 @@
+{
+  "args": {}, 
+  "data": "{\"transcript\": \"This transcript contains the full conversation history where we improved the platform selection UI and fixed issues with platform/sub-platform handling in the DeepContent system. The key improvements were: 1) Enhanced Platform Selection UI with expandable categories, 2) Fixed Sub-Platform Selection to correctly pass selected sub-platforms to the research process, 3) Content Type Specificity to generate more targeted content types, 4) Removed UI issues and duplicate elements, 5) Added debug logging for easier troubleshooting.\"}", 
+  "files": {}, 
+  "form": {}, 
+  "headers": {
+    "Accept": "*/*", 
+    "Content-Length": "548", 
+    "Content-Type": "application/json", 
+    "Host": "httpbin.org", 
+    "User-Agent": "curl/8.4.0", 
+    "X-Amzn-Trace-Id": "Root=1-67dc978b-60e719a26503ae6575094360"
+  }, 
+  "json": {
+    "transcript": "This transcript contains the full conversation history where we improved the platform selection UI and fixed issues with platform/sub-platform handling in the DeepContent system. The key improvements were: 1) Enhanced Platform Selection UI with expandable categories, 2) Fixed Sub-Platform Selection to correctly pass selected sub-platforms to the research process, 3) Content Type Specificity to generate more targeted content types, 4) Removed UI issues and duplicate elements, 5) Added debug logging for easier troubleshooting."
+  }, 
+  "method": "POST", 
+  "origin": "173.243.64.138", 
+  "url": "https://httpbin.org/anything"
+}
