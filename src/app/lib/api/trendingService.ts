@@ -77,16 +77,7 @@ export async function getTrendingTopics(
         
         if (rssTopics.length > 0) {
           sources.rss = true;
-          allTopics = [...allTopics, ...rssTopics.map(item => ({
-            title: item.title,
-            summary: item.description || 'No description available',
-            url: item.link,
-            pubDate: new Date(item.pubDate),
-            score: 0, // RSS items don't have scores
-            source: item.source || 'RSS Feed',
-            categories: item.categories || ['news'],
-            sourceType: 'reddit' as const, // Reusing Reddit type for compatibility
-          }))];
+          allTopics = [...allTopics, ...rssTopics];
         }
       } catch (error) {
         console.error('Error fetching RSS trending topics:', error);

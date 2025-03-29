@@ -476,10 +476,15 @@ export default function ContentGenerator() {
             
               // Try to get the most recent research for the current user
               try {
+            if (!db) {
+              console.log('Firebase not initialized, skipping research data fetch');
+              return;
+            }
+
             const researchQuery = query(
               collection(db, 'research'),
               where('userId', '==', currentUser.uid),
-                  orderBy('timestamp', 'desc'),
+              orderBy('timestamp', 'desc'),
               limit(1)
             );
             
@@ -2607,11 +2612,15 @@ ${cta}`;
     try {
       // Check if user is authenticated
       const { auth } = await import('@/lib/firebase/firebase');
+      if (!auth) {
+        toast.error('Firebase not initialized');
+        return;
+      }
+      
       const currentUser = auth.currentUser;
       
       if (!currentUser) {
         toast.error('You must be logged in to save content');
-        router.push('/login'); // Redirect to login page
         return;
       }
       

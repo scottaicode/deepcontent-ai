@@ -26,6 +26,8 @@ import { useTranslation } from '@/lib/hooks/useTranslation';
 import PersonaStyledContent from '@/components/PersonaStyledContent';
 import { useContent } from '@/lib/hooks/useContent';
 import FollowUpQuestions from '@/components/FollowUpQuestions';
+import { collection, query, where, getDocs, orderBy, limit, serverTimestamp } from "firebase/firestore";
+import { Firestore } from "firebase/firestore";
 
 // Enhanced research results interface including Claude 3.7 Sonnet analysis
 interface ResearchResults {
@@ -469,6 +471,11 @@ export default function ContentGenerator() {
           try {
             // Get the current user from Firebase Auth
             const { auth } = await import('@/lib/firebase/firebase');
+            if (!auth) {
+              console.error('Firebase not initialized');
+              return;
+            }
+            
             const currentUser = auth.currentUser;
             
             if (!currentUser) {
@@ -479,6 +486,10 @@ export default function ContentGenerator() {
             // Load research data from Firebase
             const { collection, query, where, getDocs, orderBy, limit } = await import('firebase/firestore');
             const { db } = await import('@/lib/firebase/firebase');
+            if (!db) {
+              console.error('Firebase not initialized');
+              return;
+            }
             
             console.log('Loading research data from Firebase for user:', currentUser.uid);
             
@@ -2305,11 +2316,21 @@ ${cta}`;
       }
 
       // Get current user from auth
-      const { auth } = await import('@/lib/firebase/firebase');
+      const { auth, db } = await import('@/lib/firebase/firebase');
+      if (!auth || !db) {
+        toast.error('Firebase not initialized');
+        return;
+      }
+      
       const currentUser = auth.currentUser;
       
       if (!currentUser) {
         toast.error('You must be logged in to save content. Please log in and try again.');
+        return;
+      }
+
+      if (!db) {
+        toast.error('Firebase not initialized');
         return;
       }
       
@@ -2343,9 +2364,19 @@ ${cta}`;
         contentType: contentDetails.contentType || 'general',
         mediaUrls: [],
         userId: currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
       
       console.log('Saving content with data:', contentData);
+      
+      // Create a new document in the content collection
+      const firestore = db;
+      if (!firestore) {
+        toast.error('Firebase not initialized');
+        return;
+      }
+      const contentRef = collection(firestore, 'content');
       
       // Try saving content using the hook
       const contentId = await saveContent(contentData);

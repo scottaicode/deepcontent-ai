@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { testFirestoreConnection } from '@/lib/firebase/firebase';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
+import { Timestamp } from 'firebase/firestore';
 
 export default function DashboardPage() {
   const { contentList, isLoading, error, deleteContent, archiveContent, restoreContent, refreshContent } = useContent();
@@ -166,29 +167,25 @@ export default function DashboardPage() {
     checkFirestore();
   }, [toast, t]);
   
-  const formatDate = (date: string | number | undefined) => {
+  const formatDate = (date: string | number | Timestamp | undefined) => {
     if (!date) return 'N/A';
     
     // Handle Firebase Timestamp objects from Firestore
     try {
       // Check if it's a Firebase Timestamp object (has seconds and nanoseconds)
-      if (typeof date === 'object' && date !== null) {
-        // @ts-ignore - We're checking for Firebase Timestamp structure
-        if (date.seconds !== undefined && date.nanoseconds !== undefined) {
-          // @ts-ignore - Convert Firebase Timestamp to JavaScript Date
-          const timestamp = new Date(date.seconds * 1000);
-          
-          // Verify the date is valid
-          if (!isNaN(timestamp.getTime())) {
-            return timestamp.toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric'
-            });
-          } else {
-            console.warn('Invalid timestamp value:', date);
-            return 'Just now';
-          }
+      if (date instanceof Timestamp) {
+        const timestamp = new Date(date.seconds * 1000);
+        
+        // Verify the date is valid
+        if (!isNaN(timestamp.getTime())) {
+          return timestamp.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        } else {
+          console.warn('Invalid timestamp value:', date);
+          return 'Just now';
         }
       }
       
@@ -305,7 +302,7 @@ export default function DashboardPage() {
           </p>
           
           <div className="flex flex-wrap gap-1 mb-3">
-            {item.tags && [...new Set(item.tags)].map(tag => (
+            {item.tags && Array.from(new Set(item.tags)).map(tag => (
               <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                 {tag}
               </span>

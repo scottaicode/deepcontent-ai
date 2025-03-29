@@ -794,7 +794,7 @@ export default function GoogleAdsCreator() {
   
   // Main render function
   return (
-    <AppShell title={t('google_ads_creator')} description={t('create_optimized_google_ads_campaigns')}>
+    <AppShell>
       {isLoading ? (
         renderLoading()
       ) : error ? (

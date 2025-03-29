@@ -72,7 +72,7 @@ const ContentAnalyticsDashboard: React.FC = () => {
         // Generate mock analytics for each content
         const analytics: ContentAnalytics[] = contents
           .filter((content): content is ContentItem => !!content && !!content.id)
-          .map(content => {
+          .map((content) => {
             // Safely convert Firebase timestamp to Date
             let createdDate = new Date();
             try {

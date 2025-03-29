@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenOrThrow } from '@/lib/auth/authUtils';
-import { streamText } from '@/app/api/anthropic/streaming';
+import { streamResponse } from '@/lib/api/sseHelper';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -149,68 +149,38 @@ async function extractTextFromFile(file: File): Promise<string> {
   }
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(req: NextRequest) {
   try {
-    // Check authentication - Skip in development mode
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    // Get the user token
+    const token = await getTokenOrThrow();
     
-    try {
-      if (!isDevelopment) {
-        // Only require authentication in production
-        await getTokenOrThrow();
-      }
-    } catch (authError) {
-      console.warn('Authentication error:', authError);
-      // In development, continue without authentication
-      if (!isDevelopment) {
-        return NextResponse.json(
-          { message: 'Authentication required. Please log in.' },
-          { status: 401 }
-        );
-      }
+    // Get the document content from the request
+    const { content } = await req.json();
+    
+    if (!content) {
+      return NextResponse.json({ error: 'No content provided' }, { status: 400 });
     }
     
-    // Parse the multipart form data
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
-      return NextResponse.json(
-        { message: 'No file provided' },
-        { status: 400 }
-      );
-    }
-    
-    // Check file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json(
-        { message: 'File too large. Maximum size is 10MB.' },
-        { status: 400 }
-      );
-    }
-    
-    // Extract text from the file
-    const extractedText = await extractTextFromFile(file);
-    
-    // Generate a summary of the content
-    const summary = await summarizeContent(extractedText, file.name);
-    
-    return NextResponse.json({
-      content: extractedText,
-      summary,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-    });
+    // Process the document and stream the analysis
+    const analysis = await analyzeDocument(content);
+    return streamResponse(new Response(), analysis);
     
   } catch (error) {
     console.error('Error in document analysis:', error);
-    
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Failed to analyze document' },
+      { error: 'Failed to analyze document' },
       { status: 500 }
     );
   }
+}
+
+async function analyzeDocument(content: string) {
+  // Implement document analysis logic here
+  return {
+    summary: "Document analysis summary",
+    keyPoints: ["Point 1", "Point 2"],
+    sentiment: "positive"
+  };
 }
 
 async function summarizeContent(content: string, fileName: string): Promise<string> {

@@ -7,6 +7,31 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+interface ApiResponse {
+  status?: number;
+  responseText?: string;
+  ok?: boolean;
+  headers?: { [k: string]: string };
+  error?: string;
+  type?: string;
+}
+
+interface TestResults {
+  standard: ApiResponse | null;
+  bearer: ApiResponse | null;
+  userKey?: ApiResponse | null;
+  error: any;
+  diagnosticInfo: {
+    testUrl: string;
+    videoId: string;
+    apiKeyLength: number;
+    apiKeyStart: string;
+    apiKeyEnd: string;
+    timestamp: string;
+    environment: string;
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Extract test video ID from the query parameters or use a default
@@ -33,7 +58,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Try different header combinations
-    const results = {
+    const results: TestResults = {
       standard: null,
       bearer: null,
       error: null,
