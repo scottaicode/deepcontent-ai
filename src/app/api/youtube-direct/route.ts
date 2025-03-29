@@ -40,21 +40,12 @@ export async function GET(request: NextRequest) {
 
     console.log(`Processing YouTube transcript request for video ID: ${videoId}`);
 
-    // Special case for known videos that don't have captions
+    // Special case for known videos that don't have captions, but try fetching first
     const knownVideosWithoutCaptions = ['gEWJrn6FyLs']; // Softcom video ID
-    if (knownVideosWithoutCaptions.includes(videoId)) {
-      console.log(`YouTube Transcript API: Known video without captions: ${videoId}`);
-      
-      // Generate an appropriate fallback message using our utility
-      const fallbackTranscript = generateFallbackMessage(videoId, `https://youtube.com/watch?v=${videoId}`);
-      
-      return NextResponse.json({ 
-        error: 'This video has captions disabled by the uploader',
-        errorType: 'NO_CAPTIONS',
-        videoId,
-        transcript: fallbackTranscript,
-        isFallback: true
-      }, { status: 200 }); // Return 200 with fallback transcript instead of 404
+    const isKnownVideoWithoutCaptions = knownVideosWithoutCaptions.includes(videoId);
+    
+    if (isKnownVideoWithoutCaptions) {
+      console.log(`YouTube Transcript API: Known video that might not have captions: ${videoId}. Will attempt to fetch anyway for verification.`);
     }
 
     // We'll try multiple methods to get the transcript, in order:
@@ -69,6 +60,7 @@ export async function GET(request: NextRequest) {
         console.log('YouTube Transcript API: Attempting to fetch transcript using Supadata API');
         
         transcriptResult = await trySupadataApi(videoId, SUPADATA_API_KEY);
+        console.log(`YouTube Transcript API: Supadata API fetch ${transcriptResult ? 'succeeded' : 'failed'} for video ${videoId}`);
         if (transcriptResult) {
           return transcriptResult;
         }
@@ -106,6 +98,24 @@ export async function GET(request: NextRequest) {
       errors.push({ method: 'direct', error: error.message });
     }
     
+    // Handle the case where all methods failed
+    if (isKnownVideoWithoutCaptions) {
+      console.log(`YouTube Transcript API: All transcript fetch methods failed for known video ${videoId}, using special fallback.`);
+      
+      // Generate an appropriate fallback message using our utility
+      const fallbackTranscript = generateFallbackMessage(videoId, `https://youtube.com/watch?v=${videoId}`);
+      
+      return NextResponse.json({ 
+        error: 'This video has captions disabled by the uploader',
+        errorType: 'NO_CAPTIONS',
+        videoId,
+        transcript: fallbackTranscript,
+        isFallback: true,
+        attemptsMade: errors.length,
+        errors: errors.map(e => e.error)
+      }, { status: 200 }); // Return 200 with fallback transcript instead of 404
+    }
+    
     // If we get here, all methods failed - check if any mentions transcript disabled
     if (errors.some(e => 
       e.error.includes('Transcript is disabled') || 
@@ -116,8 +126,11 @@ export async function GET(request: NextRequest) {
         error: 'No transcript available for this video. The video might not have captions enabled.',
         errorType: 'NO_CAPTIONS',
         videoId,
-        attemptedMethods: errors.map(e => e.method)
-      }, { status: 404 });
+        attemptedMethods: errors.map(e => e.method),
+        transcript: generateFallbackMessage(videoId, `https://youtube.com/watch?v=${videoId}`),
+        isFallback: true,
+        errors: errors.map(e => e.error)
+      }, { status: 200 }); // Return 200 with error info but also fallback transcript
     }
     
     // Otherwise it's likely a connection or unknown error
@@ -125,8 +138,11 @@ export async function GET(request: NextRequest) {
       error: 'Failed to fetch transcript after trying multiple methods. Please try again later.',
       errorType: 'FETCH_FAILURE',
       videoId,
-      errors: errors
-    }, { status: 500 });
+      transcript: generateFallbackMessage(videoId, `https://youtube.com/watch?v=${videoId}`),
+      isFallback: true,
+      errors: errors,
+      attemptsMade: errors.length
+    }, { status: 200 }); // Return 200 with fallback even for technical errors
     
   } catch (error: any) {
     console.error('YouTube Transcript API: Error in main route handler:', {
@@ -134,11 +150,25 @@ export async function GET(request: NextRequest) {
       stack: error.stack
     });
     
+    // Try to extract videoId from the URL if it's available
+    let videoIdFromError = 'unknown';
+    try {
+      if (request && request.url) {
+        const urlObj = new URL(request.url);
+        videoIdFromError = urlObj.searchParams.get('videoId') || 'unknown';
+      }
+    } catch (e) {
+      console.error('Error extracting videoId from request URL:', e);
+    }
+    
     return NextResponse.json({ 
       error: `Error: ${error.message || 'Unknown error'}`,
       timestamp: new Date().toISOString(),
-      errorDetails: error.stack
-    }, { status: 500 });
+      errorDetails: error.stack,
+      transcript: generateFallbackMessage(videoIdFromError, 
+        videoIdFromError !== 'unknown' ? `https://youtube.com/watch?v=${videoIdFromError}` : undefined),
+      isFallback: true
+    }, { status: 200 });
   }
 }
 
@@ -298,42 +328,59 @@ async function trySupadataApi(videoId: string, apiKey: string) {
  * Try to get transcript using youtube-transcript library
  */
 async function tryLibraryMethod(videoId: string) {
-  // Fetch transcript directly using the youtube-transcript package
-  const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
-  
-  console.log('YouTube Transcript API: Received response from youtube-transcript library', {
-    itemsReceived: transcriptItems?.length || 0,
-    success: !!transcriptItems && transcriptItems.length > 0
-  });
-  
-  if (!transcriptItems || transcriptItems.length === 0) {
-    throw new Error('No transcript items returned from library');
-  }
-  
-  // Join the transcript items into a single string
-  const transcript = transcriptItems
-    .map(item => item.text)
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  if (!transcript || transcript.length < 20) {
-    throw new Error('Library returned too short transcript');
-  }
-  
-  // Log the beginning of the transcript for debugging
-  console.log('YouTube Transcript API: Successfully extracted transcript via library', {
-    transcriptLength: transcript.length,
-    transcriptPreview: transcript.substring(0, 100) + '...'
-  });
-  
-  return NextResponse.json({ 
-    transcript, 
+  console.log('🔍 LIBRARY METHOD: Starting transcript fetch attempt via youtube-transcript library', {
     videoId,
-    detectedLanguage: 'auto',
-    timestamp: new Date().toISOString(),
-    source: 'youtube-transcript-library'
+    timestamp: new Date().toISOString()
   });
+
+  // Fetch transcript directly using the youtube-transcript package
+  try {
+    console.time('library-method-fetch');
+    const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+    console.timeEnd('library-method-fetch');
+    
+    console.log('🔍 LIBRARY METHOD: Received response from youtube-transcript library', {
+      itemsReceived: transcriptItems?.length || 0,
+      success: !!transcriptItems && transcriptItems.length > 0,
+      firstItem: transcriptItems?.[0] ? JSON.stringify(transcriptItems[0]).substring(0, 100) : 'none'
+    });
+    
+    if (!transcriptItems || transcriptItems.length === 0) {
+      throw new Error('No transcript items returned from library');
+    }
+    
+    // Join the transcript items into a single string
+    const transcript = transcriptItems
+      .map(item => item.text)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (!transcript || transcript.length < 20) {
+      throw new Error('Library returned too short transcript');
+    }
+    
+    // Log the beginning of the transcript for debugging
+    console.log('🔍 LIBRARY METHOD: Successfully extracted transcript via library', {
+      transcriptLength: transcript.length,
+      transcriptPreview: transcript.substring(0, 100) + '...'
+    });
+    
+    return NextResponse.json({ 
+      transcript, 
+      videoId,
+      detectedLanguage: 'auto',
+      timestamp: new Date().toISOString(),
+      source: 'youtube-transcript-library'
+    });
+  } catch (error) {
+    console.error('🔍 LIBRARY METHOD: Failed to extract transcript', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      videoId
+    });
+    throw error;
+  }
 }
 
 /**
@@ -341,14 +388,29 @@ async function tryLibraryMethod(videoId: string) {
  * This is a simplified implementation and may break if YouTube changes their structure
  */
 async function tryDirectMethod(videoId: string) {
+  console.log('🔍 DIRECT METHOD: Starting direct page extraction attempt', {
+    videoId,
+    timestamp: new Date().toISOString()
+  });
+
   // First attempt to get the video page to check for captions
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   
   try {
+    console.time('direct-method-fetch');
+    console.log('🔍 DIRECT METHOD: Fetching YouTube video page');
+    
     const response = await fetch(videoUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       }
+    });
+    
+    console.timeEnd('direct-method-fetch');
+    console.log('🔍 DIRECT METHOD: YouTube page fetch response', {
+      status: response.status,
+      ok: response.ok,
+      contentType: response.headers.get('content-type')
     });
     
     if (!response.ok) {
@@ -356,9 +418,18 @@ async function tryDirectMethod(videoId: string) {
     }
     
     const html = await response.text();
+    console.log('🔍 DIRECT METHOD: Received HTML content', {
+      length: html.length,
+      hasCaptionIndicators: {
+        timedtext: html.includes('timedtext'),
+        captionTracks: html.includes('captionTracks'),
+        playerCaptionsTracklistRenderer: html.includes('playerCaptionsTracklistRenderer')
+      }
+    });
     
     // Check for timedtext in video page
     if (!html.includes('timedtext') && !html.includes('captionTracks')) {
+      console.log('🔍 DIRECT METHOD: No caption indicators found in page HTML');
       throw new Error('No captions found on video page');
     }
     
@@ -367,8 +438,13 @@ async function tryDirectMethod(videoId: string) {
     try {
       // Look for caption data in the YouTube page
       const captionMatch = html.match(/"captionTracks":\s*(\[.*?\])/);
+      console.log('🔍 DIRECT METHOD: Caption tracks extraction result', {
+        foundCaptionTracks: !!captionMatch,
+        matchLength: captionMatch ? captionMatch[0].length : 0
+      });
+      
       if (captionMatch && captionMatch[1]) {
-        console.log('Found caption tracks in YouTube page');
+        console.log('🔍 DIRECT METHOD: Found caption tracks in YouTube page');
         
         // Extract transcript using library method as it's more reliable
         // We know captions exist at this point, so try again with the library
@@ -379,6 +455,11 @@ async function tryDirectMethod(videoId: string) {
       // Find the video title
       const titleMatch = html.match(/<title>(.*?)<\/title>/);
       const videoTitle = titleMatch ? titleMatch[1].replace(' - YouTube', '') : 'YouTube Video';
+      
+      console.log('🔍 DIRECT METHOD: Extracted video title', {
+        title: videoTitle,
+        foundTitle: !!titleMatch
+      });
       
       // Create a simple transcript with instructions
       const fallbackTranscript = `This is a transcript for the video: "${videoTitle}".
@@ -392,7 +473,7 @@ You can view the captions directly on YouTube by:
 
 Please note that our automatic transcript extraction is still experimental and may not work for all videos.`;
       
-      console.log('YouTube Transcript API: Created fallback transcript information');
+      console.log('🔍 DIRECT METHOD: Created fallback transcript information');
       
       return NextResponse.json({
         transcript: fallbackTranscript,
@@ -403,20 +484,22 @@ Please note that our automatic transcript extraction is still experimental and m
         notes: 'This is a fallback transcript - actual captions are available on YouTube'
       });
     } catch (extractError) {
-      console.error('Error extracting transcript from page:', extractError);
+      console.error('🔍 DIRECT METHOD: Error extracting transcript from page:', extractError);
       throw new Error('Failed to extract transcript from YouTube page');
     }
     
   } catch (pageError) {
-    console.error('Error with direct page method:', pageError);
+    console.error('🔍 DIRECT METHOD: Error with direct page method:', pageError);
     
     // Legacy method - try with alternative API as last resort
     // Only use this as an absolute last resort, with careful error handling
     try {
-      console.log('Trying alternative transcript API as last resort');
+      console.log('🔍 DIRECT METHOD: Trying alternative transcript API as last resort');
       
       // Different service endpoint that's more reliable
       const altApiUrl = `https://yt-transcripts.vercel.app/api/transcript?videoId=${videoId}`;
+      
+      console.time('alternative-api-fetch');
       const altResponse = await fetch(altApiUrl, {
         method: 'GET',
         headers: {
@@ -424,6 +507,13 @@ Please note that our automatic transcript extraction is still experimental and m
           'Accept': 'application/json'
         },
         signal: AbortSignal.timeout(10000) // shorter timeout for fallback
+      });
+      console.timeEnd('alternative-api-fetch');
+      
+      console.log('🔍 DIRECT METHOD: Alternative API response', {
+        status: altResponse.status,
+        ok: altResponse.ok,
+        contentType: altResponse.headers.get('content-type')
       });
       
       if (!altResponse.ok) {
@@ -433,7 +523,7 @@ Please note that our automatic transcript extraction is still experimental and m
       // Check content type to avoid JSON parse errors
       const contentType = altResponse.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        console.warn('Alternative API returned non-JSON content type:', contentType);
+        console.warn('🔍 DIRECT METHOD: Alternative API returned non-JSON content type:', contentType);
         throw new Error('Alternative API returned invalid content type');
       }
       
@@ -441,6 +531,11 @@ Please note that our automatic transcript extraction is still experimental and m
       let data;
       try {
         const text = await altResponse.text();
+        console.log('🔍 DIRECT METHOD: Alternative API returned text', {
+          length: text.length,
+          preview: text.substring(0, 100)
+        });
+        
         // Trim the text to avoid BOM characters or whitespace that could cause parsing issues
         const trimmedText = text.trim();
         
@@ -449,8 +544,12 @@ Please note that our automatic transcript extraction is still experimental and m
         }
         
         data = JSON.parse(trimmedText);
+        console.log('🔍 DIRECT METHOD: Successfully parsed JSON from alternative API', {
+          hasData: !!data,
+          keys: data ? Object.keys(data) : []
+        });
       } catch (parseError) {
-        console.error('JSON parse error from alternative API:', parseError);
+        console.error('🔍 DIRECT METHOD: JSON parse error from alternative API:', parseError);
         throw new Error('Failed to parse response from alternative API');
       }
       
@@ -471,11 +570,20 @@ Please note that our automatic transcript extraction is still experimental and m
         transcript = data.captions.map((cap: { text?: string }) => cap.text || '').join(' ');
       }
       
+      console.log('🔍 DIRECT METHOD: Extracted transcript from alternative API', {
+        found: !!transcript,
+        length: transcript.length,
+        format: data.transcript ? 'transcript' : 
+                data.text ? 'text' : 
+                Array.isArray(data) ? 'segments' : 
+                data.captions ? 'captions' : 'unknown'
+      });
+      
       if (!transcript || transcript.length < 20) {
         throw new Error('Alternative API returned empty or invalid transcript');
       }
       
-      console.log('YouTube Transcript API: Successfully extracted transcript via alternative API', {
+      console.log('🔍 DIRECT METHOD: Successfully extracted transcript via alternative API', {
         transcriptLength: transcript.length,
         transcriptPreview: transcript.substring(0, 100) + '...'
       });
@@ -485,11 +593,12 @@ Please note that our automatic transcript extraction is still experimental and m
         videoId,
         detectedLanguage: 'auto',
         timestamp: new Date().toISOString(),
-        source: 'alternative-api-fallback'
+        source: 'alternative-api-fallback',
+        transcriptLength: transcript.length
       });
     } catch (altError) {
       // If all fails, throw the original error
-      console.error('Alternative API also failed:', altError);
+      console.error('🔍 DIRECT METHOD: Alternative API also failed:', altError);
       throw pageError;
     }
   }
