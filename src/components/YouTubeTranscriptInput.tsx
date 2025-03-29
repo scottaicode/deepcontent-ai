@@ -36,6 +36,66 @@ interface YouTubeTranscriptInputProps {
   className?: string;
 }
 
+// Add YouTube iframe API types
+interface YouTubePlayerState {
+  UNSTARTED: number;
+  ENDED: number;
+  PLAYING: number;
+  PAUSED: number;
+  BUFFERING: number;
+  CUED: number;
+}
+
+interface YouTubePlayer {
+  getVideoData: () => { video_id: string, title: string };
+  getDuration: () => number;
+  getCurrentTime: () => number;
+  loadVideoById: (videoId: string, startSeconds?: number) => void;
+  getAvailableQualityLevels: () => string[];
+  addEventListener: (event: string, listener: (event: any) => void) => void;
+  removeEventListener: (event: string, listener: (event: any) => void) => void;
+  destroy: () => void;
+  getPlayerState: () => number;
+  cueVideoById: (videoId: string) => void;
+  mute: () => void;
+  getOptions: (module: string) => string[];
+  hasModule: (moduleName: string) => boolean;
+  loadModule: (moduleName: string) => void;
+  stopVideo: () => void;
+}
+
+declare global {
+  interface Window {
+    YT?: {
+      loaded: number;
+      ready: (callback: () => void) => void;
+      Player: new (
+        element: string | HTMLElement,
+        options: {
+          videoId?: string;
+          width?: number | string;
+          height?: number | string;
+          playerVars?: {
+            autoplay?: 0 | 1;
+            controls?: 0 | 1;
+            cc_load_policy?: 0 | 1;
+            cc_lang_pref?: string;
+            modestbranding?: 0 | 1;
+            origin?: string;
+          };
+          events?: {
+            onReady?: (event: { target: YouTubePlayer }) => void;
+            onStateChange?: (event: { data: number }) => void;
+            onError?: (event: { data: number }) => void;
+          };
+        }
+      ) => YouTubePlayer;
+      PlayerState: YouTubePlayerState;
+    };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
 const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   url,
   onUrlChange,
@@ -55,6 +115,12 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   const [apiStatus, setApiStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   const [diagnosticInfo, setDiagnosticInfo] = useState<string | null>(null);
   const [showAdminTools, setShowAdminTools] = useState(false);
+
+  // Add a reference for the player container
+  const playerContainerRef = React.useRef<HTMLDivElement>(null);
+  const [clientSideExtractionMode, setClientSideExtractionMode] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
+  const playerInstanceRef = React.useRef<YouTubePlayer | null>(null);
 
   useEffect(() => {
     // Reset error when URL changes
@@ -78,6 +144,35 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
       window.location.search.includes('debug=true');
     
     setShowAdminTools(isDevOrDebug);
+  }, []);
+
+  // Load YouTube iframe API
+  useEffect(() => {
+    // Only load this in browser environments
+    if (typeof window === 'undefined') return;
+
+    // Add the YouTube iframe API script
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    // Define the callback that YouTube will call when API is ready
+    window.onYouTubeIframeAPIReady = () => {
+      console.log('YouTube iframe API ready');
+    };
+
+    return () => {
+      // Cleanup
+      window.onYouTubeIframeAPIReady = undefined;
+      if (playerInstanceRef.current) {
+        playerInstanceRef.current.destroy();
+        playerInstanceRef.current = null;
+      }
+    };
   }, []);
 
   const getErrorMessage = (err: any): string => {
@@ -510,6 +605,133 @@ ${text}
     }
   };
 
+  // Handle client-side caption extraction
+  const handleClientSideExtraction = async () => {
+    if (!youtubeId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    setClientSideExtractionMode(true);
+    
+    try {
+      console.log('🔍 CLIENT EXTRACTION: Initializing YouTube player for caption extraction');
+      
+      // Ensure the container exists
+      if (!playerContainerRef.current) {
+        throw new Error('Player container not found');
+      }
+      
+      // Create a player instance
+      if (window.YT && window.YT.Player) {
+        // Clear any existing player
+        if (playerInstanceRef.current) {
+          playerInstanceRef.current.destroy();
+          playerInstanceRef.current = null;
+        }
+        
+        // Create new player
+        let transcriptText = '';
+        let captionsFound = false;
+        
+        // Create a hidden player to check for captions
+        const player = new window.YT.Player(playerContainerRef.current, {
+          videoId: youtubeId,
+          width: '320',
+          height: '180',
+          playerVars: {
+            autoplay: 0,
+            controls: 1,
+            cc_load_policy: 1, // Force closed captions
+            cc_lang_pref: 'en',
+            modestbranding: 1,
+            origin: window.location.origin
+          },
+          events: {
+            onReady: (event) => {
+              console.log('🔍 CLIENT EXTRACTION: YouTube player ready');
+              setPlayerReady(true);
+              playerInstanceRef.current = event.target;
+              
+              // Check if this video has captions
+              const hasCapModules = event.target.hasModule && event.target.hasModule('captions');
+              const hasCCOption = event.target.getOptions && event.target.getOptions('captions').length > 0;
+              
+              captionsFound = hasCapModules || hasCCOption;
+              console.log('🔍 CLIENT EXTRACTION: Caption detection:', { 
+                hasCapModules, 
+                hasCCOption,
+                captionsFound
+              });
+              
+              // Get video title for the transcript
+              const videoData = event.target.getVideoData();
+              const videoTitle = videoData?.title || 'YouTube Video';
+              
+              // If captions are available, we'll use that information in the response
+              if (captionsFound) {
+                transcriptText = `# YouTube Video Transcript\n\nTitle: ${videoTitle}\nVideo ID: ${youtubeId}\n\n`;
+                transcriptText += `This video has captions available in the YouTube player. To view them:\n\n`;
+                transcriptText += `1. Go to the video: https://www.youtube.com/watch?v=${youtubeId}\n`;
+                transcriptText += `2. Click the "CC" button in the YouTube player\n\n`;
+                transcriptText += `Our system detected that this video has captions, but we couldn't extract the full text automatically due to YouTube API restrictions.\n\n`;
+                transcriptText += `You can analyze this video by watching it with captions enabled.`;
+              } else {
+                throw new Error('No captions detected for this video');
+              }
+              
+              // Mute the player and stop video
+              event.target.mute();
+              setTimeout(() => {
+                event.target.stopVideo();
+                
+                // Process the transcript and complete the flow
+                if (transcriptText) {
+                  // Format the transcript
+                  const formattedTranscript = formatTranscript(
+                    transcriptText, 
+                    'en', 
+                    `https://youtube.com/watch?v=${youtubeId}`,
+                    true // Treat as pre-formatted
+                  );
+                  
+                  // Call the callback with the transcript and URL
+                  onTranscriptFetched(formattedTranscript, url);
+                  
+                  // Show guidance toast
+                  toast({
+                    title: 'Captions Detected',
+                    description: 'This video has captions, but due to YouTube restrictions, we can only confirm their existence, not extract the full text.',
+                    variant: 'default',
+                  });
+                }
+              }, 2000);
+            },
+            onError: (event) => {
+              console.error('🔍 CLIENT EXTRACTION: YouTube player error:', event.data);
+              throw new Error(`YouTube player error: ${event.data}`);
+            }
+          }
+        });
+      } else {
+        throw new Error('YouTube iframe API not available');
+      }
+    } catch (err: any) {
+      console.error('🔍 CLIENT EXTRACTION: Error:', err);
+      setError(getErrorMessage(err));
+      setClientSideExtractionMode(false);
+      toast({
+        title: 'Error checking for captions',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      });
+    } finally {
+      // We don't set isLoading to false immediately since the player onReady event will complete the process
+      if (!playerReady) {
+        setIsLoading(false);
+      }
+    }
+  };
+
   return (
     <div className={`overflow-hidden ${className}`}>
       <div className="space-y-4">
@@ -533,7 +755,7 @@ ${text}
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={handleFetchTranscript}
+                onClick={isLoading ? undefined : handleClientSideExtraction}
                 disabled={isLoading || !url}
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md shadow-sm text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
               >
@@ -753,6 +975,19 @@ ${text}
             {!showFullTranscript && transcript.length > 300 && (
               <div className="h-8 bg-gradient-to-t from-white dark:from-gray-800 to-transparent absolute bottom-1 left-0 right-0"></div>
             )}
+          </div>
+        )}
+
+        {/* Client-side extraction mode indicator */}
+        {clientSideExtractionMode && (
+          <div className="mt-4 relative">
+            <div className="absolute inset-0 bg-gray-800/50 rounded flex items-center justify-center z-10">
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                <Loader2 className="animate-spin h-8 w-8 mx-auto text-blue-500 mb-2" />
+                <p className="text-sm font-medium">Checking for captions...</p>
+              </div>
+            </div>
+            <div ref={playerContainerRef} className="w-full h-48 bg-black rounded"></div>
           </div>
         )}
       </div>
