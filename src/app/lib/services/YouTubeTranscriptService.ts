@@ -84,30 +84,77 @@ export async function fetchYouTubeTranscript(videoUrl: string): Promise<string> 
       throw new Error('Could not extract video ID from URL');
     }
     
-    // Use the direct API endpoint
-    console.log('Using direct transcript API...');
-    const response = await fetch(`/api/youtube-direct?videoId=${videoId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error fetching YouTube transcript:', errorData);
-      throw new Error(errorData.error || 'Failed to fetch transcript');
-    }
-
-    const data = await response.json();
+    // Attempt to get the transcript with multiple retries
+    let lastError = null;
     
-    if (!data.transcript) {
-      console.error('No transcript found in response:', data);
-      throw new Error('No transcript found for this video');
-    }
+    // Try up to 3 times with different endpoints
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        let endpoint = '';
+        let serviceName = '';
+        
+        // Use different endpoints for each attempt
+        if (attempt === 1) {
+          endpoint = `/api/youtube-direct?videoId=${videoId}`;
+          serviceName = 'primary API';
+        } else if (attempt === 2) {
+          endpoint = `/api/youtube/transcript?videoId=${videoId}`;
+          serviceName = 'backup API';
+        } else {
+          // Last attempt with direct endpoint
+          endpoint = `/api/youtube-direct/transcript?videoId=${videoId}`;
+          serviceName = 'fallback API';
+        }
+        
+        console.log(`Attempt ${attempt}: Using ${serviceName} at ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // Set a timeout for the request
+          signal: AbortSignal.timeout(20000) // 20 seconds timeout
+        });
 
-    console.log('Successfully fetched YouTube transcript');
-    return data.transcript;
+        // Even if we get a 4xx status, try to read the response body
+        // as it may contain valuable error information
+        const data = await response.json();
+        
+        // If response is OK, use the transcript
+        if (response.ok) {
+          if (data.transcript) {
+            console.log(`Successfully fetched transcript via ${serviceName}`);
+            return data.transcript;
+          } else {
+            throw new Error(`${serviceName} returned no transcript`);
+          }
+        }
+        
+        // Process specific error types for better error reporting 
+        if (response.status === 404 && data.errorType === 'NO_CAPTIONS') {
+          throw new Error('No transcript is available for this video');
+        }
+        
+        // Generic error fallback
+        throw new Error(data.error || `${serviceName} returned status ${response.status}`);
+      } catch (attemptError: any) {
+        lastError = attemptError;
+        console.error(`Attempt ${attempt} failed:`, attemptError.message);
+        
+        // If this is a definitive "no captions" error, don't retry
+        if (attemptError.message.includes('No transcript is available') || 
+            attemptError.message.includes('Transcript is disabled')) {
+          throw attemptError;
+        }
+        
+        // For other errors, continue to next attempt
+      }
+    }
+    
+    // If we get here, all attempts failed
+    throw lastError || new Error('Failed to fetch transcript after multiple attempts');
+    
   } catch (error) {
     console.error('Error in fetchYouTubeTranscript:', error);
     throw error;

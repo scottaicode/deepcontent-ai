@@ -1,8 +1,10 @@
 /**
  * Direct YouTube Transcript API Route
  * 
- * Primary implementation uses Supadata API with fallback to youtube-transcript library
- * This provides more reliable transcript extraction with a commercial API
+ * Multiple implementation strategies for maximum reliability
+ * 1. Try Supadata API first (if configured)
+ * 2. Then use youtube-transcript library
+ * 3. If all fails, attempt a third method with direct YouTube data extraction
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -37,83 +39,77 @@ export async function GET(request: NextRequest) {
 
     console.log(`Processing YouTube transcript request for video ID: ${videoId}`);
 
-    // Use the Supadata API with your configured API key
+    // We'll try multiple methods to get the transcript, in order:
+    let transcriptResult = null;
+    let errors = [];
+
+    // 1. First try: Supadata API if configured
     const SUPADATA_API_KEY = process.env.SUPADATA_API_KEY;
     
-    if (!SUPADATA_API_KEY) {
-      console.warn('YouTube Transcript API: Missing SUPADATA_API_KEY environment variable');
-      console.log('YouTube Transcript API: Falling back to direct library method');
-      return await getTranscriptWithLibrary(videoId);
+    if (SUPADATA_API_KEY) {
+      try {
+        console.log('YouTube Transcript API: Attempting to fetch transcript using Supadata API');
+        
+        transcriptResult = await trySupadataApi(videoId, SUPADATA_API_KEY);
+        if (transcriptResult) {
+          return transcriptResult;
+        }
+      } catch (error: any) {
+        console.error('YouTube Transcript API: Supadata API method failed:', error.message);
+        errors.push({ method: 'supadata', error: error.message });
+      }
+    } else {
+      console.log('YouTube Transcript API: Supadata API key not configured, skipping');
     }
     
-    // Try using Supadata API first
+    // 2. Second try: youtube-transcript library
     try {
-      console.log('YouTube Transcript API: Attempting to fetch transcript using Supadata API');
+      console.log('YouTube Transcript API: Attempting to fetch transcript using youtube-transcript library');
       
-      // Call the Supadata API
-      const response = await fetch(`https://api.supadata.io/youtube/transcript?videoId=${videoId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SUPADATA_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        signal: AbortSignal.timeout(15000) // 15-second timeout
-      });
-      
-      if (!response.ok) {
-        const statusCode = response.status;
-        console.error(`YouTube Transcript API: Supadata API returned status ${statusCode}`);
-        
-        // Try to get more detailed error
-        let errorDetails = '';
-        try {
-          const errorData = await response.text();
-          errorDetails = errorData;
-        } catch (err) {
-          errorDetails = 'Could not extract error details';
-        }
-        
-        console.error('Supadata API error details:', errorDetails);
-        
-        if (statusCode === 404 || errorDetails.includes('not found') || errorDetails.includes('unavailable')) {
-          return NextResponse.json({ 
-            error: 'No transcript available for this video. The video might not have captions enabled.',
-            errorType: 'NO_CAPTIONS', 
-            videoId 
-          }, { status: 404 });
-        }
-        
-        // Otherwise fall back to library method
-        throw new Error(`Supadata API returned status ${statusCode}: ${errorDetails}`);
+      transcriptResult = await tryLibraryMethod(videoId);
+      if (transcriptResult) {
+        return transcriptResult;
       }
-      
-      const data = await response.json();
-      
-      // Check if we have a valid transcript
-      const transcript = data.transcript || data.content;
-      
-      if (!transcript || typeof transcript !== 'string' || transcript.length < 20) {
-        console.warn('YouTube Transcript API: Supadata API returned invalid transcript, falling back to library');
-        return await getTranscriptWithLibrary(videoId);
-      }
-      
-      console.log('YouTube Transcript API: Successfully extracted transcript via Supadata API', {
-        transcriptLength: transcript.length,
-        transcriptPreview: transcript.substring(0, 100) + '...'
-      });
-      
-      return NextResponse.json({
-        transcript,
-        videoId,
-        detectedLanguage: data.language || 'auto',
-        timestamp: new Date().toISOString(),
-        source: 'supadata-api'
-      });
     } catch (error: any) {
-      // Log the error and fall back to the youtube-transcript library
-      console.error('YouTube Transcript API: Supadata API failed, falling back to library:', error.message);
-      return await getTranscriptWithLibrary(videoId);
+      console.error('YouTube Transcript API: Library method failed:', error.message);
+      errors.push({ method: 'library', error: error.message });
     }
+    
+    // 3. Third try (direct HTML method) - only a simple implementation as last resort
+    try {
+      console.log('YouTube Transcript API: Attempting to fetch transcript using direct method');
+      
+      transcriptResult = await tryDirectMethod(videoId);
+      if (transcriptResult) {
+        return transcriptResult;
+      }
+    } catch (error: any) {
+      console.error('YouTube Transcript API: Direct method failed:', error.message);
+      errors.push({ method: 'direct', error: error.message });
+    }
+    
+    // If we get here, all methods failed - check if any mentions transcript disabled
+    if (errors.some(e => 
+      e.error.includes('Transcript is disabled') || 
+      e.error.includes('not available') || 
+      e.error.includes('Could not retrieve')
+    )) {
+      return NextResponse.json({ 
+        error: 'No transcript available for this video. The video might not have captions enabled.',
+        errorType: 'NO_CAPTIONS',
+        videoId,
+        attemptedMethods: errors.map(e => e.method)
+      }, { status: 404 });
+    }
+    
+    // Otherwise it's likely a connection or unknown error
+    return NextResponse.json({ 
+      error: 'Failed to fetch transcript after trying multiple methods. Please try again later.',
+      errorType: 'FETCH_FAILURE',
+      videoId,
+      errors: errors
+    }, { status: 500 });
+    
   } catch (error: any) {
     console.error('YouTube Transcript API: Error in main route handler:', {
       error: error.message,
@@ -129,94 +125,158 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Helper function to get transcript using the youtube-transcript library (fallback method)
+ * Try to get transcript using Supadata API
  */
-async function getTranscriptWithLibrary(videoId: string) {
-  try {
-    console.log('YouTube Transcript API: Attempting to fetch transcript using youtube-transcript library');
+async function trySupadataApi(videoId: string, apiKey: string) {
+  // Call the Supadata API
+  const response = await fetch(`https://api.supadata.io/youtube/transcript?videoId=${videoId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    signal: AbortSignal.timeout(15000) // 15-second timeout
+  });
+  
+  if (!response.ok) {
+    const statusCode = response.status;
+    let errorDetails = 'Unknown error';
     
-    // Fetch transcript directly using the youtube-transcript package
-    const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+    try {
+      errorDetails = await response.text();
+    } catch (err) {}
     
-    console.log('YouTube Transcript API: Received response from youtube-transcript library', {
-      itemsReceived: transcriptItems?.length || 0,
-      success: !!transcriptItems && transcriptItems.length > 0
-    });
-    
-    if (!transcriptItems || transcriptItems.length === 0) {
-      console.log('YouTube Transcript API: No transcript items returned from library');
-      return NextResponse.json({ 
-        error: 'No transcript available for this video. The video might not have captions enabled.',
-        errorType: 'NO_CAPTIONS',
-        videoId 
-      }, { status: 404 });
+    // Only treat 404s specifically as "no transcript"
+    // For other errors, we'll fall back to other methods
+    if (statusCode === 404 && (
+        errorDetails.includes('transcript not found') || 
+        errorDetails.includes('captions are disabled')
+    )) {
+      throw new Error('Transcript is disabled on this video (Supadata API)');
     }
     
-    // Join the transcript items into a single string
-    const transcript = transcriptItems
-      .map(item => item.text)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Log the beginning of the transcript for debugging
-    console.log('YouTube Transcript API: Successfully extracted transcript via library', {
-      transcriptLength: transcript.length,
-      transcriptPreview: transcript.substring(0, 100) + '...'
-    });
-    
-    return NextResponse.json({ 
-      transcript, 
-      videoId,
-      detectedLanguage: 'auto',
-      timestamp: new Date().toISOString(),
-      source: 'youtube-transcript-library'
-    });
-  } catch (error: any) {
-    console.error('YouTube Transcript API: Library method failed to fetch transcript:', {
-      error: error.message,
-      stack: error.stack,
-      videoId
-    });
-    
-    // Check for specific error types to provide better error messages
-    const errorMessage = error.message || 'Unknown error';
-    
-    // Determine error type based on error message
-    let errorType = 'UNKNOWN';
-    let statusCode = 500;
-    let userFriendlyMessage = `Failed to fetch transcript: ${errorMessage}`;
-    
-    if (errorMessage.includes('Transcript is disabled') || 
-        errorMessage.includes('not available') || 
-        errorMessage.includes('Could not retrieve') ||
-        errorMessage.includes('No transcript')) {
-      errorType = 'NO_CAPTIONS';
-      statusCode = 404;
-      userFriendlyMessage = 'No transcript available for this video. The video might not have captions enabled.';
-    } else if (errorMessage.includes('network') || 
-               errorMessage.includes('fetch failed') || 
-               errorMessage.includes('timeout') ||
-               errorMessage.includes('ETIMEDOUT')) {
-      errorType = 'NETWORK_ERROR';
-      statusCode = 503;
-      userFriendlyMessage = 'Network error when connecting to YouTube. Please check your internet connection and try again.';
-    } else if (errorMessage.includes('videoId') || 
-               errorMessage.includes('Invalid') || 
-               errorMessage.includes('not found')) {
-      errorType = 'INVALID_VIDEO_ID';
-      statusCode = 400;
-      userFriendlyMessage = 'Invalid YouTube video ID provided.';
-    }
-    
-    return NextResponse.json({ 
-      error: userFriendlyMessage,
-      errorType,
-      errorDetails: {
-        originalMessage: errorMessage,
-        type: errorType,
-        videoId
-      }
-    }, { status: statusCode });
+    // For other errors, throw but don't immediately conclude no transcript
+    throw new Error(`Supadata API returned status ${statusCode}: ${errorDetails}`);
   }
+  
+  const data = await response.json();
+  
+  // Check if we have a valid transcript
+  const transcript = data.transcript || data.content;
+  
+  if (!transcript || typeof transcript !== 'string' || transcript.length < 20) {
+    throw new Error('Supadata API returned invalid or empty transcript');
+  }
+  
+  console.log('YouTube Transcript API: Successfully extracted transcript via Supadata API', {
+    transcriptLength: transcript.length,
+    transcriptPreview: transcript.substring(0, 100) + '...'
+  });
+  
+  return NextResponse.json({
+    transcript,
+    videoId,
+    detectedLanguage: data.language || 'auto',
+    timestamp: new Date().toISOString(),
+    source: 'supadata-api'
+  });
+}
+
+/**
+ * Try to get transcript using youtube-transcript library
+ */
+async function tryLibraryMethod(videoId: string) {
+  // Fetch transcript directly using the youtube-transcript package
+  const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+  
+  console.log('YouTube Transcript API: Received response from youtube-transcript library', {
+    itemsReceived: transcriptItems?.length || 0,
+    success: !!transcriptItems && transcriptItems.length > 0
+  });
+  
+  if (!transcriptItems || transcriptItems.length === 0) {
+    throw new Error('No transcript items returned from library');
+  }
+  
+  // Join the transcript items into a single string
+  const transcript = transcriptItems
+    .map(item => item.text)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  if (!transcript || transcript.length < 20) {
+    throw new Error('Library returned too short transcript');
+  }
+  
+  // Log the beginning of the transcript for debugging
+  console.log('YouTube Transcript API: Successfully extracted transcript via library', {
+    transcriptLength: transcript.length,
+    transcriptPreview: transcript.substring(0, 100) + '...'
+  });
+  
+  return NextResponse.json({ 
+    transcript, 
+    videoId,
+    detectedLanguage: 'auto',
+    timestamp: new Date().toISOString(),
+    source: 'youtube-transcript-library'
+  });
+}
+
+/**
+ * Last resort - try to get transcript by direct HTML parsing
+ * This is a simplified implementation and may break if YouTube changes their structure
+ */
+async function tryDirectMethod(videoId: string) {
+  // First attempt to get the video page to check for captions
+  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  
+  const response = await fetch(videoUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch video page, status ${response.status}`);
+  }
+  
+  const html = await response.text();
+  
+  // Check for timedtext in video page
+  if (!html.includes('timedtext') && !html.includes('captionTracks')) {
+    throw new Error('No captions found on video page');
+  }
+  
+  // Try to get transcript from alternate API
+  const altResponse = await fetch(`https://youtubetranscript.com/?server=1&v=${videoId}`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+    }
+  });
+  
+  if (!altResponse.ok) {
+    throw new Error(`Alternative transcript API failed with status ${altResponse.status}`);
+  }
+  
+  const data = await altResponse.json();
+  
+  if (!data || !data.transcript || typeof data.transcript !== 'string' || data.transcript.length < 20) {
+    throw new Error('Alternative API returned invalid transcript');
+  }
+  
+  console.log('YouTube Transcript API: Successfully extracted transcript via alternative API', {
+    transcriptLength: data.transcript.length,
+    transcriptPreview: data.transcript.substring(0, 100) + '...'
+  });
+  
+  return NextResponse.json({
+    transcript: data.transcript,
+    videoId,
+    detectedLanguage: data.language || 'auto',
+    timestamp: new Date().toISOString(),
+    source: 'alternative-api'
+  });
 } 
