@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { isValidYouTubeUrl, fetchYouTubeTranscript, extractYouTubeVideoId } from '@/app/lib/services/YouTubeTranscriptService';
+import * as BackupService from '@/app/lib/services/backups/YouTubeTranscriptBackupService';
 import { useToast } from '@/lib/hooks/useToast';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { Loader2, Play, Sparkles, Youtube, PlayCircle, AlertTriangle, Check, RefreshCw, Lightbulb, X, Copy, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
@@ -626,6 +627,51 @@ For your research, consider watching the video with captions enabled and taking 
     }
   };
 
+  // Try the backup service directly
+  const handleBackupService = async () => {
+    if (!youtubeId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Attempting to use backup service directly');
+      
+      // Use the backup service to fetch the transcript
+      const transcript = await BackupService.fetchDirectTranscript(youtubeId);
+      
+      if (transcript && transcript.length > 0) {
+        // Format the transcript using the backup service
+        const formattedTranscript = BackupService.formatTranscriptForResearch(
+          transcript,
+          `https://youtube.com/watch?v=${youtubeId}`
+        );
+        
+        // Call the callback with the transcript and URL
+        onTranscriptFetched(formattedTranscript, url);
+        
+        toast({
+          title: 'Backup Method Succeeded',
+          description: 'Successfully retrieved transcript using alternative method.',
+          variant: 'default',
+        });
+      } else {
+        throw new Error('Backup service returned empty transcript');
+      }
+    } catch (err: any) {
+      console.error('Backup service failed:', err);
+      setError(`Backup method failed: ${err.message}`);
+      
+      toast({
+        title: 'Backup Method Failed',
+        description: 'Could not retrieve transcript with alternative method. The video may not have captions.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className={`overflow-hidden ${className}`}>
       <div className="space-y-4">
@@ -738,13 +784,21 @@ For your research, consider watching the video with captions enabled and taking 
                         <li>Restart your development server</li>
                       </ol>
                       
-                      <div className="mt-3">
+                      <div className="mt-3 flex space-x-3">
                         <button
                           onClick={checkApiKey}
                           className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:text-indigo-100 dark:bg-indigo-700/30 dark:hover:bg-indigo-700/50"
                         >
                           <RefreshCw className="mr-1 h-3 w-3" />
                           Check API Configuration
+                        </button>
+                        
+                        <button
+                          onClick={handleBackupService}
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:text-emerald-100 dark:bg-emerald-700/30 dark:hover:bg-emerald-700/50"
+                        >
+                          <Lightbulb className="mr-1 h-3 w-3" />
+                          Try Backup Method
                         </button>
                       </div>
                     </div>

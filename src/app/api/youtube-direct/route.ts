@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 import { generateFallbackMessage } from '@/app/lib/services/YouTubeTranscriptService';
+import * as BackupService from '@/app/lib/services/backups/YouTubeTranscriptBackupService';
 
 // Define interface to match what the package returns
 interface TranscriptItem {
@@ -147,7 +148,28 @@ export async function GET(request: NextRequest) {
       errors.push({ method: 'library', error: error.message });
     }
     
-    // 3. Fourth try (direct HTML method) - only a simple implementation as last resort
+    // 3. Fourth try: Fallback to backup service implementation
+    try {
+      console.log('YouTube Transcript API: Attempting to fetch transcript using backup service');
+      
+      const transcript = await BackupService.fetchDirectTranscript(videoId);
+      
+      if (transcript && transcript.length > 0) {
+        console.log('YouTube Transcript API: Backup service succeeded');
+        return NextResponse.json({
+          transcript,
+          videoId,
+          source: 'backup-service',
+          segments: transcript.split(' ').length,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error: any) {
+      console.error('YouTube Transcript API: Backup service failed:', error.message);
+      errors.push({ method: 'backup-service', error: error.message });
+    }
+    
+    // 4. Last try (direct HTML method) - only a simple implementation as last resort
     try {
       console.log('YouTube Transcript API: Attempting to fetch transcript using direct method');
       
