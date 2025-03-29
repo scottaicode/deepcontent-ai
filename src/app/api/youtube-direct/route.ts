@@ -21,6 +21,21 @@ interface TranscriptItem {
 // Add config for dynamic route - explicitly mark as dynamic
 export const dynamic = 'force-dynamic';
 
+// Guaranteed working videos for testing
+const KNOWN_WORKING_VIDEOS = [
+  'UF8uR6Z6KLc',  // Steve Jobs Stanford speech - has reliable captions
+  'jNQXAC9IVRw',  // "Me at the zoo" - the first YouTube video
+  'dQw4w9WgXcQ'   // Rick Astley - reliable captions
+];
+
+// Videos known to not have captions
+const KNOWN_NO_CAPTION_VIDEOS = [
+  'gEWJrn6FyLs' // Softcom video
+];
+
+// Direct access to YouTube's timedtext API
+const YOUTUBE_TIMEDTEXT_API = 'https://www.youtube.com/api/timedtext';
+
 export async function GET(request: NextRequest) {
   console.log('YouTube Transcript API: Request received', new Date().toISOString());
   
@@ -31,6 +46,37 @@ export async function GET(request: NextRequest) {
     
     const videoId = searchParams.get('videoId');
     console.log('YouTube Transcript API: Video ID from query parameters:', videoId);
+    
+    // Check for debug mode to force specific test videos
+    const testMode = searchParams.get('test');
+    if (testMode === 'working' && KNOWN_WORKING_VIDEOS.length > 0) {
+      // Use a known working video to test the extraction
+      const testVideoId = KNOWN_WORKING_VIDEOS[0];
+      console.log(`YouTube Transcript API: TEST MODE - Using known working video: ${testVideoId}`);
+      
+      // First try direct YouTube API method which should be most reliable
+      try {
+        const transcriptResult = await tryYouTubeTimedTextApi(testVideoId);
+        if (transcriptResult) {
+          console.log('YouTube Transcript API: TEST MODE - Successfully fetched transcript for known working video');
+          return NextResponse.json({
+            ...transcriptResult,
+            testMode: true,
+            originalVideoId: videoId,
+            testVideoId: testVideoId
+          });
+        }
+      } catch (error: any) {
+        console.error('YouTube Transcript API: TEST MODE - Failed to fetch known working video:', error.message);
+        return NextResponse.json({
+          error: 'Critical API failure: Even known working videos are failing',
+          testMode: true,
+          errorMessage: error.message,
+          originalVideoId: videoId,
+          testVideoId: testVideoId
+        }, { status: 500 });
+      }
+    }
 
     // Validate the video ID
     if (!videoId) {
@@ -39,10 +85,9 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`Processing YouTube transcript request for video ID: ${videoId}`);
-
+    
     // Special case for known videos that don't have captions, but try fetching first
-    const knownVideosWithoutCaptions = ['gEWJrn6FyLs']; // Softcom video ID
-    const isKnownVideoWithoutCaptions = knownVideosWithoutCaptions.includes(videoId);
+    const isKnownVideoWithoutCaptions = KNOWN_NO_CAPTION_VIDEOS.includes(videoId);
     
     if (isKnownVideoWithoutCaptions) {
       console.log(`YouTube Transcript API: Known video that might not have captions: ${videoId}. Will attempt to fetch anyway for verification.`);
@@ -52,7 +97,20 @@ export async function GET(request: NextRequest) {
     let transcriptResult = null;
     let errors = [];
 
-    // 1. First try: Supadata API if configured
+    // Try direct YouTube API method first (should work if captions exist)
+    try {
+      console.log('YouTube Transcript API: Attempting direct YouTube timedtext API');
+      transcriptResult = await tryYouTubeTimedTextApi(videoId);
+      if (transcriptResult) {
+        console.log('YouTube Transcript API: YouTube timedtext API succeeded');
+        return NextResponse.json(transcriptResult);
+      }
+    } catch (error: any) {
+      console.error('YouTube Transcript API: YouTube timedtext API failed:', error.message);
+      errors.push({ method: 'youtube-timedtext', error: error.message });
+    }
+
+    // 1. Second try: Supadata API if configured
     const SUPADATA_API_KEY = process.env.SUPADATA_API_KEY;
     
     if (SUPADATA_API_KEY) {
@@ -72,7 +130,7 @@ export async function GET(request: NextRequest) {
       console.log('YouTube Transcript API: Supadata API key not configured, skipping');
     }
     
-    // 2. Second try: youtube-transcript library
+    // 2. Third try: youtube-transcript library
     try {
       console.log('YouTube Transcript API: Attempting to fetch transcript using youtube-transcript library');
       
@@ -85,7 +143,7 @@ export async function GET(request: NextRequest) {
       errors.push({ method: 'library', error: error.message });
     }
     
-    // 3. Third try (direct HTML method) - only a simple implementation as last resort
+    // 3. Fourth try (direct HTML method) - only a simple implementation as last resort
     try {
       console.log('YouTube Transcript API: Attempting to fetch transcript using direct method');
       
@@ -169,6 +227,135 @@ export async function GET(request: NextRequest) {
         videoIdFromError !== 'unknown' ? `https://youtube.com/watch?v=${videoIdFromError}` : undefined),
       isFallback: true
     }, { status: 200 });
+  }
+}
+
+/**
+ * Try to get transcript directly from YouTube's timedtext API
+ * This should be the most reliable method if the video has captions
+ */
+async function tryYouTubeTimedTextApi(videoId: string) {
+  console.log('🔍 YOUTUBE API: Starting direct YouTube timedtext API extraction', {
+    videoId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    // First get video info to find the caption tracks
+    const videoInfoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    
+    console.time('youtube-info-fetch');
+    const response = await fetch(videoInfoUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      },
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+    console.timeEnd('youtube-info-fetch');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video info, status ${response.status}`);
+    }
+    
+    const html = await response.text();
+    
+    // Log if we can find caption data in the HTML
+    const hasCaptionData = html.includes('captionTracks') || html.includes('playerCaptionsTracklistRenderer');
+    console.log('🔍 YOUTUBE API: Video page fetch result', {
+      status: response.status,
+      htmlLength: html.length,
+      hasCaptionData
+    });
+    
+    if (!hasCaptionData) {
+      throw new Error('No caption data found in YouTube page');
+    }
+    
+    // Extract caption track information
+    const captionRegex = /"captionTracks":\s*(\[.*?\])/;
+    const captionMatch = html.match(captionRegex);
+    
+    if (!captionMatch || !captionMatch[1]) {
+      throw new Error('Failed to extract caption track data');
+    }
+    
+    try {
+      // Parse the caption tracks JSON
+      const captionTracks = JSON.parse(captionMatch[1]);
+      console.log('🔍 YOUTUBE API: Found caption tracks', {
+        count: captionTracks.length,
+        languages: captionTracks.map((track: any) => track.languageCode || 'unknown')
+      });
+      
+      // Find English captions or use the first available
+      const track = captionTracks.find((t: any) => t.languageCode === 'en') || captionTracks[0];
+      
+      if (!track || !track.baseUrl) {
+        throw new Error('No suitable caption track found');
+      }
+      
+      // Get the captions from the baseUrl
+      console.time('captions-fetch');
+      const captionsResponse = await fetch(track.baseUrl, {
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+      console.timeEnd('captions-fetch');
+      
+      if (!captionsResponse.ok) {
+        throw new Error(`Failed to fetch captions, status ${captionsResponse.status}`);
+      }
+      
+      const captionsXml = await captionsResponse.text();
+      console.log('🔍 YOUTUBE API: Received captions XML', {
+        length: captionsXml.length,
+        preview: captionsXml.substring(0, 100)
+      });
+      
+      // Parse the XML to extract the text
+      const textSegments: string[] = [];
+      const textRegex = /<text[^>]*>(.*?)<\/text>/g;
+      let match;
+      
+      while ((match = textRegex.exec(captionsXml)) !== null) {
+        // Decode HTML entities and add to segments
+        const decodedText = match[1]
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'");
+        
+        textSegments.push(decodedText);
+      }
+      
+      if (textSegments.length === 0) {
+        throw new Error('No text segments found in captions XML');
+      }
+      
+      // Join segments into transcript
+      const transcript = textSegments.join(' ').replace(/\s+/g, ' ').trim();
+      console.log('🔍 YOUTUBE API: Successfully extracted transcript', {
+        segmentsCount: textSegments.length,
+        transcriptLength: transcript.length,
+        transcriptPreview: transcript.substring(0, 100)
+      });
+      
+      return NextResponse.json({
+        transcript,
+        videoId,
+        detectedLanguage: track.languageCode || 'auto',
+        source: 'youtube-timedtext-api',
+        segments: textSegments.length
+      });
+      
+    } catch (parseError: any) {
+      console.error('🔍 YOUTUBE API: Error parsing caption data:', parseError);
+      throw new Error(`Error parsing caption data: ${parseError.message}`);
+    }
+    
+  } catch (error: any) {
+    console.error('🔍 YOUTUBE API: YouTube timedtext API method failed:', error);
+    throw error;
   }
 }
 

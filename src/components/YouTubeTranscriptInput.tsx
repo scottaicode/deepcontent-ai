@@ -54,6 +54,7 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   const [apiKey, setApiKey] = useState<string>('');
   const [apiStatus, setApiStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   const [diagnosticInfo, setDiagnosticInfo] = useState<string | null>(null);
+  const [showAdminTools, setShowAdminTools] = useState(false);
 
   useEffect(() => {
     // Reset error when URL changes
@@ -68,6 +69,16 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
     const id = extractYouTubeVideoId(url);
     setYoutubeId(id);
   }, [url]);
+
+  // Check if admin tools should be shown (client-side only)
+  useEffect(() => {
+    const isDevOrDebug = 
+      process.env.NODE_ENV !== 'production' || 
+      window.location.hostname.includes('localhost') ||
+      window.location.search.includes('debug=true');
+    
+    setShowAdminTools(isDevOrDebug);
+  }, []);
 
   const getErrorMessage = (err: any): string => {
     const msg = err.message || 'Unknown error occurred';
@@ -440,6 +451,65 @@ ${text}
     }
   };
 
+  // Add the diagnostic handler function
+  const handleDiagnosticTest = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('�� CLIENT DIAGNOSTIC: Running diagnostic test with known working video');
+      
+      // Call the API with the test parameter to use a known working video
+      const response = await fetch(`/api/youtube-direct?test=working`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.transcript) {
+        toast({
+          title: 'API Test Successful',
+          description: `Successfully retrieved transcript from test video (${data.segments} segments)`,
+        });
+        
+        // Update the input field with the tested video ID
+        if (data.testVideoId) {
+          onUrlChange(`https://youtube.com/watch?v=${data.testVideoId}`);
+        }
+        
+        // Format the transcript
+        const formattedTranscript = formatTranscript(
+          data.transcript, 
+          data.detectedLanguage, 
+          `https://youtube.com/watch?v=${data.videoId}`,
+          false
+        );
+        
+        // Call the callback with the transcript and URL
+        onTranscriptFetched(formattedTranscript, `https://youtube.com/watch?v=${data.videoId}`);
+      } else {
+        throw new Error('No transcript returned from test API');
+      }
+    } catch (err: any) {
+      console.error('Error in diagnostic test:', err);
+      setError(`Diagnostic test failed: ${err.message}`);
+      toast({
+        title: 'API Test Failed',
+        description: err.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className={`overflow-hidden ${className}`}>
       <div className="space-y-4">
@@ -479,6 +549,23 @@ ${text}
                   </>
                 )}
               </button>
+              
+              {/* Admin diagnostic button - only shown if we're in debug mode */}
+              {showAdminTools ? (
+                <button
+                  type="button"
+                  onClick={() => handleDiagnosticTest()}
+                  disabled={isLoading}
+                  className="ml-2 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md shadow-sm text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin mr-1 h-3 w-3" />
+                  ) : (
+                    <Lightbulb className="mr-1 h-3 w-3" />
+                  )}
+                  Test API
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
