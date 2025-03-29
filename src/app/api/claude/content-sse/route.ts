@@ -3,7 +3,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { createSSEHandler } from "@/lib/api/sseHelper";
 
 // Set a longer timeout for content generation
-export const maxDuration = 120; // 2 minutes
+export const maxDuration = 60; // 60 seconds (max allowed on hobby plan)
 
 export async function POST(request: NextRequest) {
   // Create SSE handler for real-time updates

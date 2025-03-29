@@ -5,7 +5,7 @@ import * as puppeteer from 'puppeteer';
 export const dynamic = 'force-dynamic';
 
 // Set a timeout for the scraping operation
-export const maxDuration = 120; // Increase to 120 seconds for multi-page scraping
+export const maxDuration = 60; // 60 seconds (max allowed on hobby plan)
 
 interface ScrapingRequest {
   url: string;
