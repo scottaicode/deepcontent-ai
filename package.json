@@ -50,6 +50,7 @@
     "replicate": "^0.32.0",
     "rss-parser": "^3.13.0",
     "tailwind-merge": "^2.6.0",
+    "universal-cookie": "^8.0.1",
     "youtube-transcript": "^1.2.1"
   },
   "devDependencies": {

@@ -1,47 +1,9 @@
-// @ts-nocheck
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useLanguage } from './LanguageProvider';
 import { useTranslation } from '@/lib/hooks/useTranslation';
-
-// Cookie helper functions
-const Cookies = {
-  get: (name: string): string | undefined => {
-    if (typeof document === 'undefined') return undefined;
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
-    return undefined;
-  },
-  set: (name: string, value: string, options: { expires?: number | Date; path?: string; } = {}): void => {
-    if (typeof document === 'undefined') return;
-    
-    const optionsWithDefaults = {
-      path: '/',
-      ...options,
-    };
-    
-    let cookieString = `${name}=${value}`;
-    
-    if (optionsWithDefaults.path) {
-      cookieString += `; path=${optionsWithDefaults.path}`;
-    }
-    
-    if (optionsWithDefaults.expires) {
-      const expiresValue = typeof optionsWithDefaults.expires === 'number' 
-        ? new Date(Date.now() + optionsWithDefaults.expires * 86400000) // days to ms
-        : optionsWithDefaults.expires;
-      cookieString += `; expires=${expiresValue.toUTCString()}`;
-    }
-    
-    document.cookie = cookieString;
-  },
-  remove: (name: string, options: { path?: string } = {}): void => {
-    if (typeof document === 'undefined') return;
-    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${options.path || '/'}`;
-  }
-};
+import UniversalCookies from 'universal-cookie';
 
 // Create a context for the unified language management
 interface TranslationManagerContextType {
@@ -64,6 +26,14 @@ export function TranslationManager({ children }: { children: React.ReactNode }) 
   const { locale, setLocale } = useLanguage();
   const { language, changeLanguage } = useTranslation();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [cookies, setCookies] = useState<UniversalCookies | null>(null);
+
+  // Initialize cookies once on the client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCookies(new UniversalCookies());
+    }
+  }, []);
 
   // Force the child components to re-render
   const refreshApp = useCallback(() => {
@@ -82,8 +52,10 @@ export function TranslationManager({ children }: { children: React.ReactNode }) 
       localStorage.setItem('language', newLanguage);
       
       // Set in cookies
-      Cookies.set('preferred_language', newLanguage, { expires: 365, path: '/' });
-      Cookies.set('language', newLanguage, { expires: 365, path: '/' });
+      if (cookies) {
+        cookies.set('preferred_language', newLanguage, { path: '/', maxAge: 365 * 24 * 60 * 60 });
+        cookies.set('language', newLanguage, { path: '/', maxAge: 365 * 24 * 60 * 60 });
+      }
       
       // Set HTML lang attribute
       document.documentElement.lang = newLanguage;
@@ -100,12 +72,14 @@ export function TranslationManager({ children }: { children: React.ReactNode }) 
       refreshApp();
       console.log('[TranslationManager] Forced app refresh after language change');
     }, 10);
-  }, [setLocale, changeLanguage, refreshApp]);
+  }, [setLocale, changeLanguage, refreshApp, cookies]);
 
   // This effect runs once on component mount to ensure initial sync
   useEffect(() => {
+    if (!cookies || typeof window === 'undefined') return;
+    
     // Check cookies first (higher priority), then localStorage
-    const cookieLanguage = Cookies.get('preferred_language') || Cookies.get('language');
+    const cookieLanguage = cookies.get('preferred_language') || cookies.get('language');
     const storedLanguage = cookieLanguage ||
                           localStorage.getItem('preferred_language') || 
                           localStorage.getItem('language') || 
@@ -121,10 +95,12 @@ export function TranslationManager({ children }: { children: React.ReactNode }) 
     } else {
       console.log('[TranslationManager] No initial sync needed - languages already match');
     }
-  }, []);
+  }, [cookies]);
 
   // Listen for language header from middleware
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     // Check for x-language header (set by middleware)
     const checkServerLanguage = () => {
       const metaLang = document.querySelector('meta[name="x-language"]');
@@ -141,11 +117,9 @@ export function TranslationManager({ children }: { children: React.ReactNode }) 
     checkServerLanguage();
     
     // Listen for route changes in Next.js
-    if (typeof window !== 'undefined') {
-      window.addEventListener('popstate', checkServerLanguage);
-      return () => window.removeEventListener('popstate', checkServerLanguage);
-    }
-  }, []);
+    window.addEventListener('popstate', checkServerLanguage);
+    return () => window.removeEventListener('popstate', checkServerLanguage);
+  }, [locale, language, setApplicationLanguage]);
 
   // Minimal effect to keep the two systems in sync if they somehow get out of sync
   useEffect(() => {
