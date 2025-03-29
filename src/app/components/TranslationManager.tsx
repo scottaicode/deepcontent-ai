@@ -4,8 +4,44 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useLanguage } from './LanguageProvider';
 import { useTranslation } from '@/lib/hooks/useTranslation';
-// @ts-ignore
-import Cookies from 'js-cookie';
+
+// Cookie helper functions
+const Cookies = {
+  get: (name: string): string | undefined => {
+    if (typeof document === 'undefined') return undefined;
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return undefined;
+  },
+  set: (name: string, value: string, options: { expires?: number | Date; path?: string; } = {}): void => {
+    if (typeof document === 'undefined') return;
+    
+    const optionsWithDefaults = {
+      path: '/',
+      ...options,
+    };
+    
+    let cookieString = `${name}=${value}`;
+    
+    if (optionsWithDefaults.path) {
+      cookieString += `; path=${optionsWithDefaults.path}`;
+    }
+    
+    if (optionsWithDefaults.expires) {
+      const expiresValue = typeof optionsWithDefaults.expires === 'number' 
+        ? new Date(Date.now() + optionsWithDefaults.expires * 86400000) // days to ms
+        : optionsWithDefaults.expires;
+      cookieString += `; expires=${expiresValue.toUTCString()}`;
+    }
+    
+    document.cookie = cookieString;
+  },
+  remove: (name: string, options: { path?: string } = {}): void => {
+    if (typeof document === 'undefined') return;
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${options.path || '/'}`;
+  }
+};
 
 // Create a context for the unified language management
 interface TranslationManagerContextType {
