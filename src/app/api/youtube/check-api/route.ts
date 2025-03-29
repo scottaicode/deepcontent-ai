@@ -24,6 +24,9 @@ export async function GET() {
     startTime,
     environment: process.env.NODE_ENV,
     vercel: !!process.env.VERCEL,
+    configuredApis: {
+      supadata: !!process.env.SUPADATA_API_KEY
+    }
   };
   
   try {
@@ -35,6 +38,69 @@ export async function GET() {
       status: 'success',
       message: 'YoutubeTranscript library successfully imported'
     });
+    
+    // Check 1.5: Check if Supadata API key is configured
+    if (process.env.SUPADATA_API_KEY) {
+      diagnostics.checks.push({
+        name: 'Supadata API Key Check',
+        status: 'success',
+        message: 'Supadata API key is configured',
+        keyLength: process.env.SUPADATA_API_KEY.length,
+        keyPreview: `${process.env.SUPADATA_API_KEY.substring(0, 3)}...${process.env.SUPADATA_API_KEY.substring(process.env.SUPADATA_API_KEY.length - 3)}`
+      });
+      
+      // Check 1.6: Test Supadata API
+      try {
+        console.log('YouTube API Check: Testing Supadata API with test video ID:', testVideoId);
+        const supadataResponse = await fetch(`https://api.supadata.io/youtube/transcript?videoId=${testVideoId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.SUPADATA_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          signal: AbortSignal.timeout(10000) // 10-second timeout
+        });
+        
+        if (supadataResponse.ok) {
+          const data = await supadataResponse.json();
+          const transcript = data.transcript || data.content;
+          
+          diagnostics.checks.push({
+            name: 'Supadata API Check',
+            status: 'success',
+            message: `Successfully fetched transcript with Supadata API (${transcript.length} characters)`,
+            responseStatus: supadataResponse.status,
+            previewText: transcript.substring(0, 100) + '...'
+          });
+        } else {
+          const errorText = await supadataResponse.text();
+          diagnostics.checks.push({
+            name: 'Supadata API Check',
+            status: 'error',
+            message: `Supadata API returned status ${supadataResponse.status}`,
+            responseStatus: supadataResponse.status,
+            errorText: errorText
+          });
+        }
+      } catch (error: any) {
+        console.error('YouTube API Check: Supadata API test failed:', error);
+        diagnostics.checks.push({
+          name: 'Supadata API Check',
+          status: 'error',
+          message: `Failed to connect to Supadata API: ${error.message}`,
+          error: {
+            name: error.name,
+            message: error.message
+          }
+        });
+      }
+    } else {
+      diagnostics.checks.push({
+        name: 'Supadata API Key Check',
+        status: 'warning',
+        message: 'Supadata API key is not configured'
+      });
+    }
     
     try {
       console.log('YouTube API Check: Testing transcript fetch with test video ID:', testVideoId);
