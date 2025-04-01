@@ -1411,6 +1411,9 @@ If you'd like complete research, please try again later when our research servic
     setGenerationProgress(0);
     setStatusMessage('Preparing research request...');
     
+    // Track whether the initial request was sent
+    let requestSent = false;
+    
     try {
       // Build context with all the selected metadata
       const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
@@ -1449,7 +1452,35 @@ Language: ${language || 'en'}`;
       // Create a timestamp to avoid caching
       const timestamp = new Date().getTime();
       
-      // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
+      // First, pre-send the POST request to initialize the research
+      // This is more reliable than connecting to SSE first
+      const initResponse = await fetch('/api/perplexity/research-sse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic: safeContentDetails?.researchTopic || '',
+          context: contextString,
+          sources: ['recent', 'scholar', 'news'],
+          language,
+          companyName: safeContentDetails?.businessName || '',
+          websiteContent: safeContentDetails?.websiteContent || null
+        }),
+      });
+      
+      if (!initResponse.ok) {
+        throw new Error(`Failed to start research process: ${initResponse.status} ${initResponse.statusText}`);
+      }
+      
+      requestSent = true;
+      console.log('[DEBUG] Research request sent successfully, connecting to SSE...');
+      
+      // Update status message
+      setStatusMessage('Research in progress - connecting to live updates...');
+      
+      // Now connect to the SSE endpoint to receive progress updates
+      // Use SSE (Server-Sent Events) for streaming response
       const eventSourceUrl = `/api/perplexity/research-sse?t=${timestamp}`;
       console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
       
@@ -1471,34 +1502,6 @@ Language: ${language || 'en'}`;
       let researchText = '';
       let retryCount = 0;
       const MAX_RETRIES = 3;
-      
-      // Set up connection open handler
-      eventSource.onopen = (event) => {
-        console.log('[DEBUG] SSE connection opened successfully');
-        retryCount = 0; // Reset retry count on successful connection
-        
-        // After connection is established, send the actual request
-        fetch('/api/perplexity/research-sse', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            topic: safeContentDetails?.researchTopic || '',
-            context: contextString,
-            sources: ['recent', 'scholar', 'news'],
-            language,
-            companyName: safeContentDetails?.businessName || '',
-            websiteContent: safeContentDetails?.websiteContent || null
-          }),
-        }).catch(error => {
-          console.error('[DEBUG] Error initiating research request:', error);
-          eventSource.close();
-          setError('Failed to start research process. Please try again.');
-          setIsGenerating(false);
-          setIsLoading(false);
-        });
-      };
       
       // Define interface for SSE event with data property
       interface MessageEvent extends Event {
@@ -1605,6 +1608,20 @@ Language: ${language || 'en'}`;
       eventSource.onerror = (error) => {
         console.error('[DEBUG] SSE connection error:', error);
         
+        // If we already sent the request, it may continue processing in the background
+        if (requestSent) {
+          console.log('[DEBUG] Request was sent, it may still be processing');
+          
+          // If this is our first connection error after sending a request,
+          // we'll show a more optimistic message
+          if (retryCount === 0) {
+            setStatusMessage('Connection interrupted, but your research is still being processed...');
+            toast('Connection interrupted, but your research is still processing. We\'ll try to reconnect.', { 
+              icon: 'ℹ️'
+            });
+          }
+        }
+        
         // Implement retry logic
         if (retryCount < MAX_RETRIES) {
           retryCount++;
@@ -1614,20 +1631,38 @@ Language: ${language || 'en'}`;
           return;
         }
         
-        // If we've exceeded retry attempts, give up and close the connection
-        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please try refreshing the page to check for results or try again.';
-        
-        // Set error message
-        setError(errorMessage);
-        setStatusMessage('Connection error');
-        
-        // Close the SSE connection
-        eventSource.close();
-        setIsGenerating(false);
-        setIsLoading(false);
-        
-        // Show error toast
-        toast.error(errorMessage);
+        // If we've exceeded retry attempts but the request was sent, 
+        // there's a good chance it's still processing
+        if (requestSent) {
+          const errorMessage = 'Connection to live updates lost, but your research should still be processing. You can wait a few minutes and refresh the page to check for results.';
+          
+          // Set error message
+          setError(errorMessage);
+          setStatusMessage('Connection lost - research may still be processing');
+          
+          // Keep the UI in generating state since the process may still be running
+          setIsGenerating(true);
+          
+          // Show info toast instead of error
+          toast('Connection to live updates lost, but your research should still be processing. You can wait a few minutes and refresh the page to check for results.', {
+            icon: 'ℹ️'
+          });
+        } else {
+          // If we never sent the request, this is a more serious error
+          const errorMessage = 'Could not connect to the research service. Please try again.';
+          
+          // Set error message
+          setError(errorMessage);
+          setStatusMessage('Connection error');
+          
+          // Close the SSE connection
+          eventSource.close();
+          setIsGenerating(false);
+          setIsLoading(false);
+          
+          // Show error toast
+          toast.error(errorMessage);
+        }
       };
       
       // Set a backup timeout to close the connection if nothing happens for 10 minutes
@@ -1635,10 +1670,20 @@ Language: ${language || 'en'}`;
         if (eventSource && eventSource.readyState !== 2) { // 2 = CLOSED
           console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
           eventSource.close();
-          setError('Research generation timed out after 10 minutes. Please check back later for results or try again.');
-          setIsGenerating(false);
-          setIsLoading(false);
-          toast.error('Research generation timed out after 10 minutes.');
+          
+          if (requestSent) {
+            setError('Research generation connection timed out, but your research might still be processing. Please check back later for results or try again.');
+            // Keep loading state true as it might still be processing
+            setIsGenerating(true);
+          } else {
+            setError('Research generation timed out. Please try again.');
+            setIsGenerating(false);
+            setIsLoading(false);
+          }
+          
+          toast('Research generation connection timed out. Your research might still be processing.', {
+            icon: 'ℹ️'
+          });
         }
       }, 600000); // 10 minutes
       
