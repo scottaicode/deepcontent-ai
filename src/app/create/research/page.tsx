@@ -38,6 +38,13 @@ import {
   getDisplayNames 
 } from '@/app/lib/contentTypeDetection';
 
+// Add declaration for global EventSource property
+declare global {
+  interface Window {
+    researchEventSource: EventSource | null;
+  }
+}
+
 // Define type for the ReactMarkdown code component to include inline property
 type CodeProps = {
   node?: any;
@@ -828,12 +835,28 @@ export default function ResearchPage() {
       setGenerationProgress(25);
       
       // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
-      const eventSource = new EventSource(`/api/perplexity/research-sse?t=${Date.now()}`);
-      let researchText = '';
+      const eventSourceUrl = `/api/perplexity/research-sse?t=${Date.now()}`;
+      console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
       
-      // First, initialize the SSE connection
-      eventSource.onopen = () => {
-        console.log('[DEBUG] SSE connection opened');
+      // Close any existing connection first
+      if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
+        console.log('[DEBUG] Closing existing EventSource connection');
+        window.researchEventSource.close();
+      }
+      
+      // Create new connection with proper error handling
+      const eventSource = new EventSource(eventSourceUrl);
+      // Store in window for potential cleanup later
+      window.researchEventSource = eventSource;
+      
+      let researchText = '';
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
+      
+      // Set up connection open handler
+      eventSource.onopen = (event) => {
+        console.log('[DEBUG] SSE connection opened successfully');
+        retryCount = 0; // Reset retry count on successful connection
         
         // After connection is established, send the actual request
         fetch('/api/perplexity/research-sse', {
@@ -860,7 +883,9 @@ Language: ${language || 'en'}`
         }).catch(error => {
           console.error('[DEBUG] Error initiating research request:', error);
           eventSource.close();
-          throw error;
+          setError('Failed to start research process. Please try again.');
+          setIsGenerating(false);
+          setIsLoading(false);
         });
       };
       
@@ -872,53 +897,65 @@ Language: ${language || 'en'}`
       // Set up listeners for the different event types
       eventSource.addEventListener('progress', (event: Event) => {
         const messageEvent = event as MessageEvent;
-        const data = JSON.parse(messageEvent.data);
-        console.log('[DEBUG] Progress update:', data);
-        setGenerationProgress(data.progress);
-        setStatusMessage(data.status);
+        try {
+          const data = JSON.parse(messageEvent.data);
+          console.log('[DEBUG] Progress update:', data);
+          setGenerationProgress(data.progress);
+          setStatusMessage(data.status);
+        } catch (e) {
+          console.error('[DEBUG] Error parsing progress event data:', e);
+        }
       });
       
       eventSource.addEventListener('complete', (event: Event) => {
         const messageEvent = event as MessageEvent;
-        const data = JSON.parse(messageEvent.data);
-        console.log('[DEBUG] Research complete:', data);
-        
-        // Save the full research
-        if (data.research) {
-          // Clean the research text and store it
-          const cleanedResearch = removeThinkingTags(data.research);
-          researchText = cleanedResearch;
-          setDeepResearch(cleanedResearch);
+        try {
+          const data = JSON.parse(messageEvent.data);
+          console.log('[DEBUG] Research complete:', data);
           
-          // Store the clean research in session storage
-          sessionStorage.setItem('deepResearch', cleanedResearch);
+          // Save the full research
+          if (data.research) {
+            // Clean the research text and store it
+            const cleanedResearch = removeThinkingTags(data.research);
+            researchText = cleanedResearch;
+            setDeepResearch(cleanedResearch);
+            
+            // Store the clean research in session storage
+            sessionStorage.setItem('deepResearch', cleanedResearch);
+            
+            // Save research results
+            const researchResults = {
+              researchMethod: 'perplexity',
+              perplexityResearch: cleanedResearch
+            };
+            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+            
+            // Move to the next step
+            setResearchStep(4);
+            
+            // Show success toast
+            toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+            
+            // Update progress to 100%
+            setGenerationProgress(100);
+            setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+          }
           
-          // Save research results
-          const researchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: cleanedResearch
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          
-          // Move to the next step
-          setResearchStep(4);
-          
-          // Show success toast
-          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-          
-          // Update progress to 100%
-          setGenerationProgress(100);
-          setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+          // Close the connection when complete
+          eventSource.close();
+          setIsGenerating(false);
+          setIsLoading(false);
+        } catch (e) {
+          console.error('[DEBUG] Error parsing complete event data:', e);
+          setError('Error processing research results. Please try again.');
+          eventSource.close();
+          setIsGenerating(false);
+          setIsLoading(false);
         }
-        
-        // Close the connection when complete
-        eventSource.close();
-        setIsGenerating(false);
-        setIsLoading(false);
       });
       
       eventSource.addEventListener('error', (event: Event) => {
-        console.error('[DEBUG] SSE error:', event);
+        console.error('[DEBUG] SSE error event received:', event);
         
         let errorMessage = 'An error occurred during research generation.';
         try {
@@ -950,12 +987,20 @@ Language: ${language || 'en'}`
         toast.error(errorMessage);
       });
       
-      // Handle general errors and timeouts
+      // Handle general connection errors (this is different from the error event)
       eventSource.onerror = (error) => {
         console.error('[DEBUG] SSE connection error:', error);
         
-        // Check if the connection was closed by timeout
-        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please wait or try again.';
+        // Implement retry logic
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`[DEBUG] Attempting to reconnect... (Attempt ${retryCount})`);
+          // No need to create a new EventSource, it will try to reconnect automatically
+          return;
+        }
+        
+        // If we've exceeded retry attempts, give up and close the connection
+        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please try refreshing the page to check for results or try again.';
         
         // Set error message
         setError(errorMessage);
@@ -975,7 +1020,7 @@ Language: ${language || 'en'}`
         if (eventSource.readyState !== EventSource.CLOSED) {
           console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
           eventSource.close();
-          setError('Research generation timed out after 10 minutes. Please try again.');
+          setError('Research generation timed out after 10 minutes. Please check back later for results or try again.');
           setIsGenerating(false);
           setIsLoading(false);
           toast.error('Research generation timed out after 10 minutes.');
@@ -1399,12 +1444,28 @@ Language: ${language || 'en'}`;
       setGenerationProgress(25);
       
       // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
-      const eventSource = new EventSource(`/api/perplexity/research-sse?t=${Date.now()}`);
-      let researchText = '';
+      const eventSourceUrl = `/api/perplexity/research-sse?t=${Date.now()}`;
+      console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
       
-      // First, initialize the SSE connection
-      eventSource.onopen = () => {
-        console.log('[DEBUG] SSE connection opened');
+      // Close any existing connection first
+      if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
+        console.log('[DEBUG] Closing existing EventSource connection');
+        window.researchEventSource.close();
+      }
+      
+      // Create new connection with proper error handling
+      const eventSource = new EventSource(eventSourceUrl);
+      // Store in window for potential cleanup later
+      window.researchEventSource = eventSource;
+      
+      let researchText = '';
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
+      
+      // Set up connection open handler
+      eventSource.onopen = (event) => {
+        console.log('[DEBUG] SSE connection opened successfully');
+        retryCount = 0; // Reset retry count on successful connection
         
         // After connection is established, send the actual request
         fetch('/api/perplexity/research-sse', {
@@ -1431,7 +1492,9 @@ Language: ${language || 'en'}`
         }).catch(error => {
           console.error('[DEBUG] Error initiating research request:', error);
           eventSource.close();
-          throw error;
+          setError('Failed to start research process. Please try again.');
+          setIsGenerating(false);
+          setIsLoading(false);
         });
       };
       
@@ -1443,53 +1506,65 @@ Language: ${language || 'en'}`
       // Set up listeners for the different event types
       eventSource.addEventListener('progress', (event: Event) => {
         const messageEvent = event as MessageEvent;
-        const data = JSON.parse(messageEvent.data);
-        console.log('[DEBUG] Progress update:', data);
-        setGenerationProgress(data.progress);
-        setStatusMessage(data.status);
+        try {
+          const data = JSON.parse(messageEvent.data);
+          console.log('[DEBUG] Progress update:', data);
+          setGenerationProgress(data.progress);
+          setStatusMessage(data.status);
+        } catch (e) {
+          console.error('[DEBUG] Error parsing progress event data:', e);
+        }
       });
       
       eventSource.addEventListener('complete', (event: Event) => {
         const messageEvent = event as MessageEvent;
-        const data = JSON.parse(messageEvent.data);
-        console.log('[DEBUG] Research complete:', data);
-        
-        // Save the full research
-        if (data.research) {
-          // Clean the research text and store it
-          const cleanedResearch = removeThinkingTags(data.research);
-          researchText = cleanedResearch;
-          setDeepResearch(cleanedResearch);
+        try {
+          const data = JSON.parse(messageEvent.data);
+          console.log('[DEBUG] Research complete:', data);
           
-          // Store the clean research in session storage
-          sessionStorage.setItem('deepResearch', cleanedResearch);
+          // Save the full research
+          if (data.research) {
+            // Clean the research text and store it
+            const cleanedResearch = removeThinkingTags(data.research);
+            researchText = cleanedResearch;
+            setDeepResearch(cleanedResearch);
+            
+            // Store the clean research in session storage
+            sessionStorage.setItem('deepResearch', cleanedResearch);
+            
+            // Save research results
+            const researchResults = {
+              researchMethod: 'perplexity',
+              perplexityResearch: cleanedResearch
+            };
+            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+            
+            // Move to the next step
+            setResearchStep(4);
+            
+            // Show success toast
+            toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+            
+            // Update progress to 100%
+            setGenerationProgress(100);
+            setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+          }
           
-          // Save research results
-          const researchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: cleanedResearch
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          
-          // Move to the next step
-          setResearchStep(4);
-          
-          // Show success toast
-          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-          
-          // Update progress to 100%
-          setGenerationProgress(100);
-          setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+          // Close the connection when complete
+          eventSource.close();
+          setIsGenerating(false);
+          setIsLoading(false);
+        } catch (e) {
+          console.error('[DEBUG] Error parsing complete event data:', e);
+          setError('Error processing research results. Please try again.');
+          eventSource.close();
+          setIsGenerating(false);
+          setIsLoading(false);
         }
-        
-        // Close the connection when complete
-        eventSource.close();
-        setIsGenerating(false);
-        setIsLoading(false);
       });
       
       eventSource.addEventListener('error', (event: Event) => {
-        console.error('[DEBUG] SSE error:', event);
+        console.error('[DEBUG] SSE error event received:', event);
         
         let errorMessage = 'An error occurred during research generation.';
         try {
@@ -1521,12 +1596,20 @@ Language: ${language || 'en'}`
         toast.error(errorMessage);
       });
       
-      // Handle general errors and timeouts
+      // Handle general connection errors (this is different from the error event)
       eventSource.onerror = (error) => {
         console.error('[DEBUG] SSE connection error:', error);
         
-        // Check if the connection was closed by timeout
-        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please wait or try again.';
+        // Implement retry logic
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`[DEBUG] Attempting to reconnect... (Attempt ${retryCount})`);
+          // No need to create a new EventSource, it will try to reconnect automatically
+          return;
+        }
+        
+        // If we've exceeded retry attempts, give up and close the connection
+        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please try refreshing the page to check for results or try again.';
         
         // Set error message
         setError(errorMessage);
@@ -1546,7 +1629,7 @@ Language: ${language || 'en'}`
         if (eventSource.readyState !== EventSource.CLOSED) {
           console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
           eventSource.close();
-          setError('Research generation timed out after 10 minutes. Please try again.');
+          setError('Research generation timed out after 10 minutes. Please check back later for results or try again.');
           setIsGenerating(false);
           setIsLoading(false);
           toast.error('Research generation timed out after 10 minutes.');
@@ -2704,19 +2787,26 @@ This report was generated as backup content on ${dateNow}.`;
         </div>
                 
         {error && (
-          <div className="p-4 mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800 dark:text-red-300">{t('common.error')}</h3>
-                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{getTranslatedError(error)}</p>
+          error.includes('connection error') ? (
+            <ConnectionErrorMessage onRetry={() => {
+              setError(null);
+              handleDeepAnalysisClick();
+            }} />
+          ) : (
+            <div className="p-4 mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414-1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800 dark:text-red-300">{t('common.error')}</h3>
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">{getTranslatedError(error)}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )
         )}
                 
         <div className="flex justify-between items-center mt-8">
@@ -2934,6 +3024,55 @@ This report was generated as backup content on ${dateNow}.`;
       console.error('Error loading data from session storage:', error);
     }
   }, []);
+
+  // Initialize window.researchEventSource if it doesn't exist
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.researchEventSource = window.researchEventSource || null;
+    }
+    
+    // Cleanup function to close any open connections when component unmounts
+    return () => {
+      if (typeof window !== 'undefined' && window.researchEventSource) {
+        window.researchEventSource.close();
+        window.researchEventSource = null;
+      }
+    };
+  }, []);
+
+  // Component for connection error message
+  const ConnectionErrorMessage = ({ onRetry }: { onRetry: () => void }) => {
+    return (
+      <div className="p-4 mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Connection Issue</h3>
+            <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+              <p>The research generation process takes about 6 minutes to complete. Your connection was interrupted, but the process may still be running in the background.</p>
+              <p className="mt-2">You have two options:</p>
+              <ul className="list-disc pl-5 mt-1 space-y-1">
+                <li>Wait a few minutes and refresh the page to check if your results are ready</li>
+                <li>Try generating the research again</li>
+              </ul>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={onRetry}
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Replace the return statement near the end of the file with a flex layout that includes the footer
   return (
