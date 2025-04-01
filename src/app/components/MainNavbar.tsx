@@ -27,8 +27,9 @@ const MainNavbar: React.FC = () => {
   }, []);
 
   // Check if link is active
-  const isActive = (path: string) => {
-    return pathname === path || pathname?.startsWith(`${path}/`);
+  const isActive = (path: string): boolean => {
+    if (!pathname) return false;
+    return pathname === path || pathname.startsWith(`${path}/`);
   };
 
   return (
