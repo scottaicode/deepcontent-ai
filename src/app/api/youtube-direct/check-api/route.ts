@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
   // Check if we're using the backup code from a previous version
   try {
     console.log('Checking for backup YouTube transcript implementation');
-    const backupModulePath = require.resolve('@/app/lib/services/YouTubeTranscriptBackupService');
+    const backupModulePath = require.resolve('@/app/lib/services/backups/YouTubeTranscriptBackupService');
     
     diagnostics.configChecks.push({
       name: 'Backup Implementation',

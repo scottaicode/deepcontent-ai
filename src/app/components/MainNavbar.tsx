@@ -79,11 +79,11 @@ const MainNavbar: React.FC = () => {
 // NavLink component for consistent styling
 interface NavLinkProps {
   href: string;
-  active: boolean;
+  active: boolean | undefined;
   children: React.ReactNode;
 }
 
-const NavLink: React.FC<NavLinkProps> = ({ href, active, children }) => {
+const NavLink: React.FC<NavLinkProps> = ({ href, active = false, children }) => {
   return (
     <Link 
       href={href} 
