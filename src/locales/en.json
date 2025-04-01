@@ -348,6 +348,7 @@
     "results": {
       "title": "Research Results",
       "generated": "Generated Research",
+      "generatedResearch": "Generated Research",
       "summary": "Research Summary",
       "collapseResearch": "Collapse Research",
       "expandResearch": "Expand Research",
