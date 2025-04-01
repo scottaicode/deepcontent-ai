@@ -1443,20 +1443,27 @@ Language: ${language || 'en'}`;
       // Show 25% progress while preparing request
       setGenerationProgress(25);
       
+      // Create a timestamp to avoid caching
+      const timestamp = new Date().getTime();
+      
       // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
-      const eventSourceUrl = `/api/perplexity/research-sse?t=${Date.now()}`;
+      const eventSourceUrl = `/api/perplexity/research-sse?t=${timestamp}`;
       console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
       
       // Close any existing connection first
-      if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
+      if (typeof window !== 'undefined' && window.researchEventSource && window.researchEventSource.readyState !== 2) {
         console.log('[DEBUG] Closing existing EventSource connection');
         window.researchEventSource.close();
+        window.researchEventSource = null;
       }
       
       // Create new connection with proper error handling
       const eventSource = new EventSource(eventSourceUrl);
+      
       // Store in window for potential cleanup later
-      window.researchEventSource = eventSource;
+      if (typeof window !== 'undefined') {
+        window.researchEventSource = eventSource;
+      }
       
       let researchText = '';
       let retryCount = 0;
@@ -1475,15 +1482,7 @@ Language: ${language || 'en'}`;
           },
           body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
-            context: safeContentDetails?.researchTopic 
-              ? `Topic: "${safeContentDetails.researchTopic}"
-Platform: ${safeContentDetails.platform || 'facebook'}, 
-Sub-Platform: ${safeContentDetails.subPlatform || ''},
-Content Type: ${safeContentDetails.contentType || 'social-post'},
-Target Audience: ${safeContentDetails.targetAudience || 'general'},
-Business Name: ${safeContentDetails.businessName || ''},
-Language: ${language || 'en'}`
-              : '', 
+            context: contextString,
             sources: ['recent', 'scholar', 'news'],
             language,
             companyName: safeContentDetails?.businessName || '',
@@ -1566,20 +1565,22 @@ Language: ${language || 'en'}`
       eventSource.addEventListener('error', (event: Event) => {
         console.error('[DEBUG] SSE error event received:', event);
         
+        // Try to extract error details from the event
         let errorMessage = 'An error occurred during research generation.';
         try {
           // Try to parse error data if available
           const messageEvent = event as MessageEvent;
-          const errorData = JSON.parse(messageEvent.data);
-          errorMessage = errorData.error || errorMessage;
+          if (messageEvent.data) {
+            const errorData = JSON.parse(messageEvent.data);
+            errorMessage = errorData.error || errorMessage;
+          }
         } catch (e) {
           // If we can't parse the error, use a generic message
           console.error('Could not parse error data:', e);
         }
         
         // Check if it's a timeout error
-        const messageEvent = event as MessageEvent;
-        if (messageEvent.data && (messageEvent.data.includes('timeout') || messageEvent.data.includes('timed out'))) {
+        if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
           errorMessage = 'The research request timed out. This process normally takes around 6 minutes. Please try again.';
         }
         
@@ -1603,8 +1604,9 @@ Language: ${language || 'en'}`
         // Implement retry logic
         if (retryCount < MAX_RETRIES) {
           retryCount++;
-          console.log(`[DEBUG] Attempting to reconnect... (Attempt ${retryCount})`);
-          // No need to create a new EventSource, it will try to reconnect automatically
+          console.log(`[DEBUG] Attempting to reconnect... (Attempt ${retryCount}/${MAX_RETRIES})`);
+          setStatusMessage(`Connection lost. Attempting to reconnect... (${retryCount}/${MAX_RETRIES})`);
+          // EventSource will try to reconnect automatically
           return;
         }
         
@@ -1626,7 +1628,7 @@ Language: ${language || 'en'}`
       
       // Set a backup timeout to close the connection if nothing happens for 10 minutes
       const timeoutId = setTimeout(() => {
-        if (eventSource.readyState !== EventSource.CLOSED) {
+        if (eventSource && eventSource.readyState !== 2) { // 2 = CLOSED
           console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
           eventSource.close();
           setError('Research generation timed out after 10 minutes. Please check back later for results or try again.');
@@ -1636,13 +1638,14 @@ Language: ${language || 'en'}`
         }
       }, 600000); // 10 minutes
       
-      // Add a cleanup function for component unmount
+      // Return a cleanup function
       return () => {
         clearTimeout(timeoutId);
-        if (eventSource.readyState !== EventSource.CLOSED) {
+        if (eventSource && eventSource.readyState !== 2) { // 2 = CLOSED
           eventSource.close();
         }
       };
+      
     } catch (error: any) {
       console.error('[DEBUG] Error in handleDeepAnalysisClick:', error);
       

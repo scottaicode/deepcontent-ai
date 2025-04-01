@@ -3,10 +3,22 @@ import { PerplexityClient } from '@/lib/api/perplexityClient';
 import { getPromptForTopic } from '@/lib/api/promptBuilder';
 
 // Set duration to the maximum allowed for hobby plan
-export const maxDuration = 60; // 60 seconds (max allowed on hobby plan)
+export const maxDuration = 300; // 5 minutes (max allowed on hobby plan)
 
 // Force route to be dynamic
 export const dynamic = 'force-dynamic';
+
+// Options handler for CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+  });
+}
 
 // POST handler for SSE
 export async function POST(request: NextRequest) {
@@ -14,6 +26,17 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
+  
+  // Standard SSE response headers
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'X-Accel-Buffering': 'no' // Disable buffering for Nginx
+  };
   
   // Function to send events to the client
   const sendEvent = async (event: string, data: any) => {
@@ -31,43 +54,40 @@ export async function POST(request: NextRequest) {
     await sendEvent('progress', { progress, status });
   };
 
+  // Function to handle errors and close the stream
+  const handleError = async (message: string, details?: any) => {
+    console.error(`Research SSE Error: ${message}`, details);
+    
+    try {
+      await sendEvent('error', { error: message });
+      
+      // Ensure we always try to close the stream
+      try {
+        await writer.close();
+      } catch (closeErr) {
+        console.error('Error closing stream writer after error:', closeErr);
+      }
+      
+    } catch (eventErr) {
+      console.error('Failed to send error event to client:', eventErr);
+    }
+  };
+
   try {
     // Parse request body with proper error handling
     let body;
     try {
       body = await request.json();
     } catch (err) {
-      console.error('Error parsing request body:', err);
-      await sendEvent('error', { error: 'Invalid request format' });
-      await writer.close();
-      
-      return new Response(stream.readable, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        },
-      });
+      await handleError('Invalid request format. Please check your request body.');
+      return new Response(stream.readable, { headers });
     }
     
-    const { topic, context, sources = ['recent', 'scholar'] } = body;
+    const { topic, context, sources = ['recent', 'scholar'], companyName, websiteContent, language = 'en' } = body;
     
     if (!topic) {
-      await sendEvent('error', { error: 'Topic is required' });
-      await writer.close();
-      return new Response(stream.readable, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        },
-      });
+      await handleError('Topic is required');
+      return new Response(stream.readable, { headers });
     }
     
     // Send initial progress
@@ -95,9 +115,15 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    console.log('Extracted audience from context:', JSON.stringify(audience));
-    console.log('Extracted content type from context:', JSON.stringify(contentType));
-    console.log('Extracted platform from context:', JSON.stringify(platform));
+    console.log('Research request parameters:', {
+      topic,
+      language,
+      audience,
+      contentType,
+      platform,
+      hasCompanyInfo: !!companyName,
+      hasWebsiteContent: !!websiteContent
+    });
     
     await sendProgress(10, 'Connecting to research databases...');
     
@@ -105,20 +131,9 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.PERPLEXITY_API_KEY;
     
     if (!apiKey) {
-      console.error('Missing Perplexity API key in environment variables');
-      await sendEvent('error', { error: 'Perplexity API key not configured' });
-      await writer.close();
-      return new Response(stream.readable, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*'
-        },
-      });
+      await handleError('Perplexity API key not configured. Please contact support.');
+      return new Response(stream.readable, { headers });
     }
-    
-    console.log('API Key first few characters:', `${apiKey.substring(0, 5)}...`);
     
     await sendProgress(15, 'Building research query...');
     
@@ -127,10 +142,11 @@ export async function POST(request: NextRequest) {
       audience,
       contentType,
       platform,
-      sources
+      sources,
+      language,
+      companyName,
+      websiteContent
     });
-    
-    console.log('Built prompt for Perplexity API:', promptText.substring(0, 100) + '...');
     
     await sendProgress(20, 'Sending request to Perplexity...');
     
@@ -139,24 +155,15 @@ export async function POST(request: NextRequest) {
     try {
       perplexity = new PerplexityClient(apiKey);
     } catch (clientError) {
-      console.error('Error creating Perplexity client:', clientError);
-      await sendEvent('error', { error: 'Failed to initialize research service. Please try again.' });
-      await writer.close();
-      return new Response(stream.readable, {
-        headers: {
-          'Content-Type': 'text/event-stream', 
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*'
-        },
-      });
+      await handleError('Failed to initialize research service. Please try again.');
+      return new Response(stream.readable, { headers });
     }
     
     const startTime = Date.now();
     
     // Setup progress tracking with additional error handling
     let progressStep = 20;
-    let progressInterval;
+    let progressInterval: NodeJS.Timeout | null = null;
     
     try {
       progressInterval = setInterval(async () => {
@@ -187,13 +194,21 @@ export async function POST(request: NextRequest) {
       // Continue without progress updates if interval setup fails
     }
     
+    // Cleanup function for the interval
+    const clearProgressInterval = () => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+    };
+    
     // Call Perplexity API
     console.log('Sending request to Perplexity API...');
     try {
       const response = await perplexity.generateResearch(promptText);
       
       // Clear the progress interval once we have a response
-      if (progressInterval) clearInterval(progressInterval);
+      clearProgressInterval();
       
       // Calculate actual time taken
       const endTime = Date.now();
@@ -210,7 +225,7 @@ export async function POST(request: NextRequest) {
       await sendProgress(100, 'Research completed successfully!');
     } catch (apiError: any) {
       console.error('Error from Perplexity API:', apiError);
-      if (progressInterval) clearInterval(progressInterval);
+      clearProgressInterval();
       
       // Create a user-friendly error message
       let errorMessage = apiError.message || 'Error from Perplexity API';
@@ -224,10 +239,8 @@ export async function POST(request: NextRequest) {
         errorMessage = 'Authentication error with research service. Please contact support.';
       }
       
-      await sendEvent('error', { error: errorMessage });
-      
-      // Send a failed status
-      await sendProgress(100, 'Research generation failed');
+      await handleError(errorMessage);
+      return new Response(stream.readable, { headers });
     }
     
     // Close the writer
@@ -238,40 +251,15 @@ export async function POST(request: NextRequest) {
     }
     
     // Return the response with proper headers
-    return new Response(stream.readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*', 
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      },
-    });
+    return new Response(stream.readable, { headers });
     
   } catch (error: any) {
     console.error('Error generating research:', error);
     
-    // Send error to client
-    await sendEvent('error', { error: error.message || 'Unknown error occurred' });
-    
-    // Close the writer
-    try {
-      await writer.close();
-    } catch (closeError) {
-      console.error('Error closing writer stream:', closeError);
-    }
+    // Send error to client and close the connection
+    await handleError(error.message || 'Unknown error occurred');
     
     // Return the stream anyway so the client gets the error
-    return new Response(stream.readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      },
-    });
+    return new Response(stream.readable, { headers });
   }
 } 
