@@ -843,7 +843,15 @@ export default function ResearchPage() {
           },
           body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
-            context: context, 
+            context: safeContentDetails?.researchTopic 
+              ? `Topic: "${safeContentDetails.researchTopic}"
+Platform: ${safeContentDetails.platform || 'facebook'}, 
+Sub-Platform: ${safeContentDetails.subPlatform || ''},
+Content Type: ${safeContentDetails.contentType || 'social-post'},
+Target Audience: ${safeContentDetails.targetAudience || 'general'},
+Business Name: ${safeContentDetails.businessName || ''},
+Language: ${language || 'en'}`
+              : '', 
             sources: ['recent', 'scholar', 'news'],
             language,
             companyName: safeContentDetails?.businessName || '',
@@ -1406,7 +1414,15 @@ Language: ${language || 'en'}`;
           },
           body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
-            context: contextString, 
+            context: safeContentDetails?.researchTopic 
+              ? `Topic: "${safeContentDetails.researchTopic}"
+Platform: ${safeContentDetails.platform || 'facebook'}, 
+Sub-Platform: ${safeContentDetails.subPlatform || ''},
+Content Type: ${safeContentDetails.contentType || 'social-post'},
+Target Audience: ${safeContentDetails.targetAudience || 'general'},
+Business Name: ${safeContentDetails.businessName || ''},
+Language: ${language || 'en'}`
+              : '', 
             sources: ['recent', 'scholar', 'news'],
             language,
             companyName: safeContentDetails?.businessName || '',
@@ -1419,22 +1435,23 @@ Language: ${language || 'en'}`;
         });
       };
       
-      // Use standard MessageEvent type from TypeScript lib
+      // Define interface for SSE event with data property
+      interface MessageEvent extends Event {
+        data: string;
+      }
       
       // Set up listeners for the different event types
-      eventSource.addEventListener('progress', (e) => {
-        // Cast to MessageEvent which has data property
-        const event = e as { data: string };
-        const data = JSON.parse(event.data);
+      eventSource.addEventListener('progress', (event: Event) => {
+        const messageEvent = event as MessageEvent;
+        const data = JSON.parse(messageEvent.data);
         console.log('[DEBUG] Progress update:', data);
         setGenerationProgress(data.progress);
         setStatusMessage(data.status);
       });
       
-      eventSource.addEventListener('complete', (e) => {
-        // Cast to MessageEvent which has data property
-        const event = e as { data: string };
-        const data = JSON.parse(event.data);
+      eventSource.addEventListener('complete', (event: Event) => {
+        const messageEvent = event as MessageEvent;
+        const data = JSON.parse(messageEvent.data);
         console.log('[DEBUG] Research complete:', data);
         
         // Save the full research
@@ -1471,26 +1488,23 @@ Language: ${language || 'en'}`;
         setIsLoading(false);
       });
       
-      eventSource.addEventListener('error', (e) => {
-        console.error('[DEBUG] SSE error:', e);
-        
-        // Cast to MessageEvent which has data property
-        const event = e as { data?: string };
+      eventSource.addEventListener('error', (event: Event) => {
+        console.error('[DEBUG] SSE error:', event);
         
         let errorMessage = 'An error occurred during research generation.';
         try {
           // Try to parse error data if available
-          if (event.data) {
-            const errorData = JSON.parse(event.data);
-            errorMessage = errorData.error || errorMessage;
-          }
+          const messageEvent = event as MessageEvent;
+          const errorData = JSON.parse(messageEvent.data);
+          errorMessage = errorData.error || errorMessage;
         } catch (e) {
           // If we can't parse the error, use a generic message
           console.error('Could not parse error data:', e);
         }
         
         // Check if it's a timeout error
-        if (event.data && (event.data.includes('timeout') || event.data.includes('timed out'))) {
+        const messageEvent = event as MessageEvent;
+        if (messageEvent.data && (messageEvent.data.includes('timeout') || messageEvent.data.includes('timed out'))) {
           errorMessage = 'The research request timed out. This process normally takes around 6 minutes. Please try again.';
         }
         
