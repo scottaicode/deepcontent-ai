@@ -10,11 +10,18 @@ import Link from 'next/link';
 export default function EditContentPage() {
   const params = useParams();
   const router = useRouter();
-  const contentId = params.id as string;
+  const contentId = params?.id as string;
   
   console.log('Edit page mounted with content ID:', contentId);
   
-  const { content, isLoading, error, updateContent } = useContent({ contentId });
+  // If no contentId is provided, redirect to dashboard
+  useEffect(() => {
+    if (!contentId) {
+      router.push('/dashboard');
+    }
+  }, [contentId, router]);
+  
+  const { content, isLoading, error, updateContent } = useContent({ contentId: contentId || '' });
   const { toast } = useToast();
   
   const [title, setTitle] = useState('');
