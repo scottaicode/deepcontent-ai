@@ -827,186 +827,172 @@ export default function ResearchPage() {
       // Show 25% progress while preparing request
       setGenerationProgress(25);
       
-      // Set up a progress interval to show activity during API call
-      const progressInterval = setInterval(() => {
-        setGenerationProgress((prev) => {
-          // Only increment if we're between 25 and 90
-          if (prev >= 25 && prev < 90) {
-            const increment = prev < 50 ? 3 : prev < 70 ? 2 : 1; // Faster at first, slower as we approach 90
-            return Math.min(prev + increment, 90);
-          }
-          return prev;
-        });
-        
-        // Update status message based on progress
-        setStatusMessage((prev) => {
-          const progress = JSON.parse(sessionStorage.getItem('researchProgress') || '25');
-          if (progress < 50) {
-            return 'Collecting data from authoritative sources...';
-          } else if (progress < 70) {
-            return 'Analyzing information and identifying key insights...';
-          } else {
-            return 'Compiling research results and formatting...';
-          }
-        });
-      }, 800);
+      // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
+      const eventSource = new EventSource(`/api/perplexity/research-sse?t=${Date.now()}`);
+      let researchText = '';
       
-      try {
-        // Call the Perplexity research API through our helper function
-        const research = await generatePerplexityResearch(
-          topic,
-          baseContext,
-          sources,
-          language,
-          companyName, // Pass company name to the research function
-          safeContentDetails.websiteContent // Pass website content to the research function
-        );
+      // First, initialize the SSE connection
+      eventSource.onopen = () => {
+        console.log('[DEBUG] SSE connection opened');
         
-        // Clear the interval once research is complete
-        clearInterval(progressInterval);
-        
-        console.log('[DEBUG] Perplexity research received, length:', research ? research.length : 0);
-        
-        if (!research) {
-          throw new Error('No research content returned from Perplexity');
-        }
-        
-        // Clean the research content
-        const cleanedResearch = cleanResearchContent(research);
-        setDeepResearch(cleanedResearch);
-        
-        // Save research results for subsequent steps
-        const researchResults: ResearchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: cleanedResearch,
-          trendingTopics: [],
-          dataSources: {
-            reddit: true,
-            rss: true
-          }
-        };
-        
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        
-        // Update progress
-        setGenerationProgress(100);
-        setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
-        
-        // Show toast notification
-        toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-        
-        // Auto-advance to next step after a short delay
-        setTimeout(() => {
-          setResearchStep(3);
-        }, 1000);
-      } catch (err: any) {
-        // Clear the interval if there's an error
-        clearInterval(progressInterval);
-        
-        console.error('Error generating research:', err);
-        
-        // Create user-friendly error messages based on error type
-        let userFriendlyMessage = '';
-        
-        // Extract error message from the response if available
-        let errorMessage = err.message || 'Unknown error';
-        if (errorMessage.includes('API error:')) {
-          try {
-            // Try to parse the error JSON from the message
-            const errorJson = errorMessage.split('API error:')[1].trim();
-            const errorData = JSON.parse(errorJson);
-            errorMessage = errorData.error || errorMessage;
-          } catch (e) {
-            // If parsing fails, use the whole error message
-            console.warn('Could not parse API error JSON:', e);
-          }
-        }
-        
-        // Network errors
-        if (
-          errorMessage.includes('network') || 
-          errorMessage.includes('connection') || 
-          errorMessage.includes('fetch failed') ||
-          errorMessage.includes('Network connection failed') ||
-          errorMessage.includes('Failed after')
-        ) {
-          userFriendlyMessage = language === 'es' 
-            ? 'Error de conexión. Por favor, verifique su conexión a Internet e inténtelo de nuevo.' 
-            : 'Connection error. Please check your internet connection and try again.';
-        }
-        // API key errors
-        else if (
-          errorMessage.includes('API key') || 
-          errorMessage.includes('authentication') ||
-          errorMessage.includes('auth')
-        ) {
-          userFriendlyMessage = language === 'es'
-            ? 'Error de autenticación del servicio de investigación. Por favor, contacte al soporte técnico.'
-            : 'Research service authentication error. Please contact support.';
-        }
-        // Rate limit errors
-        else if (
-          errorMessage.includes('rate limit') || 
-          errorMessage.includes('too many requests') ||
-          errorMessage.includes('429')
-        ) {
-          userFriendlyMessage = language === 'es'
-            ? 'Demasiadas solicitudes. Por favor, espere un momento e inténtelo de nuevo.'
-            : 'Too many requests. Please wait a moment and try again.';
-        }
-        // Timeout errors
-        else if (errorMessage.includes('timeout')) {
-          userFriendlyMessage = language === 'es'
-            ? 'La solicitud ha tardado demasiado. Por favor, inténtelo de nuevo.'
-            : 'Request timed out. Please try again.';
-        }
-        // Default error message
-        else {
-          userFriendlyMessage = language === 'es'
-            ? 'Error al generar la investigación. Por favor, inténtelo de nuevo más tarde.'
-            : 'Error generating research. Please try again later.';
-        }
-        
-        // Set both the technical error and user-friendly message
-        setError(userFriendlyMessage);
-        
-        // Set appropriate error state with user-friendly message
-        setErrorState({
-          hasError: true,
-          message: userFriendlyMessage
+        // After connection is established, send the actual request
+        fetch('/api/perplexity/research-sse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            topic: safeContentDetails?.researchTopic || '',
+            context: context, 
+            sources: ['recent', 'scholar', 'news'],
+            language,
+            companyName: safeContentDetails?.businessName || '',
+            websiteContent: safeContentDetails?.websiteContent || null
+          }),
+        }).catch(error => {
+          console.error('[DEBUG] Error initiating research request:', error);
+          eventSource.close();
+          throw error;
         });
-        
-        setGenerationProgress(0);
-        setStatusMessage(language === 'es' ? 'Error de investigación' : 'Research Error');
-        
-        // Show toast notification with user-friendly message
-        toast.error(userFriendlyMessage);
+      };
+      
+      // Define interface for SSE event with data property
+      interface MessageEvent extends Event {
+        data: string;
       }
-    } catch (err: any) {
-      console.error('Error in research generation:', err);
       
-      const userFriendlyMessage = language === 'es'
-        ? 'Se produjo un error inesperado. Por favor, inténtelo de nuevo.'
-        : 'An unexpected error occurred. Please try again.';
-      
-      setError(userFriendlyMessage);
-      setErrorState({
-        hasError: true,
-        message: userFriendlyMessage
+      // Set up listeners for the different event types
+      eventSource.addEventListener('progress', (event: Event) => {
+        const messageEvent = event as MessageEvent;
+        const data = JSON.parse(messageEvent.data);
+        console.log('[DEBUG] Progress update:', data);
+        setGenerationProgress(data.progress);
+        setStatusMessage(data.status);
       });
       
-      setGenerationProgress(0);
+      eventSource.addEventListener('complete', (event: Event) => {
+        const messageEvent = event as MessageEvent;
+        const data = JSON.parse(messageEvent.data);
+        console.log('[DEBUG] Research complete:', data);
+        
+        // Save the full research
+        if (data.research) {
+          // Clean the research text and store it
+          const cleanedResearch = removeThinkingTags(data.research);
+          researchText = cleanedResearch;
+          setDeepResearch(cleanedResearch);
+          
+          // Store the clean research in session storage
+          sessionStorage.setItem('deepResearch', cleanedResearch);
+          
+          // Save research results
+          const researchResults = {
+            researchMethod: 'perplexity',
+            perplexityResearch: cleanedResearch
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          
+          // Move to the next step
+          setResearchStep(4);
+          
+          // Show success toast
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          
+          // Update progress to 100%
+          setGenerationProgress(100);
+          setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+        }
+        
+        // Close the connection when complete
+        eventSource.close();
+        setIsGenerating(false);
+        setIsLoading(false);
+      });
       
-      // Show toast notification
-      toast.error(userFriendlyMessage);
-    } finally {
+      eventSource.addEventListener('error', (event: Event) => {
+        console.error('[DEBUG] SSE error:', event);
+        
+        let errorMessage = 'An error occurred during research generation.';
+        try {
+          // Try to parse error data if available
+          const messageEvent = event as MessageEvent;
+          const errorData = JSON.parse(messageEvent.data);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If we can't parse the error, use a generic message
+          console.error('Could not parse error data:', e);
+        }
+        
+        // Check if it's a timeout error
+        const messageEvent = event as MessageEvent;
+        if (messageEvent.data && (messageEvent.data.includes('timeout') || messageEvent.data.includes('timed out'))) {
+          errorMessage = 'The research request timed out. This process normally takes around 6 minutes. Please try again.';
+        }
+        
+        // Set error message
+        setError(errorMessage);
+        setStatusMessage('Error generating research');
+        
+        // Close the SSE connection
+        eventSource.close();
+        setIsGenerating(false);
+        setIsLoading(false);
+        
+        // Show error toast
+        toast.error(errorMessage);
+      });
+      
+      // Handle general errors and timeouts
+      eventSource.onerror = (error) => {
+        console.error('[DEBUG] SSE connection error:', error);
+        
+        // Check if the connection was closed by timeout
+        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please wait or try again.';
+        
+        // Set error message
+        setError(errorMessage);
+        setStatusMessage('Connection error');
+        
+        // Close the SSE connection
+        eventSource.close();
+        setIsGenerating(false);
+        setIsLoading(false);
+        
+        // Show error toast
+        toast.error(errorMessage);
+      };
+      
+      // Set a backup timeout to close the connection if nothing happens for 10 minutes
+      const timeoutId = setTimeout(() => {
+        if (eventSource.readyState !== EventSource.CLOSED) {
+          console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
+          eventSource.close();
+          setError('Research generation timed out after 10 minutes. Please try again.');
+          setIsGenerating(false);
+          setIsLoading(false);
+          toast.error('Research generation timed out after 10 minutes.');
+        }
+      }, 600000); // 10 minutes
+      
+      // Add a cleanup function for component unmount
+      return () => {
+        clearTimeout(timeoutId);
+        if (eventSource.readyState !== EventSource.CLOSED) {
+          eventSource.close();
+        }
+      };
+    } catch (error: any) {
+      console.error('[DEBUG] Error in handleDeepAnalysisClick:', error);
+      
+      // Create a user-friendly error message
+      let errorMessage = `Error: ${error.message || 'Unknown error. Please try again.'}`;
+      
+      setError(errorMessage);
       setIsLoading(false);
       setIsGenerating(false);
       
-      // Clear debounce flag after a short delay
-      setTimeout(() => {
-        setIsGenerateDeepResearchDebounced(false);
-      }, 1000);
+      // Show toast notification
+      toast.error(errorMessage);
     }
   };
 
@@ -1369,23 +1355,9 @@ If you'd like complete research, please try again later when our research servic
     setGenerationProgress(0);
     setStatusMessage('Preparing research request...');
     
-    // Create abort controller for cancellation support
-    abortControllerRef.current = new AbortController();
-    
-    // Set timeout for cancellation - 6 minutes max
-    const fetchTimeoutId = setTimeout(() => {
-      if (abortControllerRef.current) {
-        console.log('[DEBUG] Research generation timed out - aborting');
-        abortControllerRef.current.abort();
-        setError('Research generation timed out. The API service may be experiencing high load. Please try again later.');
-        setIsLoading(false);
-        setIsGenerating(false);
-      }
-    }, 360000); // 6 minutes timeout
-    
     try {
       // Build context with all the selected metadata
-      const context = `Topic: "${safeContentDetails?.researchTopic || ''}"
+      const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
 Platform: ${safeContentDetails?.platform || 'facebook'}, 
 Sub-Platform: ${safeContentDetails?.subPlatform || ''},
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
@@ -1395,137 +1367,197 @@ Language: ${language || 'en'}`;
       
       // Show progressive status updates
       setGenerationProgress(10);
-      const progressIntervalId = setInterval(() => {
-        // Increase progress gradually
-        setGenerationProgress((prev) => {
-          if (prev < 90) {
-            // Smaller random increments to spread progress over ~6 minutes
-            return Math.min(90, prev + (Math.random() * 1 + 0.5));
-          }
-          return prev;
+      setStatusMessage(safeTranslate('researchPage.progress.starting', 'Starting {service} analysis...').replace('{service}', 'Perplexity Deep Research'));
+      
+      console.log(`Starting research generation with business name: ${safeContentDetails.businessName || 'N/A'}`);
+      
+      // Get website content from contentDetails and log details
+      const websiteContent = safeContentDetails.websiteContent;
+      if (websiteContent) {
+        console.log('📊 Website content will be used for enhanced company research:');
+        console.log(`   - Title: ${websiteContent.title || 'Not available'}`);
+        console.log(`   - Headings: ${websiteContent.headings?.length || 0}`);
+        console.log(`   - Paragraphs: ${websiteContent.paragraphs?.length || 0}`);
+        console.log(`   - Has About content: ${!!websiteContent.aboutContent}`);
+        console.log(`   - Has Product info: ${!!websiteContent.productInfo}`);
+        if (websiteContent.contactInfo) {
+          console.log(`   - Contact info: ${websiteContent.contactInfo.emails?.length || 0} emails, ${websiteContent.contactInfo.phones?.length || 0} phones`);
+        }
+      } else {
+        console.log('⚠️ No website content available - research will rely on Perplexity search only');
+      }
+      
+      // Show 25% progress while preparing request
+      setGenerationProgress(25);
+      
+      // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
+      const eventSource = new EventSource(`/api/perplexity/research-sse?t=${Date.now()}`);
+      let researchText = '';
+      
+      // First, initialize the SSE connection
+      eventSource.onopen = () => {
+        console.log('[DEBUG] SSE connection opened');
+        
+        // After connection is established, send the actual request
+        fetch('/api/perplexity/research-sse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            topic: safeContentDetails?.researchTopic || '',
+            context: contextString, 
+            sources: ['recent', 'scholar', 'news'],
+            language,
+            companyName: safeContentDetails?.businessName || '',
+            websiteContent: safeContentDetails?.websiteContent || null
+          }),
+        }).catch(error => {
+          console.error('[DEBUG] Error initiating research request:', error);
+          eventSource.close();
+          throw error;
         });
-        
-        // Update status message
-        const messageKeys = [
-          'researchPage.progress.statusMessages.searching',
-          'researchPage.progress.statusMessages.analyzing',
-          'researchPage.progress.statusMessages.gathering',
-          'researchPage.progress.statusMessages.synthesizing',
-          'researchPage.progress.statusMessages.almostDone',
-        ];
-        
-        const randomIndex = Math.floor(Math.random() * messageKeys.length);
-        setStatusMessage(safeTranslate(messageKeys[randomIndex], 'Researching your topic...'));
-      }, 5000); // Update every 5 seconds for smoother progress
+      };
       
-      // Call Perplexity API
-      console.log('[DEBUG] Making fetch request to /api/perplexity/research');
-      console.log('[DEBUG] Using language for research:', language);
+      // Use standard MessageEvent type from TypeScript lib
       
-      const perplexityData = await fetch('/api/perplexity/research', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic: safeContentDetails?.researchTopic || '',
-          context, 
-          sources: ['recent', 'scholar', 'news'],
-          language
-        }),
-        signal: abortControllerRef.current?.signal
+      // Set up listeners for the different event types
+      eventSource.addEventListener('progress', (e) => {
+        // Cast to MessageEvent which has data property
+        const event = e as { data: string };
+        const data = JSON.parse(event.data);
+        console.log('[DEBUG] Progress update:', data);
+        setGenerationProgress(data.progress);
+        setStatusMessage(data.status);
       });
       
-      // Clear the progress interval
-      clearInterval(progressIntervalId);
+      eventSource.addEventListener('complete', (e) => {
+        // Cast to MessageEvent which has data property
+        const event = e as { data: string };
+        const data = JSON.parse(event.data);
+        console.log('[DEBUG] Research complete:', data);
+        
+        // Save the full research
+        if (data.research) {
+          // Clean the research text and store it
+          const cleanedResearch = removeThinkingTags(data.research);
+          researchText = cleanedResearch;
+          setDeepResearch(cleanedResearch);
+          
+          // Store the clean research in session storage
+          sessionStorage.setItem('deepResearch', cleanedResearch);
+          
+          // Save research results
+          const researchResults = {
+            researchMethod: 'perplexity',
+            perplexityResearch: cleanedResearch
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          
+          // Move to the next step
+          setResearchStep(4);
+          
+          // Show success toast
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          
+          // Update progress to 100%
+          setGenerationProgress(100);
+          setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+        }
+        
+        // Close the connection when complete
+        eventSource.close();
+        setIsGenerating(false);
+        setIsLoading(false);
+      });
       
-      // Set progress to indicate we're processing the response
-      setGenerationProgress(95);
-      setStatusMessage(safeTranslate('researchPage.progress.statusMessages.formatting', 'Formatting research results...'));
-      
-      if (!perplexityData.ok) {
-        // Try to get error details from the response
-        let errorData;
+      eventSource.addEventListener('error', (e) => {
+        console.error('[DEBUG] SSE error:', e);
+        
+        // Cast to MessageEvent which has data property
+        const event = e as { data?: string };
+        
+        let errorMessage = 'An error occurred during research generation.';
         try {
-          errorData = await perplexityData.json();
+          // Try to parse error data if available
+          if (event.data) {
+            const errorData = JSON.parse(event.data);
+            errorMessage = errorData.error || errorMessage;
+          }
         } catch (e) {
-          errorData = { error: `API error: ${perplexityData.status}` };
+          // If we can't parse the error, use a generic message
+          console.error('Could not parse error data:', e);
         }
         
-        console.error('[DEBUG] Perplexity API error:', perplexityData.status, errorData);
-        
-        // Create user-friendly error message based on status
-        let errorMessage = '';
-        switch (perplexityData.status) {
-          case 401:
-            errorMessage = 'Authentication error with the research service. Please verify your API key.';
-            break;
-          case 429:
-            errorMessage = 'Rate limit exceeded for the research service. Please try again later.';
-            break;
-          case 500:
-            errorMessage = 'The research service encountered an internal error. Please try again later.';
-            break;
-          case 503:
-            errorMessage = 'The research service is temporarily unavailable. Please try again later.';
-            break;
-          default:
-            errorMessage = errorData.error || errorData.message || `Research service error (${perplexityData.status})`;
+        // Check if it's a timeout error
+        if (event.data && (event.data.includes('timeout') || event.data.includes('timed out'))) {
+          errorMessage = 'The research request timed out. This process normally takes around 6 minutes. Please try again.';
         }
         
+        // Set error message
         setError(errorMessage);
-        setIsLoading(false);
+        setStatusMessage('Error generating research');
+        
+        // Close the SSE connection
+        eventSource.close();
         setIsGenerating(false);
-        return;
-      }
-      
-      const data = await perplexityData.json();
-      
-      console.log('[DEBUG] Perplexity API response received');
-      
-      if (!data || !data.research) {
-        setError('The research service returned an empty response. Please try again later.');
         setIsLoading(false);
-        setIsGenerating(false);
-        return;
-      }
-      
-      // Complete progress and show success message
-      setGenerationProgress(100);
-      setStatusMessage(safeTranslate('researchPage.progress.statusMessages.complete', 'Research complete!'));
-      
-      // Store results and move to next step
-      setResearchResults({
-        perplexityResearch: data.research,
-        researchMethod: 'perplexity'
+        
+        // Show error toast
+        toast.error(errorMessage);
       });
       
-      setDeepResearch(removeThinkingTags(data.research));
+      // Handle general errors and timeouts
+      eventSource.onerror = (error) => {
+        console.error('[DEBUG] SSE connection error:', error);
+        
+        // Check if the connection was closed by timeout
+        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please wait or try again.';
+        
+        // Set error message
+        setError(errorMessage);
+        setStatusMessage('Connection error');
+        
+        // Close the SSE connection
+        eventSource.close();
+        setIsGenerating(false);
+        setIsLoading(false);
+        
+        // Show error toast
+        toast.error(errorMessage);
+      };
       
-      // Short delay before navigating to results to allow user to see completion
-      setTimeout(() => {
-        setResearchStep(4);
-      }, 500);
+      // Set a backup timeout to close the connection if nothing happens for 10 minutes
+      const timeoutId = setTimeout(() => {
+        if (eventSource.readyState !== EventSource.CLOSED) {
+          console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
+          eventSource.close();
+          setError('Research generation timed out after 10 minutes. Please try again.');
+          setIsGenerating(false);
+          setIsLoading(false);
+          toast.error('Research generation timed out after 10 minutes.');
+        }
+      }, 600000); // 10 minutes
       
+      // Add a cleanup function for component unmount
+      return () => {
+        clearTimeout(timeoutId);
+        if (eventSource.readyState !== EventSource.CLOSED) {
+          eventSource.close();
+        }
+      };
     } catch (error: any) {
       console.error('[DEBUG] Error in handleDeepAnalysisClick:', error);
       
-      // Check for abort/timeout errors
-      const isTimeoutError = error.name === 'AbortError' || 
-                            error.message?.includes('timeout') || 
-                            error.message?.includes('Timeout');
-      
       // Create a user-friendly error message
-      let errorMessage = isTimeoutError 
-        ? 'Research generation timed out. The service may be experiencing high load. Please try again later.'
-        : `Error: ${error.message || 'Unknown error. Please try again.'}`;
+      let errorMessage = `Error: ${error.message || 'Unknown error. Please try again.'}`;
       
       setError(errorMessage);
-    } finally {
-      // Always cleanup
       setIsLoading(false);
       setIsGenerating(false);
-      clearTimeout(fetchTimeoutId);
+      
+      // Show toast notification
+      toast.error(errorMessage);
     }
   };
 
