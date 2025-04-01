@@ -3,7 +3,7 @@ import { PerplexityClient } from '@/lib/api/perplexityClient';
 import { getPromptForTopic } from '@/lib/api/promptBuilder';
 
 // Set duration to the maximum allowed for hobby plan
-export const maxDuration = 300; // 5 minutes (max allowed on hobby plan)
+export const maxDuration = 60; // 60 seconds (max allowed on hobby plan)
 
 // Force route to be dynamic
 export const dynamic = 'force-dynamic';
