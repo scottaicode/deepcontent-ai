@@ -3185,6 +3185,93 @@ This report was generated as backup content on ${dateNow}.`;
     }
   }, [isGenerating, generationProgress]);
 
+  // Function to check if research has completed on the server
+  const checkForCompletedResearch = async () => {
+    try {
+      console.log('[DEBUG] Checking for completed research on server');
+      const response = await fetch('/api/perplexity/check-research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic: safeContentDetails?.researchTopic || '',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[DEBUG] Research check result:', data);
+        
+        // If research is found, display it
+        if (data.research) {
+          console.log('[DEBUG] Research was found on server!');
+          
+          // Clean the research content
+          const cleanedResearch = removeThinkingTags(data.research);
+          
+          // Save the research and update UI
+          setDeepResearch(cleanedResearch);
+          sessionStorage.setItem('deepResearch', cleanedResearch);
+          
+          // Save research results
+          const researchResults = {
+            researchMethod: 'perplexity',
+            perplexityResearch: cleanedResearch
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          
+          // Update progress to 100%
+          setGenerationProgress(100);
+          setStatusMessage('Research complete!');
+          
+          // Show success toast
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          
+          // Move to the next step
+          setResearchStep(4);
+          
+          // Reset states
+          setIsGenerating(false);
+          setIsLoading(false);
+          
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[DEBUG] Error checking for completed research:', error);
+      return false;
+    }
+  };
+
+  // Add an effect to periodically check for research results when connection issues occur
+  useEffect(() => {
+    // Only run when research is generating and we haven't received updates for a while
+    if (isGenerating && generationProgress > 30 && error?.includes('connection')) {
+      console.log('[DEBUG] Starting periodic research result check due to connection error');
+      
+      // Check immediately
+      checkForCompletedResearch();
+      
+      // Then set up a periodic check
+      const checkInterval = setInterval(() => {
+        checkForCompletedResearch().then(found => {
+          if (found) {
+            // Clear the interval if research was found
+            clearInterval(checkInterval);
+          }
+        });
+      }, 30000); // Check every 30 seconds
+      
+      // Clean up the interval when component unmounts
+      return () => {
+        clearInterval(checkInterval);
+      };
+    }
+  }, [isGenerating, generationProgress, error]);
+
   // Replace the return statement near the end of the file with a flex layout that includes the footer
   return (
     <AppShell hideHeader={true}>
