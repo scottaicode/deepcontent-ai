@@ -30,10 +30,10 @@ export class PerplexityClient {
    * Generate research on a specific topic using Perplexity API
    */
   async generateResearch(prompt: string, options: any = {}): Promise<string> {
-    // Get configuration options with defaults
+    // Get configuration options with defaults - reduce default timeout to work with serverless function constraints
     const maxTokens = options.maxTokens || 4000;
     const temperature = options.temperature || 0.2;
-    const timeoutMs = options.timeoutMs || 240000; // 4 minutes timeout
+    const timeoutMs = options.timeoutMs || 45000; // 45 seconds timeout (default reduced from 4 minutes)
     const language = options.language || 'en';
     
     // Create current date formatting for citations
@@ -173,7 +173,7 @@ export class PerplexityClient {
       } : 'Unknown error type');
       
       if (error.name === 'AbortError') {
-        throw new Error(`Request timeout: The API request exceeded the ${timeoutMs/1000} second timeout limit`);
+        throw new Error(`Research generation timed out. Please try again with a more specific topic or try later when the service is less busy.`);
       }
       
       // Network errors

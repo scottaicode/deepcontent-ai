@@ -187,12 +187,12 @@ export async function POST(request: NextRequest) {
       // Call Perplexity API
       console.log('[DIAGNOSTIC] Sending request to Perplexity API...');
       
-      // Basic configuration options
+      // Basic configuration options - reduced timeout to fit within 60s serverless function limit
       const options = {
         maxTokens: 4000,
         temperature: 0.2,
         language: language || 'en',
-        timeoutMs: 240000 // 4 minutes timeout
+        timeoutMs: 45000 // 45 seconds timeout (reduced from 4 minutes to fit in serverless function limits)
       };
       
       // Make the API call
@@ -235,13 +235,21 @@ export async function POST(request: NextRequest) {
       let errorMessage = apiError.message || 'Unknown API error';
       let statusCode = 500;
       
-      // Network-related errors
+      // Timeout-related errors
       if (
+        errorMessage.includes('timeout') || 
+        errorMessage.includes('timed out') ||
+        apiError.name === 'AbortError'
+      ) {
+        errorMessage = 'The research request timed out. Please try again with a more specific topic or try later when our research service is less busy.';
+        statusCode = 504; // Gateway Timeout
+      }
+      // Network-related errors
+      else if (
         errorMessage.includes('fetch failed') || 
         errorMessage.includes('network') || 
         errorMessage.includes('connection') ||
-        errorMessage.includes('Failed after') ||
-        errorMessage.includes('timeout')
+        errorMessage.includes('Failed after')
       ) {
         errorMessage = 'Network connection failed while contacting the research service. Please check your internet connection and try again.';
         statusCode = 503; // Service Unavailable

@@ -275,7 +275,18 @@ export default function ResearchPage() {
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      
+      // Better handling for specific error types
+      if (response.status === 504) {
+        console.error('Perplexity research request timed out (504 Gateway Timeout)');
+        throw new Error('Research generation timed out. Please try again with a more specific topic or try later when the service is less busy.');
+      } else if (response.status === 503) {
+        console.error('Perplexity research service temporarily unavailable (503)');
+        throw new Error('The research service is temporarily unavailable. Please try again in a few minutes.');
+      } else {
+        console.error(`API error (${response.status}):`, errorData);
+        throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
     }
     
     const data = await response.json();
