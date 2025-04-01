@@ -14,7 +14,7 @@ import { getPromptForTopic } from '@/lib/api/promptBuilder';
 export const dynamic = 'force-dynamic';
 
 // Set a longer timeout for extensive research
-export const maxDuration = 300; // 5 minutes (300 seconds)
+export const maxDuration = 60; // 60 seconds (maximum allowed for hobby plan)
 
 interface PerplexityResearchRequest {
   topic: string;
