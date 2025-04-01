@@ -4,14 +4,14 @@
   "private": true,
   "engines": {
     "node": "18.x",
-    "npm": "9.x"
+    "npm": ">=9.0.0"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "echo 'Skipping playwright installation for Vercel deployment'"
+    "postinstall": "echo 'Setup complete'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.48",
