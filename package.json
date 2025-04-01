@@ -8,10 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "npx playwright install chromium --with-deps && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "npx playwright install chromium --with-deps"
+    "postinstall": "echo 'Skipping playwright installation for Vercel deployment'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.48",
@@ -80,9 +80,9 @@
     "typescript": "^5"
   },
   "resolutions": {
-    "frisbee": "^0.7.0"
+    "frisbee": "0.1.0"
   },
   "overrides": {
-    "frisbee": "^0.7.0"
+    "frisbee": "0.1.0"
   }
 }
