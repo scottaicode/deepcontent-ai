@@ -5,6 +5,9 @@ import { getPromptForTopic } from '@/lib/api/promptBuilder';
 // Set duration to the maximum allowed for hobby plan
 export const maxDuration = 60; // 60 seconds (max allowed on hobby plan)
 
+// Force route to be dynamic
+export const dynamic = 'force-dynamic';
+
 // POST handler for SSE
 export async function POST(request: NextRequest) {
   // Create a TransformStream for SSE
@@ -14,9 +17,13 @@ export async function POST(request: NextRequest) {
   
   // Function to send events to the client
   const sendEvent = async (event: string, data: any) => {
-    await writer.write(
-      encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-    );
+    try {
+      await writer.write(
+        encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      );
+    } catch (err) {
+      console.error(`Error sending SSE event '${event}':`, err);
+    }
   };
   
   // Function to send progress updates
@@ -25,8 +32,27 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    // Parse request body
-    const body = await request.json();
+    // Parse request body with proper error handling
+    let body;
+    try {
+      body = await request.json();
+    } catch (err) {
+      console.error('Error parsing request body:', err);
+      await sendEvent('error', { error: 'Invalid request format' });
+      await writer.close();
+      
+      return new Response(stream.readable, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        },
+      });
+    }
+    
     const { topic, context, sources = ['recent', 'scholar'] } = body;
     
     if (!topic) {
@@ -37,6 +63,9 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
         },
       });
     }
@@ -76,6 +105,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.PERPLEXITY_API_KEY;
     
     if (!apiKey) {
+      console.error('Missing Perplexity API key in environment variables');
       await sendEvent('error', { error: 'Perplexity API key not configured' });
       await writer.close();
       return new Response(stream.readable, {
@@ -83,6 +113,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*'
         },
       });
     }
@@ -104,35 +135,57 @@ export async function POST(request: NextRequest) {
     await sendProgress(20, 'Sending request to Perplexity...');
     
     // Create Perplexity client
-    const perplexity = new PerplexityClient(apiKey);
+    let perplexity;
+    try {
+      perplexity = new PerplexityClient(apiKey);
+    } catch (clientError) {
+      console.error('Error creating Perplexity client:', clientError);
+      await sendEvent('error', { error: 'Failed to initialize research service. Please try again.' });
+      await writer.close();
+      return new Response(stream.readable, {
+        headers: {
+          'Content-Type': 'text/event-stream', 
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*'
+        },
+      });
+    }
     
     const startTime = Date.now();
     
-    // Setup progress tracking
+    // Setup progress tracking with additional error handling
     let progressStep = 20;
-    const progressInterval = setInterval(async () => {
-      // Increase progress up to 90% before completion
-      if (progressStep < 90) {
-        progressStep += 2; // Smaller increments for smoother progress
-        
-        // Select appropriate status message based on progress
-        let statusMessage = 'Researching...';
-        
-        if (progressStep < 30) {
-          statusMessage = 'Querying knowledge databases...';
-        } else if (progressStep < 50) {
-          statusMessage = 'Analyzing information sources...';
-        } else if (progressStep < 70) {
-          statusMessage = 'Synthesizing research findings...';
-        } else if (progressStep < 85) {
-          statusMessage = 'Organizing research insights...';
-        } else {
-          statusMessage = 'Finalizing research document...';
+    let progressInterval;
+    
+    try {
+      progressInterval = setInterval(async () => {
+        // Increase progress up to 90% before completion
+        if (progressStep < 90) {
+          progressStep += 2; // Smaller increments for smoother progress
+          
+          // Select appropriate status message based on progress
+          let statusMessage = 'Researching...';
+          
+          if (progressStep < 30) {
+            statusMessage = 'Querying knowledge databases...';
+          } else if (progressStep < 50) {
+            statusMessage = 'Analyzing information sources...';
+          } else if (progressStep < 70) {
+            statusMessage = 'Synthesizing research findings...';
+          } else if (progressStep < 85) {
+            statusMessage = 'Organizing research insights...';
+          } else {
+            statusMessage = 'Finalizing research document...';
+          }
+          
+          await sendProgress(progressStep, statusMessage);
         }
-        
-        await sendProgress(progressStep, statusMessage);
-      }
-    }, 2000);
+      }, 2000);
+    } catch (intervalError) {
+      console.error('Error setting up progress interval:', intervalError);
+      // Continue without progress updates if interval setup fails
+    }
     
     // Call Perplexity API
     console.log('Sending request to Perplexity API...');
@@ -140,7 +193,7 @@ export async function POST(request: NextRequest) {
       const response = await perplexity.generateResearch(promptText);
       
       // Clear the progress interval once we have a response
-      clearInterval(progressInterval);
+      if (progressInterval) clearInterval(progressInterval);
       
       // Calculate actual time taken
       const endTime = Date.now();
@@ -157,22 +210,42 @@ export async function POST(request: NextRequest) {
       await sendProgress(100, 'Research completed successfully!');
     } catch (apiError: any) {
       console.error('Error from Perplexity API:', apiError);
-      clearInterval(progressInterval);
-      await sendEvent('error', { error: apiError.message || 'Error from Perplexity API' });
+      if (progressInterval) clearInterval(progressInterval);
+      
+      // Create a user-friendly error message
+      let errorMessage = apiError.message || 'Error from Perplexity API';
+      
+      // Handle specific error types
+      if (errorMessage.includes('timeout') || apiError.name === 'AbortError') {
+        errorMessage = 'The research request timed out. Please try again with a more specific topic.';
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (errorMessage.includes('authentication') || errorMessage.includes('401')) {
+        errorMessage = 'Authentication error with research service. Please contact support.';
+      }
+      
+      await sendEvent('error', { error: errorMessage });
       
       // Send a failed status
       await sendProgress(100, 'Research generation failed');
     }
     
     // Close the writer
-    await writer.close();
+    try {
+      await writer.close();
+    } catch (closeError) {
+      console.error('Error closing writer stream:', closeError);
+    }
     
-    // Return the response
+    // Return the response with proper headers
     return new Response(stream.readable, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*', 
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
       },
     });
     
@@ -183,7 +256,11 @@ export async function POST(request: NextRequest) {
     await sendEvent('error', { error: error.message || 'Unknown error occurred' });
     
     // Close the writer
-    await writer.close();
+    try {
+      await writer.close();
+    } catch (closeError) {
+      console.error('Error closing writer stream:', closeError);
+    }
     
     // Return the stream anyway so the client gets the error
     return new Response(stream.readable, {
@@ -191,6 +268,9 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
       },
     });
   }
