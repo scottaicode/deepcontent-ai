@@ -3126,6 +3126,65 @@ This report was generated as backup content on ${dateNow}.`;
     );
   };
 
+  // Add a progress simulation fallback 
+  useEffect(() => {
+    // Only run the fallback when actively generating and progress seems stuck
+    if (isGenerating && generationProgress <= 25) {
+      console.log('[DEBUG] Starting progress simulation fallback');
+      
+      // Start a timer that will increment progress if we don't get real updates
+      const simulationTimer = setTimeout(() => {
+        // Start a simulation interval that slowly increases progress
+        const simulationInterval = setInterval(() => {
+          setGenerationProgress(prev => {
+            // Slowly increase up to 90% maximum (leave room for the real completion)
+            if (prev < 90) {
+              const increment = Math.max(0.5, (90 - prev) / 50); // Faster at start, slower as it approaches 90%
+              return prev + increment;
+            }
+            return prev;
+          });
+          
+          // Also update status messages based on simulated progress
+          setStatusMessage(prevStatus => {
+            // Only update if it's one of our standard messages (not error messages)
+            if (prevStatus.includes('Analyzing') || 
+                prevStatus.includes('Querying') || 
+                prevStatus.includes('Synthesizing') || 
+                prevStatus.includes('Organizing') || 
+                prevStatus.includes('Finalizing')) {
+              
+              // Choose progress message based on current progress level
+              const progress = generationProgress;
+              if (progress < 40) {
+                return 'Querying knowledge databases...';
+              } else if (progress < 60) {
+                return 'Analyzing information sources...';
+              } else if (progress < 75) {
+                return 'Synthesizing research findings...';
+              } else if (progress < 85) {
+                return 'Organizing research insights...';
+              } else {
+                return 'Finalizing research document...';
+              }
+            }
+            return prevStatus;
+          });
+        }, 3000); // Update every 3 seconds
+        
+        // Cleanup function for the interval
+        return () => {
+          clearInterval(simulationInterval);
+        };
+      }, 15000); // Wait 15 seconds to see if real progress updates come in
+      
+      // Clean up the simulation timer if the component unmounts
+      return () => {
+        clearTimeout(simulationTimer);
+      };
+    }
+  }, [isGenerating, generationProgress]);
+
   // Replace the return statement near the end of the file with a flex layout that includes the footer
   return (
     <AppShell hideHeader={true}>
