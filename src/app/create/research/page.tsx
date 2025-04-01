@@ -957,21 +957,24 @@ Language: ${language || 'en'}`
       eventSource.addEventListener('error', (event: Event) => {
         console.error('[DEBUG] SSE error event received:', event);
         
+        // Try to extract error details from the event
         let errorMessage = 'An error occurred during research generation.';
         try {
           // Try to parse error data if available
           const messageEvent = event as MessageEvent;
-          const errorData = JSON.parse(messageEvent.data);
-          errorMessage = errorData.error || errorMessage;
+          if (messageEvent.data) {
+            const errorData = JSON.parse(messageEvent.data);
+            errorMessage = errorData.error || errorMessage;
+          }
         } catch (e) {
           // If we can't parse the error, use a generic message
           console.error('Could not parse error data:', e);
         }
         
-        // Check if it's a timeout error
-        const messageEvent = event as MessageEvent;
-        if (messageEvent.data && (messageEvent.data.includes('timeout') || messageEvent.data.includes('timed out'))) {
-          errorMessage = 'The research request timed out. This process normally takes around 6 minutes. Please try again.';
+        // With Pro plan's longer function duration, timeouts are less likely
+        // but still possible for very complex research
+        if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 15 minutes. Please wait a moment and try again if needed.';
         }
         
         // Set error message
@@ -1579,9 +1582,10 @@ Language: ${language || 'en'}`;
           console.error('Could not parse error data:', e);
         }
         
-        // Check if it's a timeout error
+        // With Pro plan's longer function duration, timeouts are less likely
+        // but still possible for very complex research
         if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-          errorMessage = 'The research request timed out. This process normally takes around 6 minutes. Please try again.';
+          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 15 minutes. Please wait a moment and try again if needed.';
         }
         
         // Set error message
@@ -3056,8 +3060,8 @@ This report was generated as backup content on ${dateNow}.`;
           <div className="ml-3">
             <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Connection Issue</h3>
             <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-              <p>The research generation process takes about 6 minutes to complete. Your connection was interrupted, but the process may still be running in the background.</p>
-              <p className="mt-2">You have two options:</p>
+              <p>The research generation process takes about 6 minutes to complete. With your Pro plan, we're able to process longer, more comprehensive research up to 15 minutes.</p>
+              <p className="mt-2">Your connection was interrupted, but you have two options:</p>
               <ul className="list-disc pl-5 mt-1 space-y-1">
                 <li>Wait a few minutes and refresh the page to check if your results are ready</li>
                 <li>Try generating the research again</li>

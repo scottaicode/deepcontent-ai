@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server';
 import { PerplexityClient } from '@/lib/api/perplexityClient';
 import { getPromptForTopic } from '@/lib/api/promptBuilder';
 
-// Set duration to the maximum allowed for hobby plan
-export const maxDuration = 60; // 60 seconds (max allowed on hobby plan)
+// Set duration to the maximum allowed for Pro plan
+export const maxDuration = 900; // 15 minutes (max allowed on Pro plan)
 
 // Force route to be dynamic
 export const dynamic = 'force-dynamic';
@@ -166,29 +166,35 @@ export async function POST(request: NextRequest) {
     let progressInterval: NodeJS.Timeout | null = null;
     
     try {
+      // With Pro plan, we can use a more gradual progress update approach
+      // since we have up to 15 minutes to complete the research
       progressInterval = setInterval(async () => {
         // Increase progress up to 90% before completion
         if (progressStep < 90) {
-          progressStep += 2; // Smaller increments for smoother progress
+          // Calculate progress increase based on typical research completion time
+          // For 6-minute typical research time, increment by ~1.2% every 5 seconds
+          progressStep += 1.2; 
           
           // Select appropriate status message based on progress
           let statusMessage = 'Researching...';
           
           if (progressStep < 30) {
             statusMessage = 'Querying knowledge databases...';
-          } else if (progressStep < 50) {
+          } else if (progressStep < 45) {
             statusMessage = 'Analyzing information sources...';
-          } else if (progressStep < 70) {
+          } else if (progressStep < 60) {
             statusMessage = 'Synthesizing research findings...';
-          } else if (progressStep < 85) {
+          } else if (progressStep < 75) {
             statusMessage = 'Organizing research insights...';
+          } else if (progressStep < 85) {
+            statusMessage = 'Adding comprehensive supporting details...';
           } else {
             statusMessage = 'Finalizing research document...';
           }
           
           await sendProgress(progressStep, statusMessage);
         }
-      }, 2000);
+      }, 5000); // Update every 5 seconds for smoother progress
     } catch (intervalError) {
       console.error('Error setting up progress interval:', intervalError);
       // Continue without progress updates if interval setup fails
