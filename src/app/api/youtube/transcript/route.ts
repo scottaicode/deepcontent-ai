@@ -6,6 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic';
+
 // Define interface to match what the package returns
 interface TranscriptItem {
   text: string;
