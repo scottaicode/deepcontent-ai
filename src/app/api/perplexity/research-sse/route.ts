@@ -3,7 +3,7 @@ import { PerplexityClient } from '@/lib/api/perplexityClient';
 import { getPromptForTopic } from '@/lib/api/promptBuilder';
 
 // Set duration to the maximum allowed for Pro plan
-export const maxDuration = 900; // 15 minutes (max allowed on Pro plan)
+export const maxDuration = 300; // 5 minutes (max allowed on Pro plan)
 
 // Force route to be dynamic
 export const dynamic = 'force-dynamic';

@@ -974,7 +974,7 @@ Language: ${language || 'en'}`
         // With Pro plan's longer function duration, timeouts are less likely
         // but still possible for very complex research
         if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 15 minutes. Please wait a moment and try again if needed.';
+          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 5 minutes. Please wait a moment and try again if needed.';
         }
         
         // Set error message
@@ -1585,7 +1585,7 @@ Language: ${language || 'en'}`;
         // With Pro plan's longer function duration, timeouts are less likely
         // but still possible for very complex research
         if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 15 minutes. Please wait a moment and try again if needed.';
+          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 5 minutes. Please wait a moment and try again if needed.';
         }
         
         // Set error message
@@ -3060,7 +3060,7 @@ This report was generated as backup content on ${dateNow}.`;
           <div className="ml-3">
             <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Connection Issue</h3>
             <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-              <p>The research generation process takes about 6 minutes to complete. With your Pro plan, we're able to process longer, more comprehensive research up to 15 minutes.</p>
+              <p>The research generation process takes about 6 minutes to complete. With your Pro plan, we're able to process complex requests up to 5 minutes.</p>
               <p className="mt-2">Your connection was interrupted, but you have two options:</p>
               <ul className="list-disc pl-5 mt-1 space-y-1">
                 <li>Wait a few minutes and refresh the page to check if your results are ready</li>
