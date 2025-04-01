@@ -1,0 +1,1264 @@
+{
+  "common": {
+    "appName": "DeepContent",
+    "language": "English",
+    "languageCode": "en",
+    "back": "Back",
+    "edit": "Edit",
+    "delete": "Delete",
+    "error": "Error",
+    "apiError": "Server error: {message}",
+    "loading": "Loading...",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "next": "Next",
+    "previous": "Previous",
+    "continue": "Continue",
+    "submit": "Submit",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "clear": "Clear",
+    "close": "Close",
+    "open": "Open",
+    "show": "Show",
+    "hide": "Hide",
+    "add": "Add",
+    "remove": "Remove",
+    "create": "Create",
+    "update": "Update",
+    "view": "View",
+    "download": "Download",
+    "upload": "Upload",
+    "share": "Share",
+    "copy": "Copy",
+    "paste": "Paste",
+    "cut": "Cut",
+    "undo": "Undo",
+    "redo": "Redo",
+    "select": "Select",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset",
+    "start": "Start",
+    "stop": "Stop",
+    "pause": "Pause",
+    "resume": "Resume",
+    "refresh": "Refresh",
+    "reload": "Reload",
+    "retry": "Retry",
+    "skip": "Skip",
+    "finish": "Finish",
+    "notSpecified": "Not specified",
+    "showMore": "Show More",
+    "showLess": "Show Less",
+    "whatToDo": "What to do:"
+  },
+  "navigation": {
+    "home": "Home",
+    "create": "Create",
+    "dashboard": "Dashboard",
+    "imageEditor": "Image Editor",
+    "textToImage": "Text-to-Image",
+    "settings": "Settings",
+    "logout": "Logout",
+    "login": "Login",
+    "next": "Next",
+    "previous": "Previous",
+    "createContent": "Create Content"
+  },
+  "auth": {
+    "signUp": "Sign Up",
+    "login": "Login",
+    "forgotPassword": "Forgot Password?",
+    "resetPassword": "Reset Password",
+    "createAccount": "Create Account"
+  },
+  "homePage": {
+    "hero": {
+      "titleHighlight": "AI-Powered",
+      "title": "Create trend-informed content with AI",
+      "subtitle": "DeepContent helps you create high-quality, relevant content informed by your specific business or personal needs.",
+      "createButton": "Create Content",
+      "learnMoreButton": "Learn More",
+      "demoTitle": "How It Works"
+    },
+    "steps": {
+      "step1Title": "Select Content Type",
+      "step1": "Select content type & audience",
+      "step2Title": "Research",
+      "step2": "Gather key information for your content",
+      "step3Title": "Generate Content",
+      "step3": "Generate custom content"
+    },
+    "features": {
+      "title": "Features",
+      "subtitle": "Powerful tools to create professional content with real-time insights",
+      "multiPlatform": {
+        "title": "Multi-Platform Content",
+        "description": "Create content for social media, blogs, emails, video scripts, and more with specialized formats for each platform."
+      },
+      "aiPowered": {
+        "title": "AI-Powered Intelligence",
+        "description": "Leverage Claude 3.7 Sonnet to create high-quality, relevant content that's tailored to your specific business or personal needs."
+      },
+      "research": {
+        "title": "Comprehensive Research",
+        "description": "Enhance your content with Perplexity's Deep Research capabilities, providing accurate and timely information from reliable sources."
+      },
+      "personas": {
+        "title": "AI Personas & Styles",
+        "description": "Choose from specialized AI personas for your personal expression or professional needs – from casual social media to technical documentation and creative storytelling."
+      },
+      "customizable": {
+        "title": "Customizable Output",
+        "description": "Adjust content style, length, calls-to-action, and hashtags to match your brand voice."
+      },
+      "export": {
+        "title": "Export Options",
+        "description": "Easily export your content as plain text, markdown, or copy directly to your clipboard."
+      },
+      "youtube": {
+        "title": "YouTube Scripts",
+        "description": "Create trend-informed scripts for YouTube videos, including educational content, reviews, and entertainment."
+      }
+    },
+    "useCases": {
+      "title": "Perfect For",
+      "subtitle": "Designed to empower creators across multiple industries",
+      "getStarted": "Get Started",
+      "marketers": {
+        "title": "Marketers",
+        "description": "Create trend-informed social media posts, email campaigns, and blog content that resonates with your audience."
+      },
+      "creators": {
+        "title": "Content Creators",
+        "description": "Stay relevant with YouTube scripts, blog posts, and social content that incorporates trending topics."
+      },
+      "smallBusiness": {
+        "title": "Small Businesses",
+        "description": "Produce professional, on-trend content without the expense of a dedicated marketing team."
+      },
+      "personal": {
+        "title": "Personal Expression",
+        "description": "Share your hobbies, interests, and experiences with personalized content for social media, blogs, or newsletters that reflect your unique voice."
+      }
+    },
+    "partnership": {
+      "title": "Human-AI Partnership",
+      "subtitle": "We believe in amplifying human creativity, not replacing it",
+      "principle1": {
+        "title": "Transparent AI Capabilities",
+        "description": "We clearly communicate what our AI can and cannot do, so you're always in control."
+      },
+      "principle2": {
+        "title": "Human-Centered Design",
+        "description": "Our interface adapts to your workflow, putting powerful AI tools at your fingertips without getting in the way."
+      },
+      "principle3": {
+        "title": "Meaningful Engagement",
+        "description": "We measure success by the quality of your content, not just how much time you spend on our platform."
+      },
+      "demo": {
+        "title": "Experience the Difference",
+        "description": "Try our human-centered approach to AI content creation and see the impact it has on your workflow.",
+        "button": "Try It Now"
+      }
+    },
+    "footer": {
+      "subtitle": "Content Creation with Trending Topics Integration",
+      "powered": "Powered by Claude 3.7 Sonnet",
+      "rights": "All rights reserved",
+      "product": "Product",
+      "features": "Features",
+      "pricing": "Pricing",
+      "faq": "FAQ",
+      "resources": "Resources",
+      "blog": "Blog",
+      "guides": "Guides",
+      "support": "Support",
+      "company": "Company",
+      "about": "About",
+      "careers": "Careers",
+      "privacy": "Privacy",
+      "termsService": "Terms of service",
+      "privacyPolicy": "Privacy policy"
+    }
+  },
+  "createPage": {
+    "title": "Create Content",
+    "subtitle": "Select your content type, target audience, and research options to generate on-trend content",
+    "platformSectionTitle": "Select your target platform",
+    "contentTypeSectionTitle": "What type of content do you need?",
+    "platformSection": {
+      "title": "Select your target platform",
+      "info": "Select the primary platform for your content. This will determine the appropriate content format and optimization."
+    },
+    "subPlatformSection": {
+      "title": "Choose Specific"
+    },
+    "contentTitle": "Content Title / Topic",
+    "titlePlaceholder": "E.g., 10 Tips for Better Productivity, Understanding Artificial Intelligence, etc.",
+    "businessType": "Topic Area / Industry",
+    "businessTypePlaceholder": "E.g., Technology, Health & Wellness, Finance, etc.",
+    "audienceSection": {
+      "title": "Define your target audience"
+    },
+    "targetAudience": "Target Audience",
+    "targetAudiencePlaceholder": "E.g., Small business owners, health enthusiasts, college students, etc.",
+    "audienceNeeds": "Audience Interests / Pain Points",
+    "audienceNeedsPlaceholder": "What does your audience want to learn, solve, or achieve? E.g., Improve productivity, learn about investing, etc.",
+    "contentAnalysisTitle": "Content Analysis Tools",
+    "contentAnalysisDescription": "Enrich your content by analyzing existing media for insights.",
+    "youtubeTranscriptTitle": "YouTube Transcript Analysis",
+    "imageAnalysisTitle": "Image Analysis",
+    "businessNameExtracted": "Business name extracted from website",
+    "documentAnalysisTitle": "Document Analysis",
+    "documentAnalysisDescription": "Upload documents (PDF, Word, Excel, Text) to analyze and use in your research.",
+    "documentContentExtracted": "Document content extracted for research",
+    "steps": {
+      "step1": "Content Type"
+    },
+    "reload": "Reload",
+    "retry": "Retry",
+    "skip": "Skip",
+    "finish": "Finish",
+    "showMore": "Show More",
+    "showLess": "Show Less",
+    "whatToDo": "What to do:"
+  },
+  "contentType": {
+    "defineDetails": "Define your content details"
+  },
+  "contentCreationSteps": {
+    "researchDescription": "Gather insights & trends",
+    "contentDescription": "Create & edit content"
+  },
+  "languageSwitcher": {
+    "improveTranslations": "Help us improve translations"
+  },
+  "researchPage": {
+    "title": "Content Research",
+    "subtitle": "Creating {contentType} for {platform} targeting {audience}",
+    "contentDetails": "Content Details",
+    "initialSetup": "Initial Setup",
+    "followUpQuestions": "Follow-up Questions",
+    "generateResearch": "Generate Research",
+    "researchResults": "Research Results",
+    "createContent": "Create Content",
+    "subject": {
+      "title": "Subject Information",
+      "primarySubject": "Primary Subject",
+      "primarySubjectPlaceholder": "Company, product, service, or topic name",
+      "primarySubjectHelp": "What specific company, product, service, or topic are you creating content about?",
+      "subjectType": "Subject Type",
+      "subjectTypesOptions": {
+        "company": "Company",
+        "product": "Product",
+        "service": "Service",
+        "general": "General Topic"
+      },
+      "additionalDetails": "Additional Details",
+      "additionalDetailsPlaceholder": "Key features, benefits, or unique aspects",
+      "additionalDetailsHelp": "Provide any important details about your subject that should be included in the content"
+    },
+    "audience": {
+      "title": "Audience Information",
+      "targetAudience": "Target Audience",
+      "targetAudiencePlaceholder": "Who is this content for?",
+      "audienceNeeds": "Audience Needs",
+      "audienceNeedsPlaceholder": "What specific needs or pain points does your audience have?"
+    },
+    "publication": {
+      "title": "Content Publication",
+      "contentType": "Content Type",
+      "platform": "Platform"
+    },
+    "platforms": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "twitter": "Twitter/X",
+      "linkedin": "LinkedIn",
+      "tiktok": "TikTok"
+    },
+    "contentTypes": {
+      "socialMedia": "Social Media Post",
+      "blogPost": "Blog Post",
+      "email": "Email",
+      "videoScript": "Video Script"
+    },
+    "methods": {
+      "title": "Select Research Methods",
+      "description": "Choose how you want to research this topic:",
+      "perplexity": "Perplexity Deep Research",
+      "perplexityDescription": "Comprehensive research using the Perplexity API",
+      "trending": "Trending",
+      "trendingDescription": "Get relevant information for your content",
+      "dataSources": "Data Sources",
+      "reddit": "Research",
+      "rss": "Sources",
+      "news": "News Sources",
+      "perplexityApiKey": "Perplexity API Key:",
+      "testPerplexityApi": "Test Perplexity API",
+      "testClaudeApi": "Test Claude API",
+      "youtubeContent": "YouTube Content",
+      "youtubeDescription": "Add a YouTube video transcript to your research",
+      "transcript": "Transcript:"
+    },
+    "buttons": {
+      "selectResearchMethods": "Select Research Methods",
+      "startResearch": "Start Research",
+      "continueToContent": "Continue to Content",
+      "back": "Back",
+      "generateDeepResearch": "Generate Deep Analysis with Claude 3.7 Sonnet",
+      "runPerplexityFirst": "Run Perplexity Research First",
+      "showConnections": "Show Potential Content Connections"
+    },
+    "researchResults": {
+      "title": "Research Results",
+      "generatedResearch": "Generated Research",
+      "trendingTopics": "Trending Topics",
+      "selectTopics": "Select topics to include in your content:",
+      "potentialConnections": "Potential Content Connections",
+      "basicFindings": "Basic Research Findings",
+      "deepAnalysis": "Deep Analysis"
+    },
+    "progress": {
+      "preparing": "Preparing research request...",
+      "sending": "Sending request to {service}...",
+      "fetching": "Fetching trending topics...",
+      "processing": "Processing research results...",
+      "starting": "Starting {service} analysis...",
+      "finalizing": "Finalizing research results...",
+      "inProgress": "Research Generation in Progress",
+      "processingRequest": "Processing your research request..."
+    },
+    "errors": {
+      "research": "Error starting research. Please try again.",
+      "trending": "Failed to fetch trending topics. Please try again.",
+      "deepResearch": "Failed to generate deep research. Please try again.",
+      "missingFields": "Please fill in all required fields before continuing."
+    },
+    "results": {
+      "title": "Research Results",
+      "generated": "Generated Research",
+      "summary": "Research Summary",
+      "collapseResearch": "Collapse Research",
+      "expandResearch": "Expand Research",
+      "topic": "Topic",
+      "contentType": "Content Type",
+      "targetAudience": "Target Audience",
+      "platform": "Platform",
+      "back": "Back",
+      "generateResearch": "Generate Research"
+    },
+    "status": {
+      "analyzing": "Analyzing data",
+      "finalizing": "Finalizing results",
+      "synthesizing": "Synthesizing information",
+      "querying": "Querying data sources...",
+      "organizing": "Organizing research insights..."
+    },
+    "progress": {
+      "inProgress": "Research in Progress",
+      "progressLabel": "Progress",
+      "cancel": "Cancel",
+      "statusMessages": {
+        "analyzingData": "Analyzing data from sources...",
+        "completing": "Completing final research compilation...",
+        "gatheringData": "Gathering information from sources...",
+        "synthesizing": "Synthesizing key information...",
+        "assembling": "Assembling research findings...",
+        "finalizing": "Finalizing your research...",
+        "researchingLatest": "Researching latest information on your topic...",
+        "analyzingRelevant": "Analyzing relevant trends and sources...",
+        "findingRecommendations": "Finding topic recommendations for your audience...",
+        "gatheringEngagement": "Gathering engagement insights for your platform...",
+        "compilingPractices": "Compiling best practices for your content type...",
+        "exploringTrends": "Exploring trending topics in your industry...",
+        "researchingPreferences": "Researching audience preferences...",
+        "evaluatingFormats": "Evaluating optimal content formats...",
+        "identifyingInsights": "Identifying key insights for your audience...",
+        "organizingFindings": "Organizing research findings...",
+        "finalizingDocument": "Finalizing research document...",
+        "almostDone": "Almost done with your research..."
+      }
+    }
+  },
+  "contentPage": {
+    "title": "Generated Content",
+    "subtitle": "Your content has been successfully generated. You can edit it below.",
+    "details": "Content Details",
+    "contentTypeLabel": "Content Type",
+    "targetAudienceLabel": "Target Audience",
+    "researchTopicLabel": "Research Topic",
+    "aiSettings": "AI Settings",
+    "forPlatform": "for",
+    "platformLabel": "Platform",
+    "contentTypeHint": "Content type is determined by research settings",
+    "platformHint": "Platform is determined by research settings",
+    "contentTypeDeterminedByResearch": "Content type is determined by research settings",
+    "platformDeterminedByResearch": "Platform is determined by research settings",
+    "notSpecified": "Not specified",
+    "confirmRegenerateStyle": "Would you like to regenerate content using the \"{style}\" style?",
+    "confirmRegenerateLength": "Would you like to regenerate content using the \"{length}\" length?",
+    "dialog": {
+      "changeStyle": "Change Style",
+      "changeLength": "Change Content Length",
+      "regenerateContent": "Regenerate Content",
+      "regenerateWithNewLength": "Regenerate with New Length",
+      "cancel": "Cancel",
+      "keepLengthSetting": "Keep Length Setting"
+    },
+    "settings": {
+      "contentType": "Content Type",
+      "targetAudience": "Target Audience",
+      "researchTopic": "Research Topic",
+      "style": "Style",
+      "length": "Length",
+      "includeCTA": "Include Call to Action",
+      "includeHashtags": "Include Hashtags",
+      "presentationOptions": "Presentation Options",
+      "slideCount": "Number of Slides",
+      "presentationFormat": "Presentation Format",
+      "technicalLevel": "Technical Level",
+      "optionalSections": "Optional Sections"
+    },
+    "lengthOptions": {
+      "short": "Short",
+      "medium": "Medium",
+      "long": "Long"
+    },
+    "slideCountOptions": {
+      "veryShort": "{{count}} slides (very concise)",
+      "short": "{{count}} slides (standard)",
+      "medium": "{{count}} slides (detailed)",
+      "long": "{{count}} slides (comprehensive)"
+    },
+    "formatOptions": {
+      "informative": "Informative (educational)",
+      "persuasive": "Persuasive (convincing)",
+      "analytical": "Analytical (data-driven)",
+      "inspirational": "Inspirational (motivating)"
+    },
+    "technicalOptions": {
+      "general": "General audience (basic terms)",
+      "balanced": "Balanced (some technical terms)",
+      "technical": "Technical (industry terminology)",
+      "expert": "Expert (advanced terminology)"
+    },
+    "sectionOptions": {
+      "executiveSummary": "Executive Summary",
+      "actionItems": "Action Items & Next Steps",
+      "dataVisualizations": "Data Visualization Recommendations"
+    },
+    "placeholder": {
+      "audience": "Who will see this content? Be specific (e.g. marketers, executives, technical team)",
+      "topic": "What topic do you want to research and generate content about?"
+    },
+    "generatingContent": "Generating your content",
+    "pleaseWait": "Please wait while we create your content",
+    "optimizingPlatform": "Optimizing content for your platform",
+    "platforms": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "twitter": "Twitter",
+      "linkedin": "LinkedIn",
+      "tiktok": "TikTok"
+    },
+    "buttons": {
+      "regenerate": "Regenerate Content",
+      "generate": "Generate Content",
+      "copy": "Copy to Clipboard",
+      "exportText": "Export as Text",
+      "exportPDF": "Export as PDF",
+      "downloadPresentation": "Download Presentation"
+    },
+    "apiInstructions": {
+      "title": "API Setup Required",
+      "description": "To use this feature, you need to set up your API key:",
+      "anthropic": {
+        "title": "Anthropic Claude API Setup",
+        "step1": "Sign up for an Anthropic account at anthropic.com",
+        "step2": "Generate an API key in your Anthropic dashboard",
+        "step3": "Add your API key to the .env.local file in your project"
+      },
+      "perplexity": {
+        "title": "Perplexity API Setup",
+        "step1": "Sign up for a Perplexity account at perplexity.ai",
+        "step2": "Generate an API key in your Perplexity dashboard",
+        "step3": "Add your API key to the .env.local file in your project"
+      }
+    },
+    "aiPowered": {
+      "title": "AI-Enhanced:",
+      "description": "Generated with Claude 3.7 Sonnet, optimized with trend research."
+    },
+    "followUpQuestions": {
+      "title": "Follow-Up Questions",
+      "description": "Use these questions to add depth to your content and address additional perspectives.",
+      "button": "Generate Follow-Up Questions",
+      "regenerateButton": "Refresh All Questions",
+      "regenerateOneButton": "Refresh",
+      "editButton": "Edit",
+      "saveButton": "Save",
+      "cancelButton": "Cancel",
+      "generating": "Generating...",
+      "regenerating": "Refreshing...",
+      "generateAnswerButton": "Let AI Answer",
+      "generatingAnswer": "Creating answer...",
+      "aiAnswerLabel": "AI Response",
+      "discardButton": "Discard",
+      "regenerateAnswerButton": "Try Again",
+      "saveAnswerButton": "Save Answer",
+      "removeButton": "Remove"
+    },
+    "contentTypes": {
+      "socialMedia": "Social Media Post",
+      "blogPost": "Blog Post",
+      "email": "Email",
+      "videoScript": "Video Script"
+    },
+    "generatedContent": "Generated Content",
+    "generating": "Generating Content",
+    "generatingMessage": "Our AI is crafting your content based on the research. This may take a moment.",
+    "generated": "Content Generated",
+    "noContent": "No content has been generated yet.",
+    "progress": {
+      "status": "Generation Progress",
+      "preparing": "Preparing content structure...",
+      "researching": "Researching latest trends...",
+      "analyzing": "Analyzing research data...",
+      "generating": "Generating content based on research...",
+      "formatting": "Formatting content...",
+      "finalizing": "Finalizing your content..."
+    }
+  },
+  "errors": {
+    "general": "Something went wrong. Please try again.",
+    "apiKey": "API key is not configured.",
+    "research": "Error starting research. Please try again.",
+    "content": "Error generating content. Please try again."
+  },
+  "ai": {
+    "generating": "AI Generating Content",
+    "thinking": "AI Processing",
+    "researching": "AI Researching",
+    "ready": "AI Ready",
+    "idle": "AI Idle",
+    "aiSystemInfo": "AI System Information",
+    "status": "Status",
+    "model": "Model",
+    "latency": "Latency",
+    "transparency": "We believe in transparency. You always know when AI is being used.",
+    "helpMessage": "How can I help with your content?",
+    "contentGenerated": "AI-generated content",
+    "researchCompleted": "Research completed",
+    "customizeOutput": "Customize output",
+    "regenerate": "Regenerate",
+    "edit": "Edit",
+    "save": "Save",
+    "discard": "Discard",
+    "loading": "Loading AI capabilities...",
+    "capabilities": {
+      "title": "AI Capabilities",
+      "content": "This system can create content based on trending topics",
+      "research": "This system can research topics from multiple sources",
+      "rewrite": "This system can rewrite content in different styles",
+      "summarize": "This system can summarize long-form content",
+      "translate": "This system can translate content to multiple languages",
+      "limitations": "AI Limitations",
+      "factCheck": "AI may generate inaccurate information. Always verify important facts.",
+      "outdated": "AI knowledge may be outdated for very recent events.",
+      "bias": "AI may exhibit biases present in its training data.",
+      "featureRealTime": {
+        "title": "Real-Time Trend Research & Analysis",
+        "description": "DeepContent doesn't rely on outdated techniques or static models. For every content creation task, it performs fresh research to identify what's actually working now.",
+        "highlight": "What worked 6 months ago often fails today. DeepContent ensures your content uses techniques and approaches that are effective in the current digital environment.",
+        "point1": "Analyzes current trends in digital communication for each platform",
+        "point2": "Identifies persuasion and attention-grabbing techniques that are working now",
+        "point3": "Adapts content strategies to break through today's digital noise"
+      }
+    }
+  },
+  "dashboard": {
+    "title": "Content Dashboard",
+    "subtitle": "Manage and track all your created content",
+    "createNew": "New Content",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "refreshSuccess": "Content refreshed",
+    "contentRefreshed": "Your content list has been refreshed.",
+    "refreshError": "There was an error refreshing your content. Please check console for details.",
+    "createFirstContent": "Create Your First Content",
+    "description": "With DeepContent, you can easily create, publish, and manage content for multiple platforms from one dashboard.",
+    "welcome": "Welcome to DeepContent!",
+    "systemReady": "Your content library is ready for your first creation.",
+    "noContentMatches": "No content matches your search criteria.",
+    "noContentType": "You don't have any {type} content yet.",
+    "statusPublished": "Published",
+    "statusDraft": "Draft",
+    "statusArchived": "Archived",
+    "restore": "Restore",
+    "archive": "Archive",
+    "tryAgain": "Try again",
+    "loadingContent": "Loading your content...",
+    "confirmDelete": "Are you sure you want to delete this content? This action cannot be undone.",
+    "deleteSuccess": "Content Deleted",
+    "deleteSuccessDesc": "The content has been permanently deleted.",
+    "deleteError": "Deletion Error",
+    "deleteErrorDesc": "There was an error deleting the content.",
+    "archiveSuccess": "Content Archived",
+    "archiveSuccessDesc": "The content has been moved to the archive.",
+    "restoreSuccess": "Content Restored",
+    "restoreSuccessDesc": "The content has been restored from the archive.",
+    "archiveError": "Archive Error",
+    "archiveErrorDesc": "There was an error archiving the content.",
+    "restoreError": "Restore Error",
+    "restoreErrorDesc": "There was an error restoring the content.",
+    "actionError": "There was an error performing the action.",
+    "firestoreConnectionFailed": "Firestore connection failed",
+    "dbConnectionIssue": "Database Connection Issue",
+    "dbConnectionDesc": "Unable to connect to Firebase. Check your network connection or Firebase configuration.",
+    "systemStatus": "System Status",
+    "userAuthenticated": "User Authenticated",
+    "authenticated": "Authenticated",
+    "notAuthenticated": "Not Authenticated",
+    "databaseConnection": "Database Connection",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "checking": "Checking",
+    "lastRefresh": "Last Refresh",
+    "never": "Never",
+    "filterAll": "All",
+    "filterPublished": "Published",
+    "filterDrafts": "Drafts",
+    "filterArchived": "Archived",
+    "noContent": "No content found",
+    "createFirst": "Create your first content",
+    "lastUpdated": "Last updated",
+    "edit": "Edit",
+    "error": "Error loading content"
+  },
+  "followup": {
+    "title": "Follow-up Questions",
+    "subtitle": "Please answer these questions to help us generate more tailored content for you.",
+    "requiredNote": "Required questions are marked with *",
+    "placeholder": "Your answer...",
+    "loading": "Generating questions...",
+    "backToContent": "Back to Content Form",
+    "submitButton": "Submit Answers",
+    "steps": {
+      "myIdea": "My Idea",
+      "target": "Target",
+      "followUp": "Follow-up"
+    },
+    "validation": {
+      "answerRequired": "Please answer the first question",
+      "answerHelp": "This information helps us provide more relevant research"
+    },
+    "aiAnswer": {
+      "generateButton": "Let AI Answer",
+      "generating": "Creating answer...",
+      "label": "AI-powered response",
+      "success": "Answer Created",
+      "successDesc": "Answer created without repeating the question. Feel free to edit as needed.",
+      "error": "Unable to Generate Answer",
+      "errorDesc": "We couldn't create an answer at this time. Please try again."
+    }
+  },
+  "youtubeTranscript": {
+    "title": "YouTube Transcript",
+    "source": "Source",
+    "endOfTranscript": "End of Transcript",
+    "copied": "Copied to clipboard",
+    "copiedDescription": "The transcript has been copied to your clipboard.",
+    "enterUrl": "Enter YouTube URL",
+    "getTranscript": "Get Transcript",
+    "addVideo": "Add a YouTube video for analysis",
+    "enterUrlToFetch": "Enter a YouTube URL to fetch its transcript for research and content creation.",
+    "transcriptAdded": "YouTube transcript added successfully",
+    "description": "Enhance your research by analyzing an existing YouTube video on this topic.",
+    "added": "YouTube Transcript Added",
+    "analyzingVideo": "Analyzing video...",
+    "error": "Error fetching transcript",
+    "noTranscriptAvailable": "No transcript available for this video",
+    "readyToFetch": "Ready to fetch transcript. Click the button above.",
+    "transcriptResults": "Transcript Results",
+    "apiKeyRequired": "This feature requires a valid Supadata API key",
+    "checkApiKey": "If you are the administrator, verify your API key configuration in settings",
+    "contactAdmin": "Users should contact their administrator for assistance",
+    "checkApiConfig": "Check API Configuration",
+    "checkingApi": "Checking API configuration...",
+    "apiValid": "API configuration is valid",
+    "apiFailed": "API configuration failed",
+    "technicalDetails": "Technical details (for administrators)",
+    "videoId": "Video ID",
+    "extracting": "Extracting transcript...",
+    "fetchingData": "Fetching video data...",
+    "retrying": "Retrying...",
+    "fallbackMessage": "Could not get automatic transcript. Alternative information is provided.",
+    "aiProcessed": "AI Processed",
+    "copyToClipboard": "Copy to clipboard",
+    "showFullTranscript": "Show full transcript",
+    "hideFullTranscript": "Hide full transcript",
+    "viewOnYouTube": "View on YouTube",
+    "errors": {
+      "noTranscript": "This video doesn't have a transcript available. Please try a different video with captions enabled.",
+      "connection": "Cannot connect to the transcription service. Please check your internet connection and try again.",
+      "invalidUrl": "Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=XXXXXX).",
+      "unknown": "Error: {0}. Please try again or contact support if the problem persists."
+    },
+    "urlPlaceholder": "Enter website URL (e.g., example.com)"
+  },
+  "platformOptions": {
+    "website": "Website",
+    "blog": "Blog",
+    "social": "Social Media",
+    "email": "Email",
+    "youtube": "YouTube",
+    "video-script": "Video Script",
+    "vlog": "Vlog",
+    "podcast": "Podcast",
+    "presentation": "Presentation",
+    "google-ads": "Google Ads SEO",
+    "research-report": "Research Report",
+    "binaryData": "This document contains binary data that cannot be displayed directly.",
+    "usingSummary": "A summary has been generated instead.",
+    "urlPlaceholder": "Enter website URL (e.g., example.com)"
+  },
+  "subPlatformOptions": {
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "twitter": "Twitter",
+    "linkedin": "LinkedIn",
+    "tiktok": "TikTok",
+    "company-blog": "Company Blog",
+    "medium": "Medium",
+    "wordpress": "WordPress",
+    "newsletter": "Newsletter",
+    "marketing": "Marketing Email",
+    "sales": "Sales Email",
+    "welcome": "Welcome Email",
+    "explainer": "Explainer Video",
+    "advertisement": "Advertisement",
+    "tutorial": "Tutorial",
+    "product-demo": "Product Demo",
+    "educational": "Educational",
+    "entertainment": "Entertainment",
+    "review": "Review",
+    "vlog-style": "Vlog",
+    "travel": "Travel Vlog",
+    "daily": "Daily Vlog",
+    "tutorial-vlog": "Tutorial Vlog",
+    "interview": "Interview",
+    "solo": "Solo Episode",
+    "panel": "Panel Discussion",
+    "business": "Business Presentation",
+    "executive": "Executive Summary",
+    "sales-presentation": "Sales Presentation",
+    "training": "Training Material",
+    "investor": "Investor Pitch",
+    "search-ads": "Search Ads",
+    "display-ads": "Display Ads",
+    "video-ads": "Video Ads",
+    "shopping-ads": "Shopping Ads",
+    "market-analysis": "Market Analysis",
+    "competitor-analysis": "Competitor Analysis",
+    "industry-trends": "Industry Trends",
+    "consumer-insights": "Consumer Insights"
+  },
+  "imageUploader": {
+    "dragDrop": "Drag and drop an image, or click to upload",
+    "supportedFormats": "PNG, JPG or WebP (max. {maxSize}MB)",
+    "recommendedRatio": "Recommended aspect ratio: {ratio}",
+    "preview": "Image preview",
+    "remove": "Remove image",
+    "invalidType": "Invalid file type",
+    "allowedTypes": "Please upload a JPG, PNG, or WebP image",
+    "tooLarge": "File too large",
+    "maxSize": "Maximum file size is {maxSizeMB}MB",
+    "aspectRatioWarning": "Aspect ratio warning",
+    "aspectRatioMessage": "This image doesn't match the recommended aspect ratio. It may be cropped when published.",
+    "dropHere": "Drop to upload",
+    "imageAdded": "Image ready for analysis"
+  },
+  "imageAnalysis": {
+    "title": "Image Analysis",
+    "description": "Upload an image for Claude to analyze and provide insights for your content.",
+    "defaultDesc": "Claude will analyze the image to provide insights for your content creation.",
+    "socialMediaDesc": "Perfect for social media posts, captions, and hashtag suggestions.",
+    "landingPageDesc": "Ideal for landing page copy, CTAs, and conversion-focused insights.",
+    "researchDesc": "Extract data points, insights, and research-worthy information.",
+    "noImage": "No image",
+    "pleaseUpload": "Please upload an image first",
+    "analysisComplete": "Analysis complete",
+    "claudeAnalyzed": "Claude has analyzed your image",
+    "analysisFailed": "Analysis failed",
+    "couldNotAnalyze": "Could not analyze the image. Please try again.",
+    "customAnalysisInstructions": "Custom Analysis Instructions (Optional)",
+    "customPromptPlaceholder": "E.g., Analyze this product image and suggest selling points...",
+    "analyzingWithClaude": "Analyzing with Claude...",
+    "analyzeWithClaude": "Analyze with Claude",
+    "analysisResults": "Analysis Results"
+  },
+  "userInfo": {
+    "discoverMoreAbout": "Discover more about DeepContent:",
+    "howItWorks": "How It Works",
+    "appBenefits": "App Benefits"
+  },
+  "howItWorks": {
+    "title": "How DeepContent Works",
+    "subtitle": "Get the most out of our AI-powered content creation platform with this guide",
+    "workflow": {
+      "title": "The Content Creation Workflow"
+    },
+    "step1": {
+      "title": "Select Your Content Type & Platform",
+      "description": "Begin by choosing the type of content you want to create and the platform where you'll share it. This helps our AI format your content appropriately.",
+      "tip": "Be specific about your platform (like Instagram or LinkedIn) to get better-optimized content recommendations."
+    },
+    "step2": {
+      "title": "Define Your Audience & Topic",
+      "description": "Provide details about your target audience and the specific topic you want to address. The more specific you are, the more tailored your content will be.",
+      "tip": "Include your audience's pain points or interests to make your content more relevant to their needs."
+    },
+    "step3": {
+      "title": "Enhance With Analysis Tools",
+      "description": "Optionally use our analysis tools to enrich your content creation process:",
+      "youtubeTranscript": "YouTube Transcript Analysis: Analyze existing videos on your topic for insights",
+      "imageAnalysis": "Image Analysis: Get Claude to analyze images related to your content for additional context",
+      "tip": "These analysis tools provide deeper insights and make your content more comprehensive and relevant."
+    },
+    "step4": {
+      "title": "Generate & Refine Content",
+      "description": "Our AI will generate high-quality content based on your inputs. You can then refine it to match your exact needs:",
+      "regenerate": "Regenerate content if the first version doesn't meet your needs",
+      "adjust": "Adjust the AI style intensity for more or less personality",
+      "export": "Export or copy the final content for immediate use",
+      "tip": "Try different AI personas (like AriaStar for a friendly tone or TechExpert for a more professional style) to match your brand voice."
+    },
+    "bestPractices": {
+      "title": "Best Practices for Great Results",
+      "specific": {
+        "title": "Be Specific With Your Inputs",
+        "description": "The more specific your topic and audience details, the better your content will be. Vague inputs lead to generic content."
+      },
+      "analysis": {
+        "title": "Use Analysis Tools",
+        "description": "The YouTube transcript and image analysis features can significantly enhance your content with additional insights and context."
+      },
+      "personas": {
+        "title": "Experiment With Personas",
+        "description": "Different AI personas create content with distinct voices. Try several to find the one that best matches your brand tone."
+      },
+      "iterate": {
+        "title": "Iterate and Refine",
+        "description": "Don't settle for the first draft. Regenerate content with tweaked inputs until you get the perfect result for your needs."
+      }
+    },
+    "tip": "Tip:",
+    "createNow": "Create Content Now",
+    "needMoreHelp": "Need more help? Check out our ",
+    "appBenefits": "App Benefits",
+    "page": " page for more information."
+  },
+  "appBenefits": {
+    "title": "DeepContent App Benefits",
+    "subtitle": "Discover what makes our AI-powered content creation platform special",
+    "keyBenefits": "Key Benefits at a Glance",
+    "benefit1": {
+      "title": "AI-Powered Speed",
+      "description": "Create high-quality content in minutes, not hours"
+    },
+    "benefit2": {
+      "title": "Research-Driven Content",
+      "description": "Leverage AI research capabilities for accurate, up-to-date content"
+    },
+    "benefit3": {
+      "title": "Multi-Platform Optimization",
+      "description": "Content specifically optimized for each platform's unique requirements"
+    },
+    "features": {
+      "title": "What Makes DeepContent Special",
+      "feature1": {
+        "title": "Claude 3.7 Sonnet AI Integration",
+        "description": "Powered by Anthropic's advanced Claude 3.7 Sonnet model, DeepContent leverages one of the most capable AI systems available today to generate human-quality content.",
+        "point1": "Advanced understanding of content needs and context",
+        "point2": "Natural, flowing text that reads like human-written content",
+        "point3": "Adaptable to different tones, styles, and brand voices"
+      },
+      "feature2": {
+        "title": "Multimedia Analysis Tools",
+        "description": "Unlike basic AI content tools, DeepContent integrates multimedia analysis capabilities to enrich your content creation process.",
+        "point1": "YouTube Transcript Analysis: Extract insights from video content",
+        "point2": "Image Analysis: Leverage Claude's vision capabilities to analyze images",
+        "point3": "Cross-reference multiple sources for more comprehensive content"
+      },
+      "feature3": {
+        "title": "AI Personas & Writing Styles",
+        "description": "Choose from a variety of AI personas, each with their own distinct writing style and tone, to match your brand voice perfectly.",
+        "point1": "AriaStar: Friendly, conversational tone ideal for social content",
+        "point2": "TechExpert: Professional, detailed style for technical content",
+        "point3": "Adjustable intensity settings to fine-tune your preferred style",
+        "researchNote": "Our 9 customer personas were created by DeepContent itself through comprehensive trend analysis and audience research. These personas represent the most effective communication styles that break through the noise in today's crowded digital landscape."
+      },
+      "feature4": {
+        "title": "Platform-Specific Optimization",
+        "description": "DeepContent is more than a generic content generator. It understands the unique requirements of different platforms and content types.",
+        "point1": "Automatically formats content based on platform best practices",
+        "point2": "Incorporates platform-specific elements like hashtags, emojis, and CTAs",
+        "point3": "Optimized for specific platforms including Facebook, Instagram, LinkedIn, TikTok, and more"
+      },
+      "featureRealTime": {
+        "title": "Real-Time Trend Research & Analysis",
+        "description": "DeepContent doesn't rely on outdated techniques or static models. For every content creation task, it performs fresh research to identify what's actually working now.",
+        "highlight": "What worked 6 months ago often fails today. DeepContent ensures your content uses techniques and approaches that are effective in the current digital environment.",
+        "point1": "Analyzes current trends in digital communication for each platform",
+        "point2": "Identifies persuasion and attention-grabbing techniques that are working now",
+        "point3": "Adapts content strategies to break through today's digital noise"
+      }
+    },
+    "valueProposition": {
+      "title": "Why Choose DeepContent?",
+      "time": {
+        "title": "Save Time & Resources",
+        "description": "Create content in minutes that would normally take hours. DeepContent handles the research and writing, allowing you to focus on strategy and refinement."
+      },
+      "quality": {
+        "title": "Professional-Quality Content",
+        "description": "Access professional-level content creation capabilities without hiring expensive writers or agencies. Our AI produces polished, engaging content every time."
+      },
+      "versatility": {
+        "title": "Versatile Content Types",
+        "description": "From social media posts to detailed blog articles, YouTube scripts to email newsletters, DeepContent handles virtually any content format you need."
+      },
+      "consistency": {
+        "title": "Consistent Brand Voice",
+        "description": "Maintain a consistent tone and style across all your content with our AI personas. Once you find your preferred style, you can apply it to all your content."
+      }
+    },
+    "startCreating": "Start Creating Now",
+    "learnMore": "Want to learn how to use these features? Check out our ",
+    "howItWorks": "How It Works",
+    "guide": " guide."
+  },
+  "infoBanner": {
+    "newUser": "New to DeepContent? Learn more about our platform:",
+    "howItWorks": "How It Works",
+    "appBenefits": "App Benefits"
+  },
+  "personasShowcase": {
+    "title": "AI Personas for Every Use Case",
+    "subtitle": "DeepContent is designed for everyone. Our AI personas are versatile and can be used for both business and personal content creation.",
+    "businessTitle": "Business Personas",
+    "personalTitle": "Personal Personas",
+    "versatile": "Versatile",
+    "businessFocused": "Business-focused",
+    "personalFocused": "Personal-focused",
+    "perfectFor": "Perfect for:",
+    
+    "techExpert": "TechExpert",
+    "techExpertDesc": "Precise, detailed, and analytically-focused. Ideal for technical documentation, product specs, and industry analysis.",
+    "techExpertBusiness": "Documentation, White papers",
+    "techExpertPersonal": "DIY guides, Technical blogs",
+    
+    "executiveBrief": "ExecutiveBrief",
+    "executiveBriefDesc": "Concise, strategic, and outcome-focused. Communicates high-level insights with clarity and impact.",
+    "executiveBriefBusiness": "Executive summaries, Proposals",
+    "executiveBriefPersonal": "Project plans, Event briefs",
+    
+    "marketPro": "MarketPro",
+    "marketProDesc": "Persuasive, benefit-focused, and conversion-oriented. Creates compelling marketing content that drives action.",
+    "marketProBusiness": "Sales emails, Landing pages",
+    "marketProPersonal": "Marketplace listings, Fundraisers",
+    
+    "ariaStar": "AriaStar",
+    "ariaStarDesc": "Friendly, conversational, and engaging. Creates content that feels personal and connects emotionally with the audience.",
+    "ariaStarBusiness": "Lead gen emails, Social media",
+    "ariaStarPersonal": "Personal blogs, Newsletters",
+    
+    "creativeSpirit": "CreativeSpirit",
+    "creativeSpiritDesc": "Imaginative, expressive, and vibrant. Brings a creative flair to content with rich descriptions and engaging narratives.",
+    "creativeSpiritBusiness": "Brand stories, Product descriptions",
+    "creativeSpiritPersonal": "Travel blogs, Creative writing",
+    
+    "contentCoach": "ContentCoach",
+    "contentCoachDesc": "Supportive, instructional, and motivational. Creates content that guides, teaches, and inspires action.",
+    "contentCoachBusiness": "Training materials, User guides",
+    "contentCoachPersonal": "How-to guides, Tutorials",
+    
+    "dataNarratorPro": "DataNarratorPro",
+    "dataNarratorProDesc": "Analytical, insightful, and evidence-based. Transforms complex data into clear, actionable narratives.",
+    "dataNarratorProBusiness": "Data reports, Market analysis",
+    "dataNarratorProPersonal": "Research summaries, Trend analysis",
+    
+    "storyWeaver": "StoryWeaver",
+    "storyWeaverDesc": "Narrative-focused, emotionally resonant, and memorable. Crafts compelling stories that capture attention and stay with the audience.",
+    "storyWeaverBusiness": "Brand storytelling, Case studies",
+    "storyWeaverPersonal": "Personal stories, Creative fiction",
+    
+    "trendSpotter": "TrendSpotter",
+    "trendSpotterDesc": "Current, relevant, and culturally aware. Creates content that connects with the latest trends while maintaining authenticity.",
+    "trendSpotterBusiness": "Trend reports, Social campaigns",
+    "trendSpotterPersonal": "Lifestyle content, Commentary",
+    
+    "customNote": "Each persona adapts to both business and personal contexts. Choose based on your content goals rather than use case. Feel free to experiment with different personas to find your perfect match."
+  },
+  "personaDisplayNames": {
+    "ariastar": "AriaStar (Trusted Close Friend)",
+    "specialist_mentor": "MentorPro (Expert Specialist)",
+    "ai_collaborator": "AIInsight (AI Collaborator)",
+    "sustainable_advocate": "EcoEssence (Sustainable Advocate)",
+    "data_visualizer": "DataStory (Data Visualizer)",
+    "multiverse_curator": "NexusVerse (Multiverse Curator)",
+    "ethical_tech": "TechTranslate (Ethical Tech)",
+    "niche_community": "CommunityForge (Niche Community)",
+    "synthesis_maker": "SynthesisSage (Synthesis Maker)",
+    "professional": "Professional Writer",
+    "casual": "Casual Writer",
+    "enthusiastic": "Enthusiastic Writer",
+    "informative": "Informative Writer"
+  },
+  "contentTypes": {
+    "social_media": "Social Media Post",
+    "blog_post": "Blog Post",
+    "email": "Email",
+    "video_script": "Video Script",
+    "youtube_script": "YouTube Script",
+    "educational_youtube_script": "Educational YouTube Script",
+    "vlog_script": "Vlog Script",
+    "podcast_script": "Podcast Script",
+    "presentation": "Presentation",
+    "google_ads": "Google Ads",
+    "research_report": "Research Report",
+    "industry_trends_research_report": "Industry Trends Research Report",
+    "company-blog": "Company Blog",
+    "social_facebook": "Facebook Post",
+    "social_instagram": "Instagram Post",
+    "social_twitter": "Twitter Post",
+    "social_linkedin": "LinkedIn Post",
+    "social_tiktok": "TikTok Post"
+  },
+  "platforms": {
+    "blog": "Blog",
+    "social": "Social Media",
+    "email": "Email",
+    "youtube": "YouTube",
+    "video-script": "Video Script",
+    "vlog": "Vlog",
+    "podcast": "Podcast",
+    "presentation": "Presentation",
+    "google-ads": "Google Ads",
+    "research-report": "Research Report",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "twitter": "Twitter",
+    "linkedin": "LinkedIn",
+    "tiktok": "TikTok",
+    "sales": "Sales",
+    "business": "Business",
+    "executive": "Executive",
+    "training": "Training",
+    "investor": "Investor",
+    "entertainment": "Entertainment",
+    "educational": "Educational",
+    "review": "Review",
+    "travel-vlog": "Travel Vlog",
+    "daily-vlog": "Daily Vlog",
+    "tutorial-vlog": "Tutorial Vlog",
+    "company-blog": "Company Blog",
+    "company_blog": "Company Blog",
+    "industry-trends": "Industry Trends"
+  },
+  "documentAnalysis": {
+    "title": "Document Analysis",
+    "subtitle": "Upload documents (PDF, Word, Excel, Text) to analyze and use in your research.",
+    "dragDrop": "Drag and drop a document, or click to upload",
+    "supportedFormats": "PDF, Word, Excel, Text (Max 10MB)",
+    "browseFiles": "Browse Files",
+    "processingFile": "Processing file",
+    "retryingUpload": "Retrying upload",
+    "dropHere": "Drop to upload",
+    "unsupportedFileType": "Unsupported file type. Please upload PDF, Word, Excel, or text documents.",
+    "fileTooLarge": "File too large. Maximum size is 10MB.",
+    "uploadSuccess": "Document uploaded successfully",
+    "uploadError": "Error uploading document",
+    "processingError": "Error processing document",
+    "analyzing": "Analyzing document...",
+    "fileProcessed": "Document processed successfully",
+    "fileReady": "Document ready for analysis",
+    "contentExtracted": "Content extracted from document",
+    "tryAgain": "Try again",
+    "showContent": "Show content",
+    "hideContent": "Hide content",
+    "uploadAnother": "Upload another document",
+    "processing": "Processing document...",
+    "dragAndDrop": "Drag and drop a document, or click to upload",
+    "documentContent": "Document Content",
+    "hide": "Hide",
+    "show": "Show",
+    "documentContentForResearch": "Document content extracted for research",
+    "generatedWith": "Generated with DeepContent",
+    "documentAppears": "This document appears to contain information about rural internet services. The formatted content has been used to generate the summary above.",
+    "moreLinesAvailable": "more lines available in the full document content above.",
+    "viewFull": "View full document content above by clicking \"Show content\"",
+    "binaryData": "This document contains binary data that cannot be displayed directly.",
+    "usingSummary": "A summary has been generated instead.",
+    "urlPlaceholder": "Enter website URL (e.g., example.com)"
+  },
+  "research": {
+    "buttons": {
+      "copy": "Copy",
+      "download": "Download",
+      "collapse": "Collapse",
+      "expand": "Expand"
+    },
+    "copySuccess": "Research copied to clipboard!",
+    "copyError": "Failed to copy. Please try selecting and copying manually."
+  },
+  "websiteAnalysis": {
+    "title": "Website Analysis",
+    "description": "Extract information from company websites to enhance your research.",
+    "urlInputLabel": "Website URL to analyze",
+    "urlInputPlaceholder": "Enter website URL (e.g., example.com)",
+    "crawlOption": "Will crawl links for comprehensive analysis",
+    "importantPages": "Important pages",
+    "analyzeButton": "Analyze Website",
+    "websiteContent": "Website Content",
+    "extractedContent": "Extracted Content",
+    "copyAllContent": "Copy All Content",
+    "sampleParagraphs": "Sample Paragraphs",
+    "productSection": "Product Section",
+    "pricingSection": "Pricing Section",
+    "contactSection": "Contact Section",
+    "sampleHeadings": "Sample Headings",
+    "aboutSection": "About Section",
+    "websiteInfo": "Website Information",
+    "titleLabel": "Title",
+    "metaDescription": "Meta Description",
+    "pagesAnalyzedTitle": "Pages Analyzed",
+    "analyze": "Analyze Website",
+    "urlHint": "Website URL to analyze",
+    "crawlLevelInfo": "Will crawl links for comprehensive analysis",
+    "mainPage": "Main page",
+    "fullSite": "Full site",
+    "analyzing": "Analyzing...",
+    "preview": {
+        "headings": "Headings Preview",
+        "paragraphs": "Paragraphs Preview",
+        "about": "About Preview",
+        "more": "...more"
+    }
+  },
+  "translationExample": {
+    "title": "Translation Example Component",
+    "description": "This component demonstrates proper translation usage.",
+    "itemsFound": "Found {count} items",
+    "hasItems": "Items available",
+    "noItems": "No items available",
+    "footer": {
+      "info": "Translation keys are organized hierarchically",
+      "help": "This ensures consistent organization of translations"
+    }
+  },
+  "researchPanel": {
+    "title": "Content Research",
+    "subtitle": "Gather information and trends to improve your content",
+    "topicLabel": "Research topic (optional)",
+    "searchButton": "Research",
+    "topicRequired": "Topic required",
+    "enterTopic": "Please enter a topic to research",
+    "initializing": "Initializing research...",
+    "inProgress": "Researching...",
+    "completed": "Research completed",
+    "dataGathered": "Research data gathered",
+    "failed": "Research failed",
+    "errorGathering": "Error gathering research data",
+    "researchResults": "Research Results",
+    "processing": "Processing research results...",
+    "connecting": "Connecting to research services...",
+    "finalizing": "Finalizing research results...",
+    "searchPlaceholder": "If left empty, research will be based on your content title and platform",
+    "trendingTopics": "Trending Topics",
+    "keyPoints": "Key Points to Consider",
+    "contentSuggestions": "Content Suggestions"
+  },
+  "contentGeneration": {
+    "pageTitle": "Content Generation",
+    "parameters": "Content Parameters",
+    "settings": "Content Settings",
+    "contentType": "Content Type",
+    "platform": "Platform",
+    "targetAudience": "Target Audience",
+    "businessType": "Business Type",
+    "currentStyle": "Current Style",
+    "length": "Length",
+    "medium": "Medium",
+    "short": "Short",
+    "long": "Long",
+    "includeCTA": "Include CTA",
+    "includeHashtags": "Include Hashtags",
+    "choosePersona": "Choose an AI Persona for Your Content",
+    "selectStyleText": "Select the writing style that best matches your needs",
+    "preparingContent": "Preparing your content...",
+    "waitingMessage": "Please wait while we refine your content",
+    "refining": "Refining...",
+    "versionHistory": "Version History",
+    "showHistory": "Show History",
+    "hideHistory": "Hide History",
+    "versionNumber": "Version {{number}} - {{date}}",
+    "personaLabel": "Persona: {{persona}}",
+    "restoreVersion": "Restore this version",
+    "create": "Create Content",
+    "select": "Select your content",
+    "defineDetails": "Define your content details",
+    "gather": "Gather insights & trends",
+    "createEdit": "Create & edit content",
+    "copyToClipboard": "Copy to Clipboard",
+    "exportAsText": "Export as Text",
+    "saveToPanel": "Save to Dashboard",
+    "creatingWith": "Creating content with {persona}...",
+    "regenerateText": "Regenerate Content"
+  },
+  "refineContent": {
+    "title": "Refine Content",
+    "promptInstructions": "Refinement Instructions",
+    "placeholder": "Enter your refinement instructions here...",
+    "refineButton": "Refine"
+  },
+  "personas": {
+    "ariastar": {
+      "description": "Friendly and relatable tone perfect for social media and blogs"
+    },
+    "specialist_mentor": {
+      "description": "Professional and authoritative voice for technical content"
+    },
+    "ai_collaborator": {
+      "description": "Balanced and analytical tone for research and reports"
+    },
+    "sustainable_advocate": {
+      "description": "Passionate voice for sustainability and social impact"
+    },
+    "data_visualizer": {
+      "description": "Clear data-driven narrative style"
+    },
+    "multiverse_curator": {
+      "description": "Creative and engaging tone for multimedia content"
+    },
+    "ethical_tech": {
+      "description": "Balanced voice for explaining complex technical concepts"
+    },
+    "niche_community": {
+      "description": "Engaging tone for building community and connection"
+    },
+    "synthesis_maker": {
+      "description": "Insightful tone for connecting ideas across domains"
+    }
+  }
+} 

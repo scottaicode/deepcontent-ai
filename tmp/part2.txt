@@ -1,0 +1,466 @@
+          <p className="text-gray-600">
+            {t('contentPage.subtitle')}
+          </p>
+          
+          {/* AI Enhancement Indicator */}
+          <div className="mt-4 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-100">
+            <div className="mr-3 bg-blue-100 p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-blue-800">
+                <strong>{t('contentPage.aiPowered.title')}</strong> {t('contentPage.aiPowered.description')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">{t('contentPage.details')}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500 font-medium">{t('contentPage.contentTypeLabel')}</p>
+              <p className="font-medium">{getContentTypeText()}</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500 font-medium">{t('contentPage.targetAudienceLabel')}</p>
+              <p className="font-medium">{contentDetails?.targetAudience || '-'}</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="text-sm text-gray-500 font-medium">{t('contentPage.researchTopicLabel')}</p>
+              <p className="font-medium">{contentDetails?.researchTopic || '-'}</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Content Settings Section */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <div>
+            <section className="bg-white rounded-lg shadow-md p-6 h-full">
+              <h2 className="text-xl font-semibold mb-4">{t('contentPage.aiSettings')}</h2>
+              
+              {/* Content Style */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('contentPage.settings.style')}
+                </label>
+                <select 
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={contentSettings.style}
+                  onChange={(e) => setContentSettings({...contentSettings, style: e.target.value})}
+                >
+                  {CONTENT_STYLES[(contentDetails?.contentType && CONTENT_STYLES[contentDetails.contentType]) ? contentDetails.contentType : 
+                   (contentDetails?.contentType && CONTENT_STYLES[contentDetails.contentType.replace(/-/g, ' ')]) ? contentDetails.contentType.replace(/-/g, ' ') : 
+                   'default'].map((style) => (
+                    <option key={style.id} value={style.id}>
+                      {style.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Content Length */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('contentPage.settings.length')}
+                </label>
+                <select 
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={contentSettings.length}
+                  onChange={(e) => setContentSettings({...contentSettings, length: e.target.value})}
+                >
+                  <option value="short">{t('contentPage.lengthOptions.short')}</option>
+                  <option value="medium">{t('contentPage.lengthOptions.medium')}</option>
+                  <option value="long">{t('contentPage.lengthOptions.long')}</option>
+                </select>
+              </div>
+              
+              {/* Presentation-specific options */}
+              {shouldShowPresentationOptions() && (
+                <>
+                  {/* Divider with label */}
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-white px-2 text-sm text-gray-500">{t('contentPage.settings.presentationOptions')}</span>
+                    </div>
+                  </div>
+                
+                  {/* Slide Count */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('contentPage.settings.slideCount')}
+                    </label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      value={contentSettings.slideCount || '10'}
+                      onChange={(e) => setContentSettings({...contentSettings, slideCount: e.target.value})}
+                    >
+                      <option value="5">{t('contentPage.slideCountOptions.veryShort', {count: 5})}</option>
+                      <option value="10">{t('contentPage.slideCountOptions.short', {count: 10})}</option>
+                      <option value="15">{t('contentPage.slideCountOptions.medium', {count: 15})}</option>
+                      <option value="20">{t('contentPage.slideCountOptions.long', {count: 20})}</option>
+                    </select>
+                  </div>
+                  
+                  {/* Presentation Format */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('contentPage.settings.presentationFormat')}
+                    </label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      value={contentSettings.presentationFormat || 'informative'}
+                      onChange={(e) => setContentSettings({...contentSettings, presentationFormat: e.target.value})}
+                    >
+                      <option value="informative">{t('contentPage.formatOptions.informative')}</option>
+                      <option value="persuasive">{t('contentPage.formatOptions.persuasive')}</option>
+                      <option value="analytical">{t('contentPage.formatOptions.analytical')}</option>
+                      <option value="inspirational">{t('contentPage.formatOptions.inspirational')}</option>
+                    </select>
+                  </div>
+                  
+                  {/* Technical Level */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('contentPage.settings.technicalLevel')}
+                    </label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      value={contentSettings.technicalLevel || 'balanced'}
+                      onChange={(e) => setContentSettings({...contentSettings, technicalLevel: e.target.value})}
+                    >
+                      <option value="general">{t('contentPage.technicalOptions.general')}</option>
+                      <option value="balanced">{t('contentPage.technicalOptions.balanced')}</option>
+                      <option value="technical">{t('contentPage.technicalOptions.technical')}</option>
+                      <option value="expert">{t('contentPage.technicalOptions.expert')}</option>
+                    </select>
+                  </div>
+                  
+                  {/* Section Options */}
+                  <div className="mb-6 space-y-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('contentPage.settings.optionalSections')}
+                    </label>
+                    <label className="flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={contentSettings.includeExecutiveSummary !== false}
+                        onChange={(e) => setContentSettings({...contentSettings, includeExecutiveSummary: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{t('contentPage.sectionOptions.executiveSummary')}</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={contentSettings.includeActionItems !== false}
+                        onChange={(e) => setContentSettings({...contentSettings, includeActionItems: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{t('contentPage.sectionOptions.actionItems')}</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={contentSettings.includeDataVisualizations !== false}
+                        onChange={(e) => setContentSettings({...contentSettings, includeDataVisualizations: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{t('contentPage.sectionOptions.dataVisualizations')}</span>
+                    </label>
+                  </div>
+                  
+                  {/* Note about future presentation export formats */}
+                  <div className="mt-4 mb-6 text-xs text-gray-500 bg-blue-50 p-3 rounded-md border border-blue-100">
+                    <div className="flex">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-1 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      <span>
+                        {language === 'es' ? 
+                          'Próximamente: Exportación directa a PowerPoint, Google Slides y formatos de presentación visuales.' : 
+                          'Coming soon: Direct export to PowerPoint, Google Slides, and visual presentation formats.'}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {/* CTA Checkbox - Only show for applicable content types */}
+              {shouldShowSocialOptions() && !shouldHideCTAAndHashtags() && (
+                <div className="mb-6">
+                  <label className="flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={contentSettings.includeCTA}
+                      onChange={(e) => setContentSettings({...contentSettings, includeCTA: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">{t('contentPage.settings.includeCTA')}</span>
+                  </label>
+                </div>
+              )}
+              
+              {/* Hashtags Checkbox - Only show for applicable content types */}
+              {shouldShowSocialOptions() && !shouldHideCTAAndHashtags() && (
+                <div className="mb-6">
+                  <label className="flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={contentSettings.includeHashtags}
+                      onChange={(e) => setContentSettings({...contentSettings, includeHashtags: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">{t('contentPage.settings.includeHashtags')}</span>
+                  </label>
+                </div>
+              )}
+              
+              <button
+                onClick={regenerateContent}
+                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                disabled={isGenerating}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {t('contentPage.buttons.regenerate')}
+              </button>
+            </section>
+          </div>
+          
+          <div className="md:col-span-2">
+            <section className="bg-white rounded-lg shadow-md p-6 h-full">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">{t('contentPage.generatedContent')}</h2>
+                <div className="flex space-x-2">
+                  <button 
+                    onClick={copyToClipboard}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <IconCopy className="h-4 w-4 mr-1" />
+                    {t('contentPage.buttons.copy')}
+                  </button>
+                  <button 
+                    onClick={exportAsText}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <IconFileText className="h-4 w-4 mr-1" />
+                    {t('contentPage.buttons.exportText')}
+                  </button>
+                  <button 
+                    onClick={exportAsPDF}
+                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
+                  >
+                    <IconFile className="h-4 w-4 mr-1" />
+                    {t('contentPage.buttons.exportPDF')}
+                    <span className="absolute -top-2 -right-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Soon
+                    </span>
+                  </button>
+                </div>
+              </div>
+              
+              {isGenerating ? (
+                <div className="flex flex-col items-center justify-center p-10 bg-white rounded-lg shadow-sm border border-gray-100">
+                  <div className="w-16 h-16 mb-4 relative">
+                    <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-t-blue-500 rounded-full animate-spin"></div>
+                  </div>
+                  <h3 className="text-xl font-medium mb-2">{t('contentPage.generating')}</h3>
+                  <p className="text-gray-500 mb-4 text-center">
+                    {statusMessage || t('contentPage.generatingMessage')}
+                  </p>
+                  
+                  {/* Progress bar */}
+                  <div className="w-full max-w-md mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-blue-700">{t('contentPage.progress.status')}</span>
+                      <span className="text-sm font-medium text-blue-700">{generationProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out" 
+                        style={{ width: `${generationProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-gray-600 mt-4 text-sm">
+                    {generationProgress < 30 && t('contentPage.progress.preparing')}
+                    {generationProgress >= 30 && generationProgress < 60 && t('contentPage.progress.generating')}
+                    {generationProgress >= 60 && generationProgress < 90 && t('contentPage.progress.formatting')}
+                    {generationProgress >= 90 && t('contentPage.progress.finalizing')}
+                  </div>
+                </div>
+              ) : generatedContent ? (
+                <div className="mt-6">
+                  <PersonaStyledContent
+                    content={generatedContent}
+                    persona={contentSettings.style || 'professional'}
+                    contentType={contentDetails.contentType || 'General Content'}
+                    platform={contentDetails.platform || 'General Use'}
+                    isExpanded={isContentExpanded}
+                    onToggleExpand={toggleContentExpansion}
+                  />
+                  
+                  <div className="mt-6 flex flex-wrap gap-4">
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700"
+                    >
+                      <IconCopy size={16} />
+                      Copy to Clipboard
+                    </button>
+                    
+                    <button
+                      onClick={handleExport}
+                      className="flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700"
+                    >
+                      <IconDownload size={16} />
+                      Export
+                    </button>
+                    
+                    <button
+                      onClick={handleSaveContent}
+                      className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      Save to Dashboard
+                    </button>
+                    
+                    <button
+                      onClick={regenerateContent}
+                      className="flex items-center gap-2 rounded-md bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm ring-1 ring-inset ring-indigo-300 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:ring-indigo-700 dark:hover:bg-indigo-800/30"
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <div className="loader mr-2"></div>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                      )}
+                      {isGenerating ? "Generating..." : "Regenerate"}
+                    </button>
+                </div>
+                  
+                  {/* Content Feedback Section */}
+                  <div className="mt-8">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">Refine Your Content</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Not completely satisfied? Provide feedback to refine your content.
+                    </p>
+                    <div className="mt-4">
+                  <textarea 
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                        placeholder="Example: Make it more conversational, add more data points, focus more on the benefits..."
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                        rows={3}
+                      ></textarea>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                  <button 
+                    onClick={handleFeedbackSubmit}
+                        disabled={!feedbackText.trim() || isRefining}
+                        className="flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:bg-indigo-700 dark:hover:bg-indigo-600"
+                  >
+                    {isRefining ? (
+                      <>
+                            <div className="loader mr-2"></div>
+                            Refining...
+                      </>
+                    ) : (
+                          'Refine Content'
+                    )}
+                  </button>
+                    </div>
+                  </div>
+                  
+                  {/* Version history */}
+                  {contentVersions.length > 0 && (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <button
+                        onClick={() => setShowVersionHistory(!showVersionHistory)}
+                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {showVersionHistory ? 'Hide Version History' : 'Show Version History'}
+                      </button>
+                      
+                      {showVersionHistory && (
+                        <div className="mt-2 space-y-1">
+                          <h4 className="text-sm font-medium mb-2">Previous Versions</h4>
+                          <div className="space-y-1">
+                            {contentVersions.map((_, index) => (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  // Store current version to allow switching back
+                                  const currentVersion = generatedContent;
+                                  // Set the content to the selected previous version
+                                  setGeneratedContent(contentVersions[index]);
+                                  // Update versions array with current version at the end
+                                  const newVersions = [...contentVersions];
+                                  newVersions.splice(index, 1); // Remove the one we're restoring
+                                  setContentVersions([...newVersions, currentVersion]);
+                                }}
+                                className="block w-full text-left text-sm text-blue-600 hover:text-blue-800 py-1 px-2 hover:bg-blue-50 rounded"
+                              >
+                                Version {index + 1}
+                              </button>
+                            ))}
+                            <div className="block w-full text-left text-sm font-medium text-blue-800 py-1 px-2 bg-blue-50 rounded">
+                              Current Version
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Add Follow-Up Questions Component */}
+                  <FollowUpQuestions 
+                    content={generatedContent} 
+                    research={researchResults?.perplexityResearch || ''} 
+                    transcript={contentDetails.youtubeTranscript || ''}
+                    contentDetails={contentDetails}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">{t('contentPage.noContent')}</p>
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+        
+        <div className="flex justify-between">
+          <Link href="/create/research" className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            {t('common.back')}
+          </Link>
+        </div>
+      </div>
+    </AppShell>
+  );
+} 

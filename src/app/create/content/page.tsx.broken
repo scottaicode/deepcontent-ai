@@ -1,0 +1,334 @@
+/**
+ * Content Generation Page
+ * 
+ * This page generates content based on research results, allowing users to:
+ * 1. View and customize content settings
+ * 2. Generate content using AI based on research insights
+ * 3. Export or copy the generated content
+ */
+
+"use client";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useToast } from '@/lib/hooks/useToast';
+import { useAuth } from '@/lib/hooks/useAuth';
+import Link from 'next/link';
+import { getDisplayNames } from '@/app/lib/contentTypeDetection';
+
+import AppShell from "@/components/AppShell";
+import { useContent } from '@/lib/hooks/useContent';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { db } from "@/lib/firebase/firebase";
+
+// Enhanced research results interface
+interface ResearchResults {
+  researchMethod: 'perplexity' | 'trending' | 'claude' | 'placeholder';
+  perplexityResearch?: string;
+}
+
+// Content details interface
+interface ContentDetails {
+  contentType: string;
+  platform: string;
+  subPlatform?: string;
+  targetAudience: string;
+  researchTopic: string;
+  businessType: string;
+  businessName?: string;
+  primarySubject?: string;
+  subjectType?: string;
+  subjectDetails?: string;
+  youtubeTranscript?: string;
+  youtubeUrl?: string;
+}
+
+// Content settings interface
+interface ContentSettings {
+  style: string;
+  length: string;
+  includeCTA: boolean;
+  includeHashtags: boolean;
+  customHashtags?: string;
+  slideCount?: string;
+  presentationFormat?: string;
+  technicalLevel?: string;
+  includeExecutiveSummary?: boolean;
+  includeActionItems?: boolean;
+  includeDataVisualizations?: boolean;
+}
+
+export default function ContentGenerator() {
+  const router = useRouter();
+  const { t, language } = useTranslation();
+  const { saveContent } = useContent();
+  const toast = useToast();
+  const { user } = useAuth();
+  
+  // State for content details from previous step
+  const [contentDetails, setContentDetails] = useState<ContentDetails>({
+    contentType: '',
+    platform: '',
+    targetAudience: '',
+    researchTopic: '',
+    businessType: ''
+  });
+
+  const [researchResults, setResearchResults] = useState<ResearchResults | null>(null);
+  const [contentSettings, setContentSettings] = useState<ContentSettings>({
+    style: 'ariastar',
+    length: 'medium',
+    includeCTA: true,
+    includeHashtags: true
+  });
+  
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
+  const [showResearch, setShowResearch] = useState(true);
+  const [generatedContent, setGeneratedContent] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [currentPersona, setCurrentPersona] = useState<string>('ariastar');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogConfirmAction, setDialogConfirmAction] = useState<() => void>(() => {});
+  const [dialogCancelAction, setDialogCancelAction] = useState<() => void>(() => {});
+
+  // Load content details from session storage
+  useEffect(() => {
+    const initializePage = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // First try to restore from session storage
+        const storedDetails = sessionStorage.getItem('contentDetails');
+        
+        if (storedDetails) {
+          try {
+            const parsedDetails = JSON.parse(storedDetails);
+            
+            // Check if we have a dedicated content type stored separately
+            const storedContentType = sessionStorage.getItem('contentType');
+            if (storedContentType) {
+              parsedDetails.contentType = storedContentType;
+            }
+            
+            // Fix platform/content type normalization, especially for company-blog
+            if (parsedDetails.contentType === 'company-blog') {
+              parsedDetails.contentType = 'blog-post';
+            }
+            
+            setContentDetails(parsedDetails);
+          } catch (parseError) {
+            console.error('Failed to parse content details:', parseError);
+          }
+        }
+
+        // Try to get research results from session storage
+        const storedResearchResults = sessionStorage.getItem('researchResults');
+        if (storedResearchResults) {
+          try {
+            const parsedResults = JSON.parse(storedResearchResults);
+            setResearchResults(parsedResults);
+          } catch (error) {
+            console.error('Error parsing research results:', error);
+          }
+        }
+        
+        // Mark loading as complete
+        setIsLoading(false);
+        
+      } catch (error) {
+        console.error('Error initializing page:', error);
+        setError('Failed to initialize page. Please reload and try again.');
+        setIsLoading(false);
+      }
+    };
+
+    // Run initialization
+    initializePage();
+  }, []);
+  
+  // Helper function to get content type text for display
+  const getContentTypeText = () => {
+    const { contentType, platform, subPlatform } = contentDetails;
+    
+    try {
+      // Use the centralized display name function from contentTypeDetection.ts
+      const { displayContentType } = getDisplayNames(
+        contentType,
+        platform,
+        subPlatform || '',
+        language
+      );
+      
+      return displayContentType;
+    } catch (error) {
+      console.error('Error formatting content type:', error);
+      // Fallback to the raw content type value
+      return contentType || 'Content';
+    }
+  };
+  
+  // Render platform text from the same centralized source
+  const getPlatformText = () => {
+    const { contentType, platform, subPlatform } = contentDetails;
+    
+    try {
+      // Use the centralized display name function from contentTypeDetection.ts
+      const { displayPlatform } = getDisplayNames(
+        contentType,
+        platform,
+        subPlatform || '',
+        language
+      );
+      
+      return displayPlatform;
+    } catch (error) {
+      console.error('Error formatting platform:', error);
+      // Fallback to the raw platform value
+      return platform || 'Not specified';
+    }
+  };
+
+  // Add a helper function to format content type display
+  const formatContentTypeDisplay = () => {
+    // Special case for blog post on company blog platform
+    if (contentDetails?.contentType === 'blog-post' && 
+        (contentDetails?.platform === 'company-blog' || contentDetails?.subPlatform === 'company-blog')) {
+      return language === 'es' ? 'Entrada de Blog (Blog de Empresa)' : 'Blog Post (Company Blog)';
+    }
+    
+    // Use standard content type display
+    return getContentTypeText();
+  };
+
+  // Define content styles
+  const getContentStyles = useCallback(() => {
+    // AI Personas
+    const aiPersonas = [
+      { id: 'ariastar', name: t('personaDisplayNames.ariastar', { defaultValue: 'AriaStar (Relatable Best Friend)' }) },
+      { id: 'specialist_mentor', name: t('personaDisplayNames.specialist_mentor', { defaultValue: 'MentorPro (Expert Specialist)' }) },
+      { id: 'ai_collaborator', name: t('personaDisplayNames.ai_collaborator', { defaultValue: 'AIInsight (AI Collaborator)' }) },
+    ];
+    
+    // Map of content style IDs to translation keys with content-specific styles
+    const styles: Record<string, any> = {
+      'blog-post': aiPersonas,
+      'social-media': aiPersonas,
+      'email': aiPersonas,
+    };
+    
+    return styles;
+  }, [t]);
+
+  // Simple function to determine if CTA and hashtags should be hidden
+  const shouldHideCTAAndHashtags = () => {
+    const contentType = contentDetails?.contentType?.toLowerCase() || '';
+    const platform = contentDetails?.platform?.toLowerCase() || '';
+    return contentType.includes('presentation') || platform.includes('presentation');
+  };
+
+  // Helper function to open the confirm dialog
+  const openConfirmDialog = (message: string, onConfirm: () => void, onCancel: () => void) => {
+    setDialogMessage(message);
+    setDialogConfirmAction(() => onConfirm);
+    setDialogCancelAction(() => onCancel);
+    setDialogOpen(true);
+  };
+
+  return (
+    <AppShell hideHeader={true}>
+      <div className="container mx-auto px-4 py-8">
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center h-64 w-full">
+            <div className="loader mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading content generator...</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+              Please wait while we load your research and content details
+            </p>
+          </div>
+        )}
+
+        {error && !isLoading && (
+          <div className="bg-red-50 border border-red-200 p-4 rounded-md mb-6 dark:bg-red-900/30 dark:border-red-800">
+            <h3 className="text-red-800 font-medium dark:text-red-300">Error</h3>
+            <p className="text-red-700 dark:text-red-400">{error}</p>
+            <button 
+              className="mt-2 px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700"
+              onClick={() => window.location.reload()}
+            >
+              Reload Page
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !error && (
+          <>
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold mb-2">{t('contentPage.title')}</h1>
+              <p className="text-gray-600">
+                {t('contentPage.subtitle')}
+              </p>
+            </div>
+
+            <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+              <h2 className="text-xl font-semibold mb-4">{t('contentPage.details')}</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-500 font-medium">{t('contentPage.contentTypeLabel')}</p>
+                  <p className="font-medium text-gray-900">
+                    {formatContentTypeDisplay()}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-500 font-medium">{t('contentPage.targetAudienceLabel')}</p>
+                  <p className="font-medium text-gray-900">{contentDetails?.targetAudience || '-'}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md md:col-span-2">
+                  <p className="text-sm text-gray-500 font-medium">{t('contentPage.researchTopicLabel')}</p>
+                  <p className="font-medium text-gray-900">{contentDetails?.researchTopic || '-'}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+              <h2 className="text-xl font-semibold mb-4">Content Generation</h2>
+              <p>This page is currently undergoing maintenance. We are working to restore full functionality.</p>
+              <p className="mt-4">Your content details have been loaded successfully:</p>
+              <ul className="list-disc pl-5 mt-2">
+                <li>Platform: {getPlatformText()}</li>
+                <li>Content Type: {getContentTypeText()}</li>
+                <li>Topic: {contentDetails?.researchTopic || '-'}</li>
+              </ul>
+            </section>
+          </>
+        )}
+        
+        <div className="flex justify-between">
+          <Link href="/create/research" className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            {t('common.back')}
+          </Link>
+        </div>
+      </div>
+
+      {/* Confirmation dialog */}
+      <ConfirmDialog
+        isOpen={dialogOpen}
+        message={dialogMessage}
+        onConfirm={() => {
+          dialogConfirmAction();
+          setDialogOpen(false);
+        }}
+        onCancel={() => {
+          dialogCancelAction();
+          setDialogOpen(false);
+        }}
+      />
+    </AppShell>
+  );
+} 

@@ -1,0 +1,10 @@
+Backup Restoration Summary
+=========================
+Date: Sun Mar 23 10:57:24 PDT 2025
+Backup: 20250323_020610_02_03_backup
+Restored directories:
+- src
+Restored files:
+- .env.local (if available in backup)
+
+Previous project state backed up to: backup_before_restore_20250323_105723

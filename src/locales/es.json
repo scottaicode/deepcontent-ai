@@ -1,0 +1,1345 @@
+{
+  "common": {
+    "appName": "DeepContent",
+    "language": "Español",
+    "languageCode": "es",
+    "loading": "Cargando...",
+    "error": "Error",
+    "apiError": "Error del servidor: {message}",
+    "success": "Éxito",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "back": "Volver",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "continue": "Continuar",
+    "submit": "Enviar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "sort": "Ordenar",
+    "pageSize": "Tamaño de página",
+    "refining": "Refinando...",
+    "comingSoon": "Próximamente",
+    "showMore": "Mostrar Más",
+    "showLess": "Mostrar Menos",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "create": "Crear",
+    "dashboard": "Panel",
+    "imageEditor": "Editor de Imágenes",
+    "textToImage": "Texto a Imagen",
+    "settings": "Ajustes",
+    "logout": "Cerrar Sesión",
+    "login": "Iniciar Sesión",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "createContent": "Crear Contenido"
+  },
+  "homePage": {
+    "heading": "Creación de Contenido Impulsada por IA",
+    "description": "Simplifica tu proceso de creación de contenido con nuestra plataforma impulsada por IA. Contenido cautivador en minutos.",
+    "getStartedButton": "Comenzar Ahora",
+    "hero": {
+      "titleHighlight": "Con IA",
+      "title": "Generación de Contenido",
+      "subtitle": "Crea contenido atractivo para todas tus plataformas con la ayuda de IA",
+      "createButton": "Crear Contenido",
+      "learnMoreButton": "Saber Más",
+      "demoTitle": "Crea una vez, publica en todas partes"
+    },
+    "languageSelector": {
+      "chooseLanguage": "Elige tu idioma",
+      "english": "Inglés",
+      "spanish": "Español"
+    },
+    "steps": {
+      "step1Title": "Seleccionar Tipo de Contenido",
+      "step1": "Seleccionar tipo de contenido y audiencia",
+      "step2Title": "Investigación",
+      "step2": "Recopilar información clave para tu contenido",
+      "step3Title": "Generar Contenido",
+      "step3": "Generar contenido personalizado"
+    },
+    "features": {
+      "title": "Características",
+      "subtitle": "Herramientas potentes para crear contenido profesional con datos en tiempo real",
+      "researchTitle": "Investigación en Tiempo Real",
+      "researchDescription": "Obtén investigación de alta calidad sobre cualquier tema con nuestra función de investigación profunda basada en Perplexity.",
+      "generationTitle": "Generación de Contenido",
+      "generationDescription": "Genera contenido de alta calidad para cualquier plataforma o tipo de contenido con unos pocos clics.",
+      "personalizationTitle": "Personas de IA",
+      "personalizationDescription": "Elige entre varias personas de IA para adaptarse a tu estilo de escritura y voz.",
+      "multiPlatform": {
+        "title": "Contenido Multi-Plataforma",
+        "description": "Crea contenido para redes sociales, blogs, correos electrónicos, guiones de video y más con formatos especializados para cada plataforma."
+      },
+      "aiPowered": {
+        "title": "Inteligencia con IA",
+        "description": "Aprovecha Claude 3.7 Sonnet para crear contenido relevante y de alta calidad adaptado a tus necesidades específicas, ya sean personales o de negocio."
+      },
+      "research": {
+        "title": "Investigación Completa",
+        "description": "Mejora tu contenido con las capacidades de Investigación Profunda de Perplexity, proporcionando información precisa y actualizada de fuentes confiables."
+      },
+      "personas": {
+        "title": "Personas y Estilos de IA",
+        "description": "Elige entre personas de IA especializadas para tu expresión personal o necesidades profesionales – desde redes sociales informales hasta documentación técnica y narrativa creativa."
+      },
+      "customizable": {
+        "title": "Salida Personalizable",
+        "description": "Ajusta el estilo del contenido, la longitud, las llamadas a la acción y los hashtags para que coincidan con la voz de tu marca."
+      },
+      "export": {
+        "title": "Opciones de Exportación",
+        "description": "Exporta fácilmente tu contenido como texto plano, markdown o copia directamente a tu portapapeles."
+      },
+      "youtube": {
+        "title": "Guiones para YouTube",
+        "description": "Crea guiones informados con tendencias para videos de YouTube, incluyendo contenido educativo, reseñas y entretenimiento."
+      }
+    },
+    "useCases": {
+      "title": "Perfecto Para",
+      "subtitle": "Diseñado para potenciar creadores en múltiples industrias",
+      "getStarted": "Comenzar",
+      "marketers": {
+        "title": "Mercadólogos",
+        "description": "Crea publicaciones de redes sociales, campañas de email y contenido de blog informado con tendencias que resuene con tu audiencia."
+      },
+      "creators": {
+        "title": "Creadores de Contenido",
+        "description": "Mantente relevante con guiones de YouTube, publicaciones de blog y contenido social que incorpore temas de tendencia."
+      },
+      "smallBusiness": {
+        "title": "Pequeñas Empresas",
+        "description": "Produce contenido profesional y en tendencia sin el gasto de un equipo de marketing dedicado."
+      },
+      "personal": {
+        "title": "Expresión Personal",
+        "description": "Comparte tus aficiones, intereses y experiencias con contenido personalizado para redes sociales, blogs o boletines que reflejen tu voz única."
+      }
+    },
+    "partnership": {
+      "title": "Asociación Humano-IA",
+      "subtitle": "Creemos en amplificar la creatividad humana, no reemplazarla",
+      "principle1": {
+        "title": "Capacidades de IA Transparentes",
+        "description": "Comunicamos claramente lo que nuestra IA puede y no puede hacer, para que siempre tengas el control."
+      },
+      "principle2": {
+        "title": "Diseño Centrado en Humanos",
+        "description": "Nuestra interfaz se adapta a tu flujo de trabajo, poniendo herramientas de IA potentes a tu alcance sin interponerse en tu camino."
+      },
+      "principle3": {
+        "title": "Compromiso Significativo",
+        "description": "Medimos el éxito por la calidad de tu contenido, no solo por cuánto tiempo pasas en nuestra plataforma."
+      },
+      "demo": {
+        "title": "Experimenta la Diferencia",
+        "description": "Prueba nuestro enfoque centrado en humanos para la creación de contenido con IA y ve el impacto que tiene en tu flujo de trabajo.",
+        "button": "Pruébalo Ahora"
+      }
+    },
+    "footer": {
+      "subtitle": "Creación de Contenido con Integración de Temas Tendencia",
+      "product": "Producto",
+      "features": "Características",
+      "pricing": "Precios",
+      "faq": "Preguntas Frecuentes",
+      "resources": "Recursos",
+      "blog": "Blog",
+      "guides": "Guías",
+      "support": "Soporte",
+      "company": "Empresa",
+      "about": "Acerca de",
+      "careers": "Carreras",
+      "privacy": "Privacidad",
+      "rights": "Todos los derechos reservados",
+      "powered": "Desarrollado con Claude 3.7 Sonnet"
+    }
+  },
+  "createPage": {
+    "title": "Crear Contenido",
+    "subtitle": "Selecciona el tipo de contenido, audiencia objetivo y opciones de investigación para generar contenido relevante",
+    "selectContent": "Selecciona tu tipo de contenido",
+    "selectPlatform": "Selecciona tu plataforma objetivo",
+    "platformSectionTitle": "Selecciona tu plataforma objetivo",
+    "contentTypeSectionTitle": "¿Qué tipo de contenido necesitas?",
+    "subPlatformSection": {
+      "title": "Elige Específico"
+    },
+    "contentAnalysisTitle": "Herramientas de Análisis de Contenido",
+    "contentAnalysisDescription": "Enriquece tu contenido analizando medios existentes para obtener perspectivas.",
+    "youtubeTranscriptTitle": "Análisis de Transcripción de YouTube",
+    "imageAnalysisTitle": "Análisis de Imagen",
+    "websiteAnalysisTitle": "Análisis de Sitio Web",
+    "documentAnalysisTitle": "Análisis de Documentos",
+    "documentAnalysisDescription": "Sube documentos (PDF, Word, Excel, Texto) para analizar y usar en tu investigación.",
+    "addYoutubeVideo": "Añade un video de YouTube para análisis",
+    "enterYoutubeURL": "Ingresa una URL de YouTube para obtener su transcripción para investigación y creación de contenido.",
+    "dragDropDocument": "Arrastra y suelta un documento, o haz clic para subirlo",
+    "websiteAnalysisDescription": "Extrae información de sitios web de empresas para mejorar tu investigación.",
+    "enterWebsiteURL": "Ingresa la URL del sitio web (ej., ejemplo.com)",
+    "importantPages": "Páginas importantes",
+    "willCrawlLinks": "Se rastrearán enlaces para un análisis completo.",
+    "analyzeWebsite": "Analizar Sitio Web",
+    "imageAnalysisDescription": "Claude analizará la imagen para proporcionar información para la creación de tu contenido.",
+    "dragDropImage": "Arrastra y suelta una imagen, o haz clic para subirla",
+    "getTranscript": "Obtener Transcripción",
+    "platformSection": {
+      "title": "Selecciona tu plataforma objetivo",
+      "info": "Selecciona la plataforma principal para tu contenido. Esto determinará el formato de contenido apropiado y la optimización."
+    },
+    "contentTitleSection": {
+      "title": "Título del Contenido / Tema",
+      "subtitle": "Define el título o tema principal de tu contenido"
+    },
+    "contentTitle": "Título del Contenido / Tema",
+    "titlePlaceholder": "Ej., 10 Consejos para una Mejor Productividad, Entendiendo la Inteligencia Artificial, etc.",
+    "businessType": "Área Temática / Industria",
+    "businessTypePlaceholder": "Ej., Tecnología, Salud y Bienestar, Finanzas, etc.",
+    "audienceSection": {
+      "title": "Define tu audiencia objetivo"
+    },
+    "targetAudience": "Audiencia Objetivo",
+    "targetAudiencePlaceholder": "Ej., Propietarios de pequeñas empresas, entusiastas de la salud, estudiantes universitarios, etc.",
+    "audienceNeeds": "Intereses de la Audiencia / Puntos de Dolor",
+    "audienceNeedsPlaceholder": "¿Qué quiere aprender, resolver o lograr tu audiencia? Ej., Mejorar la productividad, aprender sobre inversiones, etc.",
+    "reload": "Recargar",
+    "retry": "Reintentar",
+    "skip": "Omitir",
+    "finish": "Finalizar",
+    "showMore": "Mostrar Más",
+    "showLess": "Mostrar Menos",
+    "whatToDo": "Qué hacer:"
+  },
+  "researchPage": {
+    "title": "Investigación de Contenido",
+    "subtitle": "Creando {contentType} para {platform} dirigido a {audience}",
+    "contentDetails": "Detalles del Contenido",
+    "initialSetup": "Configuración Inicial",
+    "followUpQuestions": "Preguntas de Seguimiento",
+    "generateResearch": "Generar Investigación",
+    "researchResults": "Resultados de Investigación",
+    "createContent": "Crear Contenido",
+    "subject": {
+      "title": "Información del Tema",
+      "primarySubject": "Tema Principal",
+      "primarySubjectPlaceholder": "Empresa, producto, servicio o tema",
+      "primarySubjectHelp": "¿Sobre qué empresa, producto, servicio o tema específico estás creando contenido?",
+      "subjectType": "Tipo de Tema",
+      "subjectTypesOptions": {
+        "company": "Empresa",
+        "product": "Producto",
+        "service": "Servicio",
+        "general": "Tema General"
+      },
+      "additionalDetails": "Detalles Adicionales",
+      "additionalDetailsPlaceholder": "Características clave, beneficios o aspectos únicos",
+      "additionalDetailsHelp": "Proporciona cualquier detalle importante sobre tu tema que deba incluirse en el contenido"
+    },
+    "audience": {
+      "title": "Información de la Audiencia",
+      "targetAudience": "Audiencia Objetivo",
+      "targetAudiencePlaceholder": "¿Para quién es este contenido?",
+      "audienceNeeds": "Necesidades de la Audiencia",
+      "audienceNeedsPlaceholder": "¿Qué necesidades o puntos de dolor específicos tiene su audiencia?"
+    },
+    "publication": {
+      "title": "Publicación de Contenido",
+      "contentType": "Tipo de Contenido",
+      "platform": "Plataforma"
+    },
+    "contentTypes": {
+      "socialMedia": "Publicación en Redes Sociales",
+      "blogPost": "Entrada de Blog",
+      "email": "Correo Electrónico",
+      "videoScript": "Guión de Video"
+    },
+    "platforms": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "twitter": "Twitter/X",
+      "linkedin": "LinkedIn",
+      "tiktok": "TikTok",
+      "youtube": "YouTube",
+      "pinterest": "Pinterest",
+      "threads": "Threads",
+      "reddit": "Reddit",
+      "educational": "Educativo", 
+      "wordpress": "WordPress",
+      "medium": "Medio",
+      "companyBlog": "Blog de la Compañía",
+      "company_blog": "Blog de la Compañía",
+      "industry_trends": "Tendencias de la Industria"
+    },
+    "methods": {
+      "perplexity": "Investigación Profunda con Perplexity",
+      "perplexityDescription": "Conéctese a Internet para encontrar información completa y actualizada de múltiples fuentes.",
+      "trending": "Tendencias",
+      "trendingDescription": "Obtén información relevante para tu contenido",
+      "rss": "Fuentes"
+    },
+    "buttons": {
+      "startResearch": "Iniciar Investigación",
+      "startOver": "Empezar de Nuevo",
+      "continueToContent": "Continuar a Creación de Contenido",
+      "startNewResearch": "Iniciar Nueva Investigación",
+      "hideResearchDetails": "Ocultar Detalles de Investigación",
+      "showResearchDetails": "Mostrar Detalles de Investigación",
+      "testClaudeApi": "Probar API de Claude",
+      "testPerplexityApi": "Probar API de Perplexity"
+    },
+    "progress": {
+      "preparing": "Preparando solicitud de investigación...",
+      "sending": "Enviando solicitud a {service}...",
+      "processing": "Procesando resultados de investigación...",
+      "finalizing": "Finalizando resultados de investigación...",
+      "starting": "Generando análisis profundo con {service}...",
+      "analyzing": "Analizando información con {service}...",
+      "inProgress": "Generación de Investigación en Progreso",
+      "processingRequest": "Procesando su solicitud de investigación...",
+      "progressLabel": "Progreso",
+      "cancel": "Cancelar",
+      "statusMessages": {
+        "gatheringData": "Recopilando datos iniciales de investigación...",
+        "analyzingData": "Analizando información de fuentes...",
+        "synthesizing": "Sintetizando hallazgos clave...",
+        "assembling": "Ensamblando documento de investigación...",
+        "completing": "Completando detalles finales...",
+        "researchingLatest": "Investigando información más reciente...",
+        "analyzingRelevant": "Analizando datos relevantes...",
+        "findingRecommendations": "Encontrando recomendaciones de expertos...",
+        "gatheringEngagement": "Recopilando datos de participación...",
+        "compilingPractices": "Compilando mejores prácticas...",
+        "exploringTrends": "Explorando tendencias actuales...",
+        "researchingPreferences": "Investigando preferencias de audiencia...",
+        "evaluatingFormats": "Evaluando formatos de contenido...",
+        "identifyingInsights": "Identificando hallazgos clave...",
+        "organizingFindings": "Organizando resultados de investigación...",
+        "finalizingDocument": "Finalizando documento de investigación...",
+        "almostDone": "Casi terminado..."
+      }
+    },
+    "errors": {
+      "research": "Error al iniciar la investigación. Por favor, inténtalo de nuevo.",
+      "trending": "Error al obtener temas tendencia. Por favor, inténtalo de nuevo.",
+      "deepResearch": "Error al generar investigación profunda. Por favor, inténtalo de nuevo.",
+      "missingFields": "Por favor, completa todos los campos requeridos antes de continuar."
+    },
+    "status": {
+      "analyzing": "Analizando datos",
+      "finalizing": "Finalizando resultados",
+      "synthesizing": "Sintetizando información",
+      "querying": "Consultando fuentes de datos...",
+      "organizing": "Organizando hallazgos clave..."
+    },
+    "researchResults": {
+      "title": "Resultados de Investigación" 
+    },
+    "buttons": {
+      "continueToContent": "Continuar a Creación de Contenido"
+    },
+    "results": {
+      "title": "Resultados de Investigación",
+      "summary": "Resumen de Investigación",
+      "generatedResearch": "Investigación Generada",
+      "expandResearch": "Mostrar investigación completa",
+      "topic": "Tema:",
+      "contentType": "Tipo de Contenido:",
+      "targetAudience": "Audiencia Objetivo:",
+      "platform": "Plataforma:"
+    }
+  },
+  "contentPage": {
+    "title": "Contenido Generado",
+    "subtitle": "Tu contenido ha sido generado con éxito. Puedes editarlo abajo.",
+    "details": "Detalles del Contenido",
+    "contentTypeLabel": "Tipo de Contenido",
+    "targetAudienceLabel": "Audiencia Objetivo",
+    "researchTopicLabel": "Tema de Investigación",
+    "aiSettings": "Configuración de IA",
+    "forPlatform": "para",
+    "platformLabel": "Plataforma",
+    "contentTypeHint": "El tipo de contenido está determinado por la configuración de investigación",
+    "platformHint": "La plataforma está determinada por la configuración de investigación",
+    "contentTypeDeterminedByResearch": "El tipo de contenido está determinado por la configuración de investigación",
+    "platformDeterminedByResearch": "La plataforma está determinada por la configuración de investigación",
+    "notSpecified": "No especificado",
+    "confirmRegenerateStyle": "¿Te gustaría regenerar el contenido usando el estilo \"{style}\"?",
+    "confirmRegenerateLength": "¿Te gustaría regenerar el contenido usando la longitud \"{length}\"?",
+    "dialog": {
+      "changeStyle": "Cambiar Estilo",
+      "changeLength": "Cambiar Longitud de Contenido",
+      "regenerateContent": "Regenerar Contenido",
+      "regenerateWithNewLength": "Regenerar con Nueva Longitud",
+      "cancel": "Cancelar",
+      "keepLengthSetting": "Mantener Configuración de Longitud"
+    },
+    "contentTypes": {
+      "social_post": "Publicación en Redes Sociales",
+      "social_media": "Publicación en Redes Sociales",
+      "blogPost": "Entrada de Blog",
+      "blog_post": "Entrada de Blog",
+      "email": "Correo Electrónico",
+      "videoScript": "Guión de Video",
+      "youtubeScript": "Guión de YouTube",
+      "educational_youtube_script": "Guión de YouTube Educativo",
+      "educationalYouTubeScript": "Guión de YouTube Educativo",
+      "presentation": "Presentación"
+    },
+    "settings": {
+      "style": "Estilo de Contenido",
+      "length": "Longitud del Contenido",
+      "includeCTA": "Incluir Llamada a la Acción",
+      "includeHashtags": "Incluir Hashtags",
+      "includeHashtagsLabel": "Incluir Hashtags",
+      "hashtagsLabel": "Hashtags",
+      "slideCount": "Número de Diapositivas",
+      "presentationFormat": "Formato de Presentación",
+      "technicalLevel": "Nivel Técnico",
+      "includeExecutiveSummary": "Incluir Resumen Ejecutivo",
+      "includeActionItems": "Incluir Elementos de Acción",
+      "includeDataVisualizations": "Incluir Visualizaciones de Datos",
+      "styleDescription": "Elige una persona de IA para dar a tu contenido un estilo y tono distintivos"
+    },
+    "lengthOptions": {
+      "short": "Corto",
+      "medium": "Medio",
+      "long": "Largo"
+    },
+    "slideCountOptions": {
+      "veryShort": "{count} diapositivas (muy corto)",
+      "short": "{count} diapositivas (corto)",
+      "medium": "{count} diapositivas (medio)",
+      "long": "{count} diapositivas (largo)"
+    },
+    "formatOptions": {
+      "informative": "Informativo",
+      "persuasive": "Persuasivo",
+      "analytical": "Analítico",
+      "inspirational": "Inspirador"
+    },
+    "technicalOptions": {
+      "general": "General (No técnico)",
+      "balanced": "Equilibrado",
+      "technical": "Técnico",
+      "expert": "Experto"
+    },
+    "sectionOptions": {
+      "executiveSummary": "Resumen Ejecutivo",
+      "actionItems": "Elementos de Acción",
+      "dataVisualizations": "Visualizaciones de Datos"
+    },
+    "generatingContent": "Generando tu contenido",
+    "pleaseWait": "Por favor espera mientras creamos tu contenido",
+    "optimizingPlatform": "Optimizando contenido para tu plataforma",
+    "progress": {
+      "status": "Progreso de Generación",
+      "preparing": "Preparando estructura de contenido...",
+      "generating": "Generando contenido basado en la investigación...",
+      "formatting": "Formateando contenido para la plataforma seleccionada...",
+      "finalizing": "Añadiendo toques finales..."
+    },
+    "buttons": {
+      "regenerate": "Regenerar Contenido",
+      "generate": "Generar Contenido",
+      "copy": "Copiar al Portapapeles",
+      "exportText": "Exportar como Texto",
+      "exportPDF": "Exportar como PDF",
+      "startOver": "Comenzar de nuevo"
+    },
+    "apiInstructions": {
+      "title": "Configuración de API Requerida",
+      "description": "Para usar esta función, necesitas configurar tu clave de API:",
+      "anthropic": {
+        "title": "Configuración de Anthropic Claude API",
+        "step1": "Regístrate para obtener una cuenta de Anthropic en anthropic.com",
+        "step2": "Genera una clave de API en tu panel de Anthropic",
+        "step3": "Agrega tu clave de API al archivo .env.local en tu proyecto"
+      },
+      "perplexity": {
+        "title": "Configuración de Perplexity API",
+        "step1": "Regístrate para obtener una cuenta de Perplexity en perplexity.ai",
+        "step2": "Genera una clave de API en tu panel de Perplexity",
+        "step3": "Agrega tu clave de API al archivo .env.local en tu proyecto"
+      }
+    },
+    "aiPowered": {
+      "title": "Potenciado por IA:",
+      "description": "Generado con Claude 3.7 Sonnet, optimizado con investigación de tendencias."
+    },
+    "followUpQuestions": {
+      "title": "Preguntas de Seguimiento",
+      "description": "Utiliza estas preguntas para añadir profundidad a tu contenido y abordar perspectivas adicionales.",
+      "button": "Generar Preguntas de Seguimiento",
+      "regenerateButton": "Actualizar Todas las Preguntas",
+      "regenerateOneButton": "Actualizar",
+      "editButton": "Editar",
+      "saveButton": "Guardar",
+      "cancelButton": "Cancelar",
+      "generating": "Generando...",
+      "regenerating": "Actualizando...",
+      "generateAnswerButton": "Dejar que IA Responda",
+      "generatingAnswer": "Creando respuesta...",
+      "aiAnswerLabel": "Respuesta de IA",
+      "discardButton": "Descartar",
+      "regenerateAnswerButton": "Intentar de Nuevo",
+      "saveAnswerButton": "Guardar Respuesta",
+      "removeButton": "Eliminar"
+    },
+    "preparingContent": "Preparando solicitud de contenido para las mejores prácticas de {year}...",
+    "connectingAPI": "Conectando con API de Claude...",
+    "generatingAI": "Claude AI generando contenido...",
+    "formattingContent": "Formateando contenido...",
+    "generationSuccess": "¡Contenido generado exitosamente!",
+    "generationSuccessToast": "¡Contenido generado exitosamente!",
+    "alreadyGenerating": "La generación de contenido ya está en progreso. Por favor espere.",
+    "noContent": "No se ha generado contenido todavía.",
+    "platforms": {
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "twitter": "Twitter",
+      "linkedin": "LinkedIn",
+      "tiktok": "TikTok",
+      "youtube": "YouTube",
+      "reddit": "Reddit",
+      "pinterest": "Pinterest",
+      "threads": "Threads"
+    },
+    "copyToClipboard": "Copiar al Portapapeles",
+    "exportToPDF": "Exportar como PDF",
+    "saveAs": "Guardar como",
+    "fileName": "Nombre del archivo",
+    "fileNamePlaceholder": "mi-contenido",
+    "contentSaved": "Contenido guardado",
+    "contentGenerated": "Contenido generado por IA",
+    "generatingContent": "Generando tu contenido",
+    "pleaseWait": "Por favor espera mientras creamos tu contenido",
+    "processing": "Procesando...",
+    "analyzeResearch": "Analizando datos de investigación...",
+    "generatingSteps": "Generando pasos de contenido...",
+    "optimizingPlatform": "Optimizando contenido para tu plataforma",
+    "finalizingContent": "Finalizando contenido...",
+    "contentProcessing": "Procesando flujo de contenido...",
+    "generationComplete": "¡Generación de contenido completa!",
+    "progress": "Progreso",
+    "apiInstructions": {
+      "title": "Configuración de API Requerida",
+      "description": "Para usar esta función, necesitas configurar tu clave de API:",
+      "anthropic": {
+        "title": "Configuración de Anthropic Claude API",
+        "step1": "Regístrate para obtener una cuenta de Anthropic en anthropic.com",
+        "step2": "Genera una clave de API en tu panel de Anthropic",
+        "step3": "Agrega tu clave de API al archivo .env.local en tu proyecto"
+      },
+      "perplexity": {
+        "title": "Configuración de Perplexity API",
+        "step1": "Regístrate para obtener una cuenta de Perplexity en perplexity.ai",
+        "step2": "Genera una clave de API en tu panel de Perplexity",
+        "step3": "Agrega tu clave de API al archivo .env.local en tu proyecto"
+      }
+    }
+  },
+  "auth": {
+    "signIn": "Iniciar Sesión",
+    "signUp": "Registrarse",
+    "email": "Correo Electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidó su contraseña?",
+    "resetPassword": "Restablecer Contraseña",
+    "displayName": "Nombre para Mostrar",
+    "createAccount": "Crear Cuenta",
+    "or": "O",
+    "continueWithGoogle": "Continuar con Google",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+    "dontHaveAccount": "¿No tienes una cuenta?"
+  },
+  "errors": {
+    "general": "Algo salió mal. Por favor, inténtalo de nuevo.",
+    "apiKey": "La clave API no está configurada.",
+    "research": "Error al iniciar la investigación. Por favor, inténtalo de nuevo.",
+    "content": "Error al generar contenido. Por favor, inténtalo de nuevo.",
+    "connectionFailed": "Error: Fallo en la conexión",
+    "researchCanceled": "Generación de investigación cancelada por el usuario.",
+    "missingContentDetails": "Faltan detalles de contenido. Por favor, asegúrese de que el tipo de contenido y la plataforma estén seleccionados.",
+    "researchDataRequired": "Se requieren datos de investigación para generar contenido.",
+    "missingResearchData": "Faltan datos de investigación.",
+    "researchRequired": "Se requiere investigación. Por favor complete la investigación primero.",
+    "completeSettings": "Por favor complete toda la configuración de contenido antes de generar.",
+    "generationFailed": "La generación de contenido falló. Por favor, inténtalo de nuevo.",
+    "unknown": "Error desconocido",
+    "contentTypeRequired": "El tipo de contenido y la plataforma son obligatorios. Estos deben establecerse desde la fase de investigación.",
+    "incompleteDetails": "Detalles de contenido incompletos. Por favor complete primero el paso de investigación.",
+    "completeResearchFirst": "Faltan datos de investigación. Por favor complete el paso de investigación antes de generar contenido.",
+    "networkError": "Error de red: {message}",
+    "failedToConnect": "No se pudo conectar con la API",
+    "failedToGenerate": "No se pudo generar contenido. Por favor, inténtalo de nuevo.",
+    "noContentReturned": "No se devolvió contenido de la API"
+  },
+  "languageSwitcher": {
+    "improveTranslations": "Ayúdanos a mejorar las traducciones"
+  },
+  "ai": {
+    "generating": "IA Generando Contenido",
+    "thinking": "IA Procesando",
+    "researching": "IA Investigando",
+    "ready": "IA Lista",
+    "idle": "IA Inactiva",
+    "aiSystemInfo": "Información del Sistema de IA",
+    "status": "Estado",
+    "model": "Modelo",
+    "latency": "Latencia",
+    "transparency": "Creemos en la transparencia. Siempre sabrás cuándo se está utilizando la IA.",
+    "helpMessage": "¿Cómo puedo ayudarte con tu contenido?",
+    "contentGenerated": "Contenido generado por IA",
+    "researchCompleted": "Investigación completada",
+    "customizeOutput": "Personalizar resultado",
+    "regenerate": "Regenerar",
+    "edit": "Editar",
+    "save": "Guardar",
+    "discard": "Descartar",
+    "loading": "Cargando capacidades de IA...",
+    "capabilities": {
+      "title": "Capacidades de IA",
+      "content": "Este sistema puede crear contenido basado en temas de tendencia",
+      "research": "Este sistema puede investigar temas de múltiples fuentes",
+      "rewrite": "Este sistema puede reescribir contenido en diferentes estilos",
+      "summarize": "Este sistema puede resumir contenido extenso",
+      "translate": "Este sistema puede traducir contenido a múltiples idiomas",
+      "limitations": "Limitaciones de la IA",
+      "factCheck": "La IA puede generar información inexacta. Siempre verifica datos importantes.",
+      "outdated": "El conocimiento de la IA puede estar desactualizado para eventos muy recientes.",
+      "bias": "La IA puede exhibir sesgos presentes en sus datos de entrenamiento."
+    }
+  },
+  "dashboard": {
+    "title": "Panel de Contenido",
+    "subtitle": "Administra y realiza un seguimiento de todo tu contenido creado",
+    "createNew": "Nuevo Contenido",
+    "refresh": "Actualizar",
+    "refreshing": "Actualizando...",
+    "refreshSuccess": "Contenido actualizado",
+    "contentRefreshed": "Tu lista de contenido ha sido actualizada.",
+    "refreshError": "Hubo un error al actualizar tu contenido. Por favor, consulta la consola para más detalles.",
+    "createFirstContent": "Crea Tu Primer Contenido",
+    "description": "Con DeepContent, puedes crear, publicar y administrar fácilmente contenido para múltiples plataformas desde un solo panel.",
+    "welcome": "¡Bienvenido a DeepContent!",
+    "systemReady": "Tu biblioteca de contenido está lista para tu primera creación.",
+    "noContentMatches": "Ningún contenido coincide con tus criterios de búsqueda.",
+    "noContentType": "Aún no tienes ningún contenido de tipo {type}.",
+    "statusPublished": "Publicado",
+    "statusDraft": "Borrador",
+    "statusArchived": "Archivado",
+    "restore": "Restaurar",
+    "archive": "Archivar",
+    "tryAgain": "Intentar de nuevo",
+    "loadingContent": "Cargando tu contenido...",
+    "confirmDelete": "¿Estás seguro de que quieres eliminar este contenido? Esta acción no se puede deshacer.",
+    "deleteSuccess": "Contenido Eliminado",
+    "deleteSuccessDesc": "El contenido ha sido eliminado permanentemente.",
+    "deleteError": "Error de Eliminación",
+    "deleteErrorDesc": "Hubo un error al eliminar el contenido.",
+    "archiveSuccess": "Contenido Archivado",
+    "archiveSuccessDesc": "El contenido ha sido movido al archivo.",
+    "restoreSuccess": "Contenido Restaurado",
+    "restoreSuccessDesc": "El contenido ha sido restaurado del archivo.",
+    "archiveError": "Error de Archivo",
+    "archiveErrorDesc": "Hubo un error al archivar el contenido.",
+    "restoreError": "Error de Restauración",
+    "restoreErrorDesc": "Hubo un error al restaurar el contenido.",
+    "actionError": "Hubo un error al realizar la acción.",
+    "firestoreConnectionFailed": "Falló la conexión a Firestore",
+    "dbConnectionIssue": "Problema de Conexión a la Base de Datos",
+    "dbConnectionDesc": "No se puede conectar a Firebase. Verifica tu conexión de red o la configuración de Firebase.",
+    "systemStatus": "Estado del Sistema",
+    "userAuthenticated": "Usuario Autenticado",
+    "authenticated": "Autenticado",
+    "notAuthenticated": "No Autenticado",
+    "databaseConnection": "Conexión a la Base de Datos",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "checking": "Verificando",
+    "lastRefresh": "Última Actualización",
+    "never": "Nunca",
+    "filterAll": "Todos",
+    "filterPublished": "Publicados",
+    "filterDrafts": "Borradores",
+    "filterArchived": "Archivados",
+    "noContent": "No se encontró contenido",
+    "createFirst": "Crea tu primer contenido",
+    "lastUpdated": "Última actualización",
+    "edit": "Editar",
+    "error": "Error al cargar el contenido"
+  },
+  "followup": {
+    "title": "Preguntas de Seguimiento",
+    "subtitle": "Por favor, responde estas preguntas para ayudarnos a generar contenido más adaptado para ti.",
+    "requiredNote": "Las preguntas obligatorias están marcadas con *",
+    "placeholder": "Tu respuesta...",
+    "loading": "Generando preguntas...",
+    "backToContent": "Volver al Formulario de Contenido",
+    "submitButton": "Enviar Respuestas",
+    "steps": {
+      "myIdea": "Mi Idea",
+      "target": "Objetivo",
+      "followUp": "Seguimiento"
+    },
+    "validation": {
+      "answerRequired": "Por favor responde la primera pregunta",
+      "answerHelp": "Esta información nos ayuda a proporcionar una investigación más relevante"
+    },
+    "aiAnswer": {
+      "generateButton": "Dejar que IA Responda",
+      "generating": "Creando respuesta...",
+      "label": "Respuesta generada por IA",
+      "success": "Respuesta Creada",
+      "successDesc": "Respuesta creada sin repetir la pregunta. Siéntete libre de editarla según sea necesario.",
+      "error": "No se pudo Generar la Respuesta",
+      "errorDesc": "No pudimos crear una respuesta en este momento. Por favor, inténtalo de nuevo."
+    }
+  },
+  "youtubeTranscript": {
+    "title": "Análisis de Transcripción de YouTube",
+    "source": "Fuente",
+    "endOfTranscript": "Fin de la Transcripción",
+    "copied": "Copiado al portapapeles",
+    "copiedDescription": "La transcripción ha sido copiada a tu portapapeles.",
+    "enterUrl": "Introduce la URL de YouTube",
+    "getTranscript": "Obtener Transcripción",
+    "addVideo": "Añadir un video de YouTube para análisis",
+    "enterUrlToFetch": "Introduce una URL de YouTube para obtener su transcripción para investigación y creación de contenido.",
+    "transcriptAdded": "Transcripción de YouTube agregada exitosamente",
+    "description": "Mejora tu investigación analizando un video existente de YouTube sobre este tema.",
+    "added": "Transcripción de YouTube Añadida",
+    "analyzingVideo": "Analizando video...",
+    "error": "Error al obtener la transcripción",
+    "noTranscriptAvailable": "No hay transcripción disponible para este video",
+    "readyToFetch": "Listo para obtener la transcripción. Haz clic en el botón de arriba.",
+    "transcriptResults": "Resultados de Transcripción",
+    "apiKeyRequired": "Esta función requiere una clave API de Supadata válida",
+    "checkApiKey": "Si eres el administrador, verifica la configuración de tu clave API en ajustes",
+    "contactAdmin": "Los usuarios deben contactar a su administrador para obtener ayuda",
+    "checkApiConfig": "Verificar Configuración de API",
+    "checkingApi": "Verificando configuración de API...",
+    "apiValid": "La configuración de API es válida",
+    "apiFailed": "La configuración de API falló",
+    "technicalDetails": "Detalles técnicos (para administradores)",
+    "videoId": "ID del Video",
+    "extracting": "Extrayendo transcripción...",
+    "fetchingData": "Obteniendo datos del video...",
+    "retrying": "Reintentando...",
+    "fallbackMessage": "No se pudo obtener la transcripción automática. Se proporciona información alternativa.",
+    "aiProcessed": "Procesado con IA",
+    "copyToClipboard": "Copiar al portapapeles",
+    "showFullTranscript": "Mostrar transcripción completa",
+    "hideFullTranscript": "Ocultar transcripción completa",
+    "viewOnYouTube": "Ver en YouTube",
+    "errors": {
+      "noTranscript": "Este video no tiene una transcripción disponible. Por favor, prueba con un video diferente que tenga subtítulos habilitados.",
+      "connection": "No se puede conectar al servicio de transcripción. Por favor, verifica tu conexión a internet e inténtalo de nuevo.",
+      "invalidUrl": "Por favor, introduce una URL válida de YouTube (ej., https://www.youtube.com/watch?v=XXXXXX).",
+      "unknown": "Error: {0}. Por favor, inténtalo de nuevo o contacta con soporte si el problema persiste."
+    }
+  },
+  "platformOptions": {
+    "website": "Sitio Web",
+    "blog": "Blog",
+    "social": "Redes Sociales",
+    "email": "Correo Electrónico",
+    "youtube": "YouTube",
+    "video-script": "Guión de Video",
+    "vlog": "Vlog",
+    "podcast": "Podcast",
+    "presentation": "Presentación",
+    "google-ads": "SEO para Google Ads",
+    "research-report": "Informe de Investigación"
+  },
+  "subPlatformOptions": {
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "twitter": "Twitter",
+    "linkedin": "LinkedIn",
+    "tiktok": "TikTok",
+    "company-blog": "Blog Corporativo",
+    "medium": "Medio",
+    "wordpress": "WordPress",
+    "newsletter": "Boletín",
+    "marketing": "Email de Marketing",
+    "sales": "Email de Ventas",
+    "welcome": "Email de Bienvenida",
+    "explainer": "Video Explicativo",
+    "advertisement": "Anuncio",
+    "tutorial": "Tutorial",
+    "product-demo": "Demostración de Producto",
+    "educational": "Educativo",
+    "entertainment": "Entretenimiento",
+    "review": "Reseña",
+    "vlog-style": "Estilo Vlog",
+    "travel": "Vlog de Viajes",
+    "daily": "Vlog Diario",
+    "tutorial-vlog": "Vlog de Tutorial",
+    "interview": "Entrevista",
+    "solo": "Episodio Individual",
+    "panel": "Panel de Discusión",
+    "business": "Presentación de Negocios",
+    "executive": "Resumen Ejecutivo",
+    "sales-presentation": "Presentación de Ventas",
+    "training": "Material de Capacitación",
+    "investor": "Presentación para Inversores",
+    "search-ads": "Anuncios de Búsqueda",
+    "display-ads": "Anuncios de Display",
+    "video-ads": "Anuncios de Video",
+    "shopping-ads": "Anuncios de Compras",
+    "market-analysis": "Análisis de Mercado",
+    "competitor-analysis": "Análisis de Competencia",
+    "industry-trends": "Tendencias de la Industria",
+    "consumer-insights": "Insights del Consumidor"
+  },
+  "imageUploader": {
+    "dragDrop": "Arrastra y suelta una imagen, o haz clic para subir",
+    "supportedFormats": "PNG, JPG o WebP (máx. {maxSize}MB)",
+    "recommendedRatio": "Relación de aspecto recomendada: {ratio}",
+    "preview": "Vista previa de imagen",
+    "remove": "Eliminar imagen",
+    "invalidType": "Tipo de archivo no válido",
+    "allowedTypes": "Por favor sube una imagen JPG, PNG o WebP",
+    "tooLarge": "Archivo demasiado grande",
+    "maxSize": "El tamaño máximo de archivo es {maxSizeMB}MB",
+    "aspectRatioWarning": "Advertencia de relación de aspecto",
+    "aspectRatioMessage": "Esta imagen no coincide con la relación de aspecto recomendada. Puede ser recortada cuando se publique.",
+    "dropHere": "Suelta para subir",
+    "imageAdded": "Imagen lista para análisis"
+  },
+  "imageAnalysis": {
+    "title": "Análisis de Imagen",
+    "description": "Sube una imagen para que Claude la analice y proporcione información para tu contenido.",
+    "defaultDesc": "Claude analizará la imagen para proporcionar perspectivas para tu creación de contenido.",
+    "socialMediaDesc": "Perfecto para publicaciones en redes sociales, subtítulos y sugerencias de hashtags.",
+    "landingPageDesc": "Ideal para textos de landing page, llamadas a la acción y perspectivas enfocadas en conversión.",
+    "researchDesc": "Extrae datos, perspectivas e información relevante para investigación.",
+    "noImage": "Sin imagen",
+    "pleaseUpload": "Por favor, sube una imagen primero",
+    "analysisComplete": "Análisis completado",
+    "claudeAnalyzed": "Claude ha analizado tu imagen",
+    "analysisFailed": "Análisis fallido",
+    "couldNotAnalyze": "No se pudo analizar la imagen. Por favor, inténtalo de nuevo.",
+    "customAnalysisInstructions": "Instrucciones de Análisis Personalizadas (Opcional)",
+    "customPromptPlaceholder": "Ej., Analiza esta imagen de producto y sugiere puntos de venta...",
+    "analyzingWithClaude": "Analizando con Claude...",
+    "analyzeWithClaude": "Analizar con Claude",
+    "analysisResults": "Resultados del Análisis"
+  },
+  "userInfo": {
+    "discoverMoreAbout": "Descubre más sobre DeepContent:",
+    "howItWorks": "Cómo Funciona",
+    "appBenefits": "Beneficios de la App"
+  },
+  "howItWorks": {
+    "title": "Cómo Funciona DeepContent",
+    "subtitle": "Aproveche al máximo nuestra plataforma de creación de contenido con IA con esta guía",
+    "workflow": {
+      "title": "El Flujo de Trabajo de Creación de Contenido"
+    },
+    "step1": {
+      "title": "Seleccione su Tipo de Contenido y Plataforma",
+      "description": "Comience eligiendo el tipo de contenido que desea crear y la plataforma donde lo compartirá. Esto ayuda a nuestra IA a formatear su contenido de manera adecuada.",
+      "tip": "Sea específico sobre su plataforma (como Instagram o LinkedIn) para obtener recomendaciones de contenido mejor optimizadas."
+    },
+    "step2": {
+      "title": "Defina su Audiencia y Tema",
+      "description": "Proporcione detalles sobre su público objetivo y el tema específico que desea abordar. Cuanto más específico sea, más personalizado será su contenido.",
+      "tip": "Incluya los puntos de dolor o intereses de su audiencia para hacer que su contenido sea más relevante para sus necesidades."
+    },
+    "step3": {
+      "title": "Mejore con Herramientas de Análisis",
+      "description": "Opcionalmente, utilice nuestras herramientas de análisis para enriquecer su proceso de creación de contenido:",
+      "youtubeTranscript": "Análisis de Transcripción de YouTube: Analice videos existentes sobre su tema para obtener información",
+      "imageAnalysis": "Análisis de Imágenes: Utilice a Claude para analizar imágenes relacionadas con su contenido para obtener contexto adicional",
+      "tip": "Estas herramientas de análisis proporcionan información más profunda y hacen que su contenido sea más completo y relevante."
+    },
+    "step4": {
+      "title": "Generar y Refinar Contenido",
+      "description": "Nuestra IA generará contenido de alta calidad basado en sus entradas. Luego puede refinarlo para satisfacer exactamente sus necesidades:",
+      "regenerate": "Regenere el contenido si la primera versión no cumple con sus necesidades",
+      "adjust": "Ajuste la intensidad de estilo de la IA para más o menos personalidad",
+      "export": "Exporte o copie el contenido final para uso inmediato",
+      "tip": "Pruebe diferentes personas de IA (como AriaStar para un tono amigable o TechExpert para un estilo más profesional) para que coincida con la voz de su marca."
+    },
+    "bestPractices": {
+      "title": "Mejores Prácticas para Grandes Resultados",
+      "specific": {
+        "title": "Sea Específico con Sus Entradas",
+        "description": "Cuanto más específicos sean los detalles de su tema y audiencia, mejor será su contenido. Las entradas vagas conducen a contenido genérico."
+      },
+      "analysis": {
+        "title": "Use Herramientas de Análisis",
+        "description": "Las funciones de transcripción de YouTube y análisis de imágenes pueden mejorar significativamente su contenido con información adicional y contexto."
+      },
+      "personas": {
+        "title": "Experimente con Personas",
+        "description": "Diferentes personas de IA crean contenido con voces distintas. Pruebe varias para encontrar la que mejor se adapte al tono de su marca."
+      },
+      "iterate": {
+        "title": "Iterar y Refinar",
+        "description": "No se conforme con el primer borrador. Regenere el contenido con entradas ajustadas hasta obtener el resultado perfecto para sus necesidades."
+      }
+    },
+    "tip": "Consejo:",
+    "createNow": "Crear Contenido Ahora",
+    "needMoreHelp": "¿Necesita más ayuda? Consulte nuestra página de ",
+    "appBenefits": "Beneficios de la App",
+    "page": " para más información."
+  },
+  "appBenefits": {
+    "title": "Beneficios de la App DeepContent",
+    "subtitle": "Descubra qué hace especial a nuestra plataforma de creación de contenido con IA",
+    "keyBenefits": "Beneficios Clave de un Vistazo",
+    "benefit1": {
+      "title": "Velocidad Impulsada por IA",
+      "description": "Cree contenido de alta calidad en minutos, no en horas"
+    },
+    "benefit2": {
+      "title": "Contenido Basado en Investigación",
+      "description": "Aproveche las capacidades de investigación de IA para contenido preciso y actualizado"
+    },
+    "benefit3": {
+      "title": "Optimización Multiplataforma",
+      "description": "Contenido específicamente optimizado para los requisitos únicos de cada plataforma"
+    },
+    "features": {
+      "title": "Qué Hace Especial a DeepContent",
+      "feature1": {
+        "title": "Integración con Claude 3.7 Sonnet IA",
+        "description": "Impulsado por el avanzado modelo Claude 3.7 Sonnet de Anthropic, DeepContent aprovecha uno de los sistemas de IA más capaces disponibles hoy para generar contenido de calidad humana.",
+        "point1": "Comprensión avanzada de las necesidades de contenido y contexto",
+        "point2": "Texto natural y fluido que se lee como contenido escrito por humanos",
+        "point3": "Adaptable a diferentes tonos, estilos y voces de marca"
+      },
+      "feature2": {
+        "title": "Herramientas de Análisis Multimedia",
+        "description": "A diferencia de las herramientas básicas de contenido de IA, DeepContent integra capacidades de análisis multimedia para enriquecer su proceso de creación de contenido.",
+        "point1": "Análisis de Transcripción de YouTube: Extraiga información de contenido de video",
+        "point2": "Análisis de Imágenes: Aproveche las capacidades de visión de Claude para analizar imágenes",
+        "point3": "Referencias cruzadas de múltiples fuentes para contenido más completo"
+      },
+      "feature3": {
+        "title": "Personas de IA y Estilos de Escritura",
+        "description": "Elija entre una variedad de personas de IA, cada una con su propio estilo y tono de escritura distintivo, para que coincida perfectamente con la voz de su marca.",
+        "point1": "AriaStar: Tono amigable y conversacional ideal para contenido social",
+        "point2": "TechExpert: Estilo profesional y detallado para contenido técnico",
+        "point3": "Configuraciones de intensidad ajustables para perfeccionar tu estilo preferido",
+        "researchNote": "Nuestras 9 personas de cliente fueron creadas por DeepContent mediante un análisis exhaustivo de tendencias e investigación de audiencia. Estas personas representan los estilos de comunicación más efectivos para destacar en el saturado panorama digital actual."
+      },
+      "feature4": {
+        "title": "Optimización Específica para Plataformas",
+        "description": "DeepContent es más que un generador de contenido genérico. Comprende los requisitos únicos de diferentes plataformas y tipos de contenido.",
+        "point1": "Formatea automáticamente el contenido según las mejores prácticas de la plataforma",
+        "point2": "Incorpora elementos específicos de la plataforma como hashtags, emojis y CTA",
+        "point3": "Optimizado para plataformas específicas como Facebook, Instagram, LinkedIn, TikTok y más"
+      },
+      "featureRealTime": {
+        "title": "Investigación y Análisis de Tendencias en Tiempo Real",
+        "description": "DeepContent no se basa en técnicas obsoletas o modelos estáticos. Para cada tarea de creación de contenido, realiza una investigación actualizada para identificar lo que realmente funciona ahora.",
+        "highlight": "Lo que funcionaba hace 6 meses a menudo falla hoy. DeepContent garantiza que tu contenido utilice técnicas y enfoques efectivos en el entorno digital actual.",
+        "point1": "Analiza las tendencias actuales en comunicación digital para cada plataforma",
+        "point2": "Identifica técnicas de persuasión y captación de atención que funcionan en este momento",
+        "point3": "Adapta las estrategias de contenido para destacar entre el ruido digital actual"
+      }
+    },
+    "valueProposition": {
+      "title": "¿Por Qué Elegir DeepContent?",
+      "time": {
+        "title": "Ahorre Tiempo y Recursos",
+        "description": "Cree contenido en minutos que normalmente tomaría horas. DeepContent maneja la investigación y la escritura, permitiéndole centrarse en la estrategia y el refinamiento."
+      },
+      "quality": {
+        "title": "Contenido de Calidad Profesional",
+        "description": "Acceda a capacidades de creación de contenido de nivel profesional sin contratar escritores o agencias caras. Nuestra IA produce contenido pulido y atractivo en todo momento."
+      },
+      "versatility": {
+        "title": "Tipos de Contenido Versátiles",
+        "description": "Desde publicaciones en redes sociales hasta artículos detallados de blog, guiones de YouTube hasta boletines de correo electrónico, DeepContent maneja prácticamente cualquier formato de contenido que necesite."
+      },
+      "consistency": {
+        "title": "Voz de Marca Consistente",
+        "description": "Mantenga un tono y estilo consistentes en todo su contenido con nuestras personas de IA. Una vez que encuentre su estilo preferido, puede aplicarlo a todo su contenido."
+      }
+    },
+    "startCreating": "Comience a Crear Ahora",
+    "learnMore": "¿Quiere aprender a usar estas funciones? Consulte nuestra ",
+    "howItWorks": "Guía de Cómo Funciona",
+    "guide": "."
+  },
+  "personasShowcase": {
+    "title": "Personas de IA para Cada Caso de Uso",
+    "subtitle": "DeepContent está diseñado para todos. Nuestras personas de IA son versátiles y pueden utilizarse tanto para la creación de contenido empresarial como personal.",
+    "businessTitle": "Personas Empresariales",
+    "personalTitle": "Personas Personales",
+    "versatile": "Versátil",
+    "businessFocused": "Enfoque empresarial",
+    "personalFocused": "Enfoque personal",
+    "perfectFor": "Perfecto para:",
+    
+    "techExpert": "TechExpert",
+    "techExpertDesc": "Preciso, detallado y centrado en lo analítico. Ideal para documentación técnica, especificaciones de productos y análisis de la industria.",
+    "techExpertBusiness": "Documentación, Libros blancos",
+    "techExpertPersonal": "Guías DIY, Blogs técnicos",
+    
+    "executiveBrief": "ExecutiveBrief",
+    "executiveBriefDesc": "Conciso, estratégico y centrado en resultados. Comunica ideas de alto nivel con claridad e impacto.",
+    "executiveBriefBusiness": "Resúmenes ejecutivos, Propuestas",
+    "executiveBriefPersonal": "Planes de proyectos, Briefings de eventos",
+    
+    "marketPro": "MarketPro",
+    "marketProDesc": "Persuasivo, centrado en beneficios y orientado a la conversión. Crea contenido de marketing convincente que impulsa a la acción.",
+    "marketProBusiness": "Emails de ventas, Páginas de destino",
+    "marketProPersonal": "Anuncios de marketplace, Campañas de recaudación",
+    
+    "ariaStar": "AriaStar",
+    "ariaStarDesc": "Amigable, conversacional y atractivo. Crea contenido que se siente personal y conecta emocionalmente con la audiencia.",
+    "ariaStarBusiness": "Emails de generación de leads, Redes sociales",
+    "ariaStarPersonal": "Blogs personales, Boletines informativos",
+    
+    "creativeSpirit": "CreativeSpirit",
+    "creativeSpiritDesc": "Imaginativo, expresivo y vibrante. Aporta un toque creativo al contenido con descripciones ricas y narrativas atractivas.",
+    "creativeSpiritBusiness": "Historias de marca, Descripciones de productos",
+    "creativeSpiritPersonal": "Blogs de viajes, Escritura creativa",
+    
+    "contentCoach": "ContentCoach",
+    "contentCoachDesc": "Colaborativo, instructivo y motivador. Crea contenido que guía, enseña e inspira acción.",
+    "contentCoachBusiness": "Materiales de capacitación, Guías de usuario",
+    "contentCoachPersonal": "Guías paso a paso, Tutoriales",
+    
+    "dataNarratorPro": "DataNarratorPro",
+    "dataNarratorProDesc": "Analítico, perspicaz y basado en evidencia. Transforma datos complejos en narrativas claras y accionables.",
+    "dataNarratorProBusiness": "Informes de datos, Análisis de mercado",
+    "dataNarratorProPersonal": "Resúmenes de investigación, Análisis de tendencias",
+    
+    "storyWeaver": "StoryWeaver",
+    "storyWeaverDesc": "Enfocado en la narrativa, emocionalmente resonante y memorable. Elabora historias cautivadoras que captan la atención y permanecen con la audiencia.",
+    "storyWeaverBusiness": "Storytelling de marca, Casos de estudio",
+    "storyWeaverPersonal": "Historias personales, Ficción creativa",
+    
+    "trendSpotter": "TrendSpotter",
+    "trendSpotterDesc": "Actual, relevante y culturalmente consciente. Crea contenido que conecta con las últimas tendencias manteniendo la autenticidad.",
+    "trendSpotterBusiness": "Informes de tendencias, Campañas sociales",
+    "trendSpotterPersonal": "Contenido de estilo de vida, Comentarios",
+    
+    "customNote": "Cada persona se adapta tanto a contextos empresariales como personales. Elige según tus objetivos de contenido en lugar del caso de uso. Siéntete libre de experimentar con diferentes personas para encontrar tu combinación perfecta."
+  },
+  "infoBanner": {
+    "newUser": "¿Nuevo en DeepContent? Aprende más sobre nuestra plataforma:",
+    "howItWorks": "Cómo Funciona",
+    "appBenefits": "Beneficios de la App"
+  },
+  "contentType": {
+    "defineDetails": "Define los detalles de tu contenido"
+  },
+  "contentCreationSteps": {
+    "researchDescription": "Recopila información y tendencias",
+    "contentDescription": "Crea y edita contenido"
+  },
+  "languageSwitcher": {
+    "improveTranslations": "Ayúdanos a mejorar las traducciones"
+  },
+  "researchPanel": {
+    "title": "Investigación de Contenido",
+    "subtitle": "Reúne información y tendencias para mejorar tu contenido",
+    "topicLabel": "Tema de investigación (opcional)",
+    "searchButton": "Investigar",
+    "topicRequired": "Tema requerido",
+    "enterTopic": "Por favor ingresa un tema para investigar",
+    "initializing": "Inicializando investigación...",
+    "inProgress": "Investigando...",
+    "completed": "Investigación completada",
+    "dataGathered": "Datos de investigación recopilados",
+    "failed": "Investigación fallida",
+    "errorGathering": "Error al recopilar datos de investigación",
+    "researchResults": "Resultados de Investigación",
+    "processing": "Procesando resultados de investigación...",
+    "connecting": "Conectando con servicios de investigación...",
+    "finalizing": "Finalizando resultados de investigación...",
+    "searchPlaceholder": "Si lo dejas vacío, se investigará basado en tu título de contenido y plataforma",
+    "trendingTopics": "Temas Tendencia",
+    "keyPoints": "Puntos Clave a Considerar",
+    "contentSuggestions": "Sugerencias de Contenido"
+  },
+  "firebase": {
+    "auth": {
+      "signIn": "Iniciar Sesión",
+      "signOut": "Cerrar Sesión",
+      "signUp": "Registrarse",
+      "resetPassword": "Restablecer Contraseña",
+      "email": "Correo Electrónico",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar Contraseña",
+      "displayName": "Nombre a Mostrar",
+      "error": "Error de autenticación",
+      "success": "Operación exitosa"
+    },
+    "indexHelper": {
+      "title": "Índice de Firebase Requerido",
+      "description": "Tus consultas de Firebase requieren la creación de índices. Esto es una configuración única.",
+      "createIndex": "Crear",
+      "createAll": "Crear Todos los Índices",
+      "createCommon": "Crear Índices Comunes",
+      "indexCreationStarted": "Creación de índice iniciada en nueva pestaña",
+      "allIndexCreationStarted": "Creación de todos los índices iniciada en nuevas pestañas",
+      "commonIndexesCreated": "Creación de índices comunes iniciada",
+      "learnMore": "Aprende sobre los índices de Firebase"
+    },
+    "errors": {
+      "notFound": "No encontrado",
+      "permissionDenied": "Permiso denegado",
+      "unauthenticated": "No autenticado",
+      "badRequest": "Solicitud incorrecta",
+      "internalError": "Error interno",
+      "networkError": "Error de red",
+      "serverError": "Error del servidor",
+      "missingIndex": "Índice requerido",
+      "requestFailed": "Error en la solicitud"
+    }
+  },
+  "personaDisplayNames": {
+    "ariastar": "AriaStar (Amigo Cercano Confiable)",
+    "specialist_mentor": "MentorPro (Especialista Experto)",
+    "ai_collaborator": "AIInsight (Colaborador IA)",
+    "sustainable_advocate": "EcoEssence (Defensor Sostenible)",
+    "data_visualizer": "DataStory (Visualizador de Datos)",
+    "multiverse_curator": "NexusVerse (Curador Multiverso)",
+    "ethical_tech": "TechTranslate (Tecnología Ética)",
+    "niche_community": "CommunityForge (Comunidad de Nicho)",
+    "synthesis_maker": "SynthesisSage (Creador de Síntesis)",
+    "professional": "Escritor Profesional",
+    "casual": "Escritor Informal",
+    "enthusiastic": "Escritor Entusiasta",
+    "informative": "Escritor Informativo"
+  },
+  "contentTypes": {
+    "social_media": "Publicación en Redes Sociales",
+    "blog_post": "Entrada de Blog",
+    "email": "Correo Electrónico",
+    "video_script": "Guión de Video",
+    "youtube_script": "Guión de YouTube",
+    "educational_youtube_script": "Guión Educativo de YouTube",
+    "vlog_script": "Guión de Vlog",
+    "podcast_script": "Guión de Podcast",
+    "presentation": "Presentación",
+    "google_ads": "Anuncios de Google",
+    "research_report": "Informe de Investigación",
+    "industry_trends_research_report": "Informe de Tendencias de la Industria",
+    "company-blog": "Blog Corporativo",
+    "social_facebook": "Publicación en Facebook",
+    "social_instagram": "Publicación en Instagram",
+    "social_twitter": "Publicación en Twitter",
+    "social_linkedin": "Publicación en LinkedIn",
+    "social_tiktok": "Publicación en TikTok"
+  },
+  "platforms": {
+    "blog": "Blog",
+    "social": "Redes Sociales",
+    "email": "Correo Electrónico",
+    "youtube": "YouTube",
+    "video-script": "Guión de Video",
+    "vlog": "Vlog",
+    "podcast": "Podcast",
+    "presentation": "Presentación",
+    "google-ads": "Anuncios de Google",
+    "research-report": "Informe de Investigación",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "twitter": "Twitter",
+    "linkedin": "LinkedIn",
+    "tiktok": "TikTok",
+    "sales": "Ventas",
+    "business": "Negocios",
+    "executive": "Ejecutivo",
+    "training": "Formación",
+    "investor": "Inversor",
+    "entertainment": "Entretenimiento",
+    "educational": "Educativo",
+    "review": "Reseña",
+    "travel-vlog": "Vlog de Viajes",
+    "daily-vlog": "Vlog Diario",
+    "tutorial-vlog": "Vlog Tutorial",
+    "company-blog": "Blog Corporativo",
+    "company_blog": "Blog de la Compañía",
+    "industry-trends": "Tendencias de la Industria"
+  },
+  "documentAnalysis": {
+    "title": "Análisis de Documentos",
+    "subtitle": "Sube documentos (PDF, Word, Excel, Texto) para analizar y usar en tu investigación.",
+    "dragDrop": "Arrastra y suelta un documento, o haz clic para subir",
+    "supportedFormats": "PDF, Word, Excel, Texto (Máx. 10MB)",
+    "browseFiles": "Explorar Archivos",
+    "processingFile": "Procesando archivo",
+    "retryingUpload": "Reintentando subida",
+    "dropHere": "Suelta para subir",
+    "unsupportedFileType": "Tipo de archivo no compatible. Por favor sube PDF, Word, Excel o documentos de texto.",
+    "fileTooLarge": "Archivo demasiado grande. El tamaño máximo es 10MB.",
+    "uploadSuccess": "Documento subido con éxito",
+    "uploadError": "Error al subir el documento",
+    "processingError": "Error al procesar el documento",
+    "analyzing": "Analizando documento...",
+    "fileProcessed": "Documento procesado exitosamente",
+    "fileReady": "Documento listo para análisis",
+    "contentExtracted": "Contenido extraído del documento",
+    "tryAgain": "Inténtalo de nuevo",
+    "showContent": "Mostrar contenido",
+    "hideContent": "Ocultar contenido",
+    "uploadAnother": "Subir otro documento",
+    "processing": "Procesando documento...",
+    "dragAndDrop": "Arrastra y suelta un documento, o haz clic para subir",
+    "documentContent": "Contenido del Documento",
+    "hide": "Ocultar",
+    "show": "Mostrar",
+    "documentContentForResearch": "Contenido del documento extraído para investigación",
+    "generatedWith": "Generado con DeepContent",
+    "documentAppears": "Este documento parece contener información sobre servicios de internet rural. El contenido formateado se ha utilizado para generar el resumen anterior.",
+    "moreLinesAvailable": "más líneas disponibles en el contenido completo del documento arriba.",
+    "viewFull": "Ver contenido completo del documento arriba haciendo clic en \"Mostrar contenido\"",
+    "binaryData": "Este documento contiene datos binarios que no se pueden mostrar directamente.",
+    "usingSummary": "Se ha generado un resumen en su lugar."
+  },
+  "research": {
+    "buttons": {
+      "copy": "Copiar",
+      "download": "Descargar",
+      "collapse": "Colapsar",
+      "expand": "Expandir"
+    },
+    "copySuccess": "¡Investigación copiada al portapapeles!",
+    "copyError": "Error al copiar. Por favor intenta seleccionar y copiar manualmente."
+  },
+  "websiteAnalysis": {
+    "title": "Análisis de Sitio Web",
+    "description": "Extraer información de sitios web de empresas para mejorar tu investigación.",
+    "urlInputLabel": "URL del sitio web a analizar",
+    "urlInputPlaceholder": "Introduce la URL del sitio web (ej., ejemplo.com)",
+    "crawlOption": "Rastreará enlaces para un análisis completo",
+    "importantPages": "Páginas importantes",
+    "analyzeButton": "Analizar Sitio Web",
+    "websiteContent": "Contenido del Sitio Web",
+    "extractedContent": "Contenido Extraído",
+    "copyAllContent": "Copiar Todo el Contenido",
+    "sampleParagraphs": "Párrafos de Ejemplo",
+    "productSection": "Sección de Productos",
+    "pricingSection": "Sección de Precios",
+    "contactSection": "Sección de Contacto",
+    "sampleHeadings": "Encabezados de Ejemplo",
+    "aboutSection": "Sección Acerca de",
+    "websiteInfo": "Información del Sitio Web",
+    "titleLabel": "Título",
+    "metaDescription": "Meta Descripción",
+    "pagesAnalyzedTitle": "Páginas Analizadas",
+    "analyze": "Analizar Sitio Web",
+    "urlHint": "URL del sitio web a analizar",
+    "crawlLevelInfo": "Rastreará enlaces para un análisis completo",
+    "mainPage": "Página principal",
+    "fullSite": "Sitio completo",
+    "analyzing": "Analizando...",
+    "urlPlaceholder": "Introduce la URL del sitio web (ej., ejemplo.com)",
+    "preview": {
+        "headings": "Vista Previa de Encabezados",
+        "paragraphs": "Vista Previa de Párrafos",
+        "about": "Vista Previa de 'Acerca de'",
+        "more": "...más"
+    }
+  },
+  "translationExample": {
+    "title": "Ejemplo de Componente de Traducción",
+    "description": "Este componente demuestra el uso adecuado de traducciones.",
+    "itemsFound": "Se encontraron {count} elementos",
+    "hasItems": "Elementos disponibles",
+    "noItems": "No hay elementos disponibles",
+    "footer": {
+      "info": "Las claves de traducción están organizadas jerárquicamente",
+      "help": "Esto asegura una organización consistente de las traducciones"
+    }
+  },
+  "user": {
+    "anonymous": "Anónimo"
+  },
+  "actions": {
+    "copyClipboard": "Copiar al Portapapeles",
+    "exportText": "Exportar como Texto",
+    "saveToDashboard": "Guardar en el Panel"
+  },
+  "contentGeneration": {
+    "pageTitle": "Generación de Contenido",
+    "parameters": "Parámetros de Contenido",
+    "settings": "Configuración de Contenido",
+    "contentType": "Tipo de Contenido",
+    "platform": "Plataforma",
+    "targetAudience": "Audiencia Objetivo",
+    "businessType": "Tipo de Negocio",
+    "currentStyle": "Estilo Actual",
+    "length": "Longitud",
+    "medium": "Medio",
+    "short": "Corto",
+    "long": "Largo",
+    "includeCTA": "Incluir CTA", 
+    "includeHashtags": "Incluir Hashtags",
+    "choosePersona": "Elige una Persona IA para tu Contenido",
+    "selectStyleText": "Selecciona el estilo de escritura que mejor se adapte a tus necesidades",
+    "preparingContent": "Preparando tu contenido...",
+    "waitingMessage": "Por favor espera mientras refinamos tu contenido",
+    "refining": "Refinando...",
+    "versionHistory": "Historial de Versiones",
+    "showHistory": "Mostrar Historial",
+    "hideHistory": "Ocultar Historial",
+    "versionNumber": "Versión {{number}} - {{date}}",
+    "personaLabel": "Persona: {{persona}}",
+    "restoreVersion": "Restaurar esta versión",
+    "create": "Crear Contenido",
+    "select": "Selecciona tu contenido",
+    "defineDetails": "Define los detalles de tu contenido",
+    "gather": "Recopila información y tendencias",
+    "createEdit": "Crea y edita contenido",
+    "copyToClipboard": "Copiar al Portapapeles",
+    "exportAsText": "Exportar como Texto",
+    "saveToPanel": "Guardar en el Panel",
+    "creatingWith": "Creando contenido con {persona}..."
+  },
+  "refineContent": {
+    "title": "Refinar Contenido",
+    "promptInstructions": "Instrucciones de Refinamiento",
+    "placeholder": "Ingresa tus instrucciones de refinamiento aquí...",
+    "refineButton": "Refinar"
+  },
+  "personas": {
+    "ariastar": {
+      "description": "Tono amigable y cercano perfecto para redes sociales y blogs"
+    },
+    "specialist_mentor": {
+      "description": "Voz profesional y con autoridad para contenido técnico"
+    },
+    "ai_collaborator": {
+      "description": "Tono balanceado y analítico para investigación e informes"
+    },
+    "sustainable_advocate": {
+      "description": "Voz apasionada por la sostenibilidad y el impacto social"
+    },
+    "data_visualizer": {
+      "description": "Estilo narrativo claro basado en datos"
+    },
+    "multiverse_curator": {
+      "description": "Tono creativo y atractivo para contenido multimedia"
+    },
+    "ethical_tech": {
+      "description": "Voz equilibrada para explicar conceptos técnicos complejos"
+    },
+    "niche_community": {
+      "description": "Tono atractivo para crear comunidad y conexión"
+    },
+    "synthesis_maker": {
+      "description": "Tono perspicaz para conectar ideas entre dominios"
+    }
+  }
+} 

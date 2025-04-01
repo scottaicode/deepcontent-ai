@@ -1,0 +1,33 @@
+{
+  "loading": {
+    "auth": "Authenticating...",
+    "content": "Loading content...",
+    "research": "Loading research data..."
+  },
+  "common": {
+    "backToResearch": "Back to Research",
+    "showMore": "Show More",
+    "copyToClipboard": "Copy to Clipboard",
+    "exportAsText": "Export as Text",
+    "saveToDashboard": "Save to Dashboard"
+  },
+  "contentGeneration": {
+    "loading": "Loading Content Generator",
+    "pleaseWait": "Please wait while we load your research and content details",
+    "choosePersona": "Choose an AI Persona for Your Content",
+    "selectStyle": "Select the writing style that best matches your needs",
+    "generating": "Generating content with",
+    "processingResponse": "Processing response..."
+  },
+  "personaDisplayNames": {
+    "ariastar": "AriaStar (Relatable Best Friend)",
+    "specialist_mentor": "MentorPro (Expert Specialist)",
+    "ai_collaborator": "AIInsight (AI Collaborator)",
+    "sustainable_advocate": "EcoEssence (Sustainable Advocate)",
+    "data_visualizer": "DataStory (Data Visualizer)",
+    "multiverse_curator": "NexusVerse (Multiverse Curator)",
+    "ethical_tech": "TechTranslate (Ethical Tech)",
+    "niche_community": "CommunityForge (Niche Community)",
+    "synthesis_maker": "SynthesisSage (Synthesis Maker)"
+  }
+} 

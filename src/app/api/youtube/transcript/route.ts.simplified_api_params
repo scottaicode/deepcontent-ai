@@ -1,0 +1,291 @@
+/**
+ * API Route for fetching YouTube transcripts using Supadata AI API
+ * 
+ * This implementation uses the Supadata AI API to fetch transcripts from YouTube videos.
+ * For detailed documentation, see: /docs/YouTube-Transcript-Feature.md
+ * 
+ * API Documentation: https://supadata.ai/documentation/youtube/get-transcript
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+
+const SUPADATA_API_URL = 'https://api.supadata.ai/v1/youtube/transcript';
+const SUPADATA_API_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJKV1QiLCJhbGciOiJIUzI1NiIsImtpZCI6IlN1cGFkYXRhIn0.eyJpc3MiOiJuVzQ5MkxNZDkxMDkwZW5mZ0F9hZFJoZEdsYmJsSnN1TYil6jhmOGQ4TkRFeE5reFJWRVF4VFdwb2hGV1lwVTNPRFl6WmpkM04wYVZSamIwOTRXMllzTXpyMFVBWm44QVpVaU9NDGV3QXZzM21DYWZUX01TeTE1QWZoeE40TkRFeE5reFJWRVF4VFdwb2hGV1lwVTNPRFl6WmpKVTNPRFl6WmpOV1Z3WnhZV0ZrYjY0NkxXMVRlVGhVVkF4VVlBWm5PQVpVaU9NZw==';
+
+// Maximum number of retry attempts
+const MAX_RETRY_ATTEMPTS = 3;
+// Delay between retries (in milliseconds)
+const RETRY_DELAY = 1500;
+
+export async function GET(request: NextRequest) {
+  try {
+    // Get the video ID from the query parameters
+    const { searchParams } = new URL(request.url);
+    const videoId = searchParams.get('videoId');
+
+    // Validate the video ID
+    if (!videoId) {
+      return NextResponse.json({ error: 'Missing videoId parameter' }, { status: 400 });
+    }
+
+    console.log(`Processing YouTube transcript request for video ID: ${videoId}`);
+
+    // Construct the video URL for the API request if needed
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    
+    // Make the API call to Supadata with retry logic
+    let data;
+    try {
+      console.log('Using Supadata API to fetch transcript');
+      data = await fetchWithRetry(videoId, videoUrl);
+      
+      if (!data) {
+        return NextResponse.json({ error: 'Failed to fetch transcript after multiple attempts' }, { status: 500 });
+      }
+    } catch (error: any) {
+      console.error('Error fetching transcript:', error);
+      return NextResponse.json({ error: `Failed to fetch transcript: ${error.message}` }, { status: 500 });
+    }
+
+    // Process the transcript data to include the full text as a string for easy handling
+    let transcript = '';
+    
+    if (data.content && Array.isArray(data.content)) {
+      // If content is an array of segments, join them
+      transcript = data.content.map((segment: any) => segment.text).join(' ');
+    } else if (typeof data.content === 'string') {
+      // If content is already a string, use it directly
+      transcript = data.content;
+    } else if (data.transcript && typeof data.transcript === 'string') {
+      // If transcript field is available, use it
+      transcript = data.transcript;
+    } else {
+      console.error('Unexpected response format:', data);
+      return NextResponse.json(
+        { error: 'Unexpected response format from transcript service' },
+        { status: 500 }
+      );
+    }
+    
+    console.log('Successfully fetched YouTube transcript');
+    if (data.lang) console.log('Transcript language:', data.lang);
+    
+    // Return the transcript data with the full text included
+    return NextResponse.json({
+      ...data,
+      transcript
+    }, { status: 200 });
+  } catch (error: any) {
+    console.error('Error in YouTube transcript API route:', error);
+    return NextResponse.json(
+      { error: `Failed to fetch transcript: ${error.message}` },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Fetch from Supadata API with retry logic
+ */
+async function fetchWithRetry(videoId: string, videoUrl: string, attempt = 0): Promise<any> {
+  try {
+    console.log(`Attempting to fetch transcript (attempt ${attempt + 1}/${MAX_RETRY_ATTEMPTS + 1})`);
+    console.log(`Video ID: ${videoId}, Video URL: ${videoUrl}`);
+    console.log(`API Key: ${SUPADATA_API_KEY ? SUPADATA_API_KEY.substring(0, 10) + '...' : 'Not available'}`);
+    
+    // Construct the API URL with the videoId parameter
+    const apiUrl = new URL(SUPADATA_API_URL);
+    
+    // Always use videoId parameter per Supadata documentation
+    apiUrl.searchParams.append('videoId', videoId);
+    apiUrl.searchParams.append('text', 'true'); // Request plain text for easier processing
+    
+    console.log(`Making request to: ${apiUrl.toString()}`);
+    console.log(`API Key available: ${SUPADATA_API_KEY ? 'Yes' : 'No'}`);
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'DeepContent-App/1.0'
+    };
+    
+    // Always use x-api-key header based on Supadata documentation
+    if (SUPADATA_API_KEY) {
+      headers['x-api-key'] = SUPADATA_API_KEY;
+      console.log('Using x-api-key header');
+    }
+    
+    console.log('Request headers prepared');
+    
+    const response = await fetch(apiUrl.toString(), {
+      method: 'GET',
+      headers,
+      // Add shorter timeout to prevent hanging requests
+      signal: AbortSignal.timeout(15000) // 15 second timeout
+    });
+
+    console.log('Supadata API response status:', response.status);
+    
+    if (!response.ok) {
+      console.error(`Error from Supadata API: ${response.status} ${response.statusText}`);
+      
+      let errorData;
+      try {
+        const errorText = await response.text();
+        console.error(`Error response text: ${errorText}`);
+        
+        try {
+          // Try to parse as JSON if possible
+          errorData = JSON.parse(errorText);
+          console.error('Parsed error data:', errorData);
+        } catch {
+          // If not JSON, just use the text
+          errorData = { message: errorText };
+        }
+      } catch (e) {
+        console.error('Could not read error response:', e);
+        errorData = { message: 'Unknown error' };
+      }
+      
+      // If we haven't reached max attempts, retry
+      if (attempt < MAX_RETRY_ATTEMPTS) {
+        console.log(`Retrying in ${RETRY_DELAY}ms...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchWithRetry(videoId, videoUrl, attempt + 1);
+      }
+      
+      // If we've exhausted retries, throw an error with details
+      const errorMessage = errorData?.message || `API error: ${response.status} ${response.statusText}`;
+      throw new Error(errorMessage);
+    }
+
+    let data;
+    try {
+      const responseText = await response.text();
+      console.log('Response text (first 100 chars):', responseText.substring(0, 100));
+      
+      try {
+        data = JSON.parse(responseText);
+        console.log('Successfully parsed API response');
+        
+        // According to the documentation, when text=true, the response will have:
+        // {
+        //   "content": string,         // The transcript text
+        //   "lang": string,            // ISO 639-1 language code
+        //   "availableLangs": string[] // List of available languages
+        // }
+        if (!data.content && typeof responseText === 'string' && responseText.trim()) {
+          // If parsing succeeded but content is missing, maybe the response is the content itself
+          data = { content: responseText };
+        }
+      } catch (jsonError) {
+        console.error('JSON parse error:', jsonError);
+        console.error('Response was not valid JSON, returning raw text');
+        // If it's not JSON but we got a 200 OK, maybe it's just the transcript text directly
+        return { content: responseText };
+      }
+    } catch (textError) {
+      console.error('Error reading response text:', textError);
+      throw new Error('Error reading response from transcript service');
+    }
+    
+    console.log('Supadata API returned successful response');
+    return data;
+  } catch (error: any) {
+    console.error(`Error fetching from Supadata API (attempt ${attempt + 1}):`, error);
+    
+    // If we haven't reached max attempts, retry
+    if (attempt < MAX_RETRY_ATTEMPTS) {
+      console.log(`Retrying in ${RETRY_DELAY}ms...`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return fetchWithRetry(videoId, videoUrl, attempt + 1);
+    }
+    
+    // If we've exhausted retries, throw the error
+    throw error;
+  }
+}
+
+/**
+ * Generate simulated transcript data for development/testing purposes
+ * This provides an extended simulation with more content for better testing
+ */
+function getSimulatedTranscriptData(videoId: string) {
+  // Create a simulated transcript specific to the given video ID
+  // This makes the simulation more realistic by returning different content for different videos
+  const isTechVideo = videoId.length % 2 === 0; // Just a simple way to vary content
+  
+  // Create a title based on the video ID to personalize the simulation
+  const videoTitle = isTechVideo ? 
+    "Building Modern Applications with AI Assistance" : 
+    "Understanding Business Requirements for Software Development";
+  
+  console.log(`Generating simulated transcript for "${videoTitle}" (ID: ${videoId})`);
+  
+  // Create intro segments with video-specific content
+  const intro = [
+    {
+      text: `Welcome to this video about ${isTechVideo ? 'coding with AI assistance' : 'developing business applications'}. I'm excited to share some insights with you today.`,
+      offset: 0,
+      duration: 5000,
+      lang: "en"
+    },
+    {
+      text: `In this tutorial, we'll explore ${isTechVideo ? 'how AI tools can accelerate development' : 'how to properly gather and understand business requirements'}.`,
+      offset: 5000,
+      duration: 4500,
+      lang: "en"
+    },
+    {
+      text: `I'll show you practical examples that you can apply to your own ${isTechVideo ? 'coding projects' : 'business analysis work'} right away.`,
+      offset: 9500,
+      duration: 4000,
+      lang: "en"
+    }
+  ];
+  
+  // Create several more content segments
+  const mainContent = [];
+  for (let i = 0; i < 20; i++) {
+    mainContent.push({
+      text: `${isTechVideo ? 
+        'Using AI tools like GitHub Copilot and Claude can significantly improve your productivity by helping with code generation, debugging, and optimization.' : 
+        'Understanding the business domain is critical before writing any code. You need to speak the language of your stakeholders to properly translate their needs into technical requirements.'}`,
+      offset: 15000 + (i * 8000),
+      duration: 6000,
+      lang: "en"
+    });
+  }
+  
+  // Add a video-specific conclusion
+  const conclusion = [
+    {
+      text: `To summarize, ${isTechVideo ? 
+        'AI tools should be part of every modern developer\'s toolkit, but remember that they\'re just tools that enhance your skills, not replace them.' : 
+        'Taking the time to fully understand business requirements at the beginning will save you countless hours of rework and frustration later.'}`,
+      offset: 180000,
+      duration: 6000,
+      lang: "en"
+    },
+    {
+      text: "Thanks for watching this tutorial. If you found it helpful, please subscribe for more content like this.",
+      offset: 186000,
+      duration: 5000,
+      lang: "en"
+    }
+  ];
+  
+  // Combine all sections
+  const simulatedContent = [
+    ...intro,
+    ...mainContent,
+    ...conclusion
+  ];
+
+  return {
+    videoId: videoId,
+    title: videoTitle,
+    lang: "en",
+    content: simulatedContent
+  };
+} 

@@ -1,0 +1,1851 @@
+/**
+ * Research Page Component
+ * 
+ * This page displays research options for content generation. Users can choose between:
+ * 1. Using Perplexity Deep Research to generate basic research
+ * 2. Using trending topics from Reddit and RSS feeds
+ * 
+ * After initial research, users can generate deeper analysis with Claude 3.7 Sonnet.
+ */
+
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import AppShell from '../../../components/AppShell';
+import { TrendingTopic } from '@/app/lib/api/trendingTypes';
+import { TrendingResult } from '@/app/lib/api/trendingService';
+import { generateResearch } from '@/app/lib/api/trendService';
+import ReactMarkdown from 'react-markdown';
+import ApiKeySetupGuide from '../../../components/ApiKeySetupGuide';
+import ContentTypeRecommendations from '@/components/ContentTypeRecommendations';
+import { toast } from 'react-hot-toast';
+import { MODEL_CONFIG, getProcessDescription } from '@/app/lib/modelConfig';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import { IconArrowDown, IconArrowRight } from '@tabler/icons-react';
+
+// Add back the ResearchResults interface at the top level
+interface ResearchResults {
+  researchMethod: 'perplexity' | 'trending' | 'claude';
+  perplexityResearch?: string;
+  trendingTopics?: TrendingTopic[];
+  dataSources?: {
+    reddit: boolean;
+    rss: boolean;
+  };
+  claudeResearch?: string;
+}
+
+// Add ContentDetails interface definition
+interface ContentDetails {
+  contentType: string;
+  researchTopic: string;
+  businessType: string;
+  targetAudience: string;
+  audienceNeeds: string;
+  platform: string;
+  subPlatform: string;
+  primarySubject?: string;    // Add back primarySubject
+  subjectDetails?: string;    // Add back subjectDetails
+  youtubeTranscript?: string; // YouTube transcript
+  youtubeUrl?: string;        // YouTube URL
+}
+
+/**
+ * Fetch trending topics from the API based on business type
+ */
+async function fetchTrendingTopics(businessType: string, sources: string[] = ['rss']): Promise<TrendingResult> {
+  try {
+    // Build sources parameter - default to RSS
+    const sourcesParam = sources.length > 0 
+      ? sources.join(',') 
+      : 'rss'; // Default to RSS if none selected
+    
+    // Fetch trending topics with real data only
+    const response = await fetch(`/api/trending?businessType=${encodeURIComponent(businessType)}&sources=${sourcesParam}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const errorMessage = errorData?.error || `Failed to fetch trending topics: ${response.status}`;
+      throw new Error(errorMessage);
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error fetching trending topics:', error);
+    throw error;
+  }
+}
+
+/**
+ * Simulate Deep Research with Claude 3.7 Sonnet
+ * Makes an API call to our Claude research endpoint
+ */
+async function generateDeepResearch(
+  topic: string, 
+  context: string,
+  additionalTopics?: TrendingTopic[]
+): Promise<string> {
+  try {
+    const response = await fetch('/api/claude/research', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        topic,
+        context,
+        trendingTopics: additionalTopics || []
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || 'Failed to generate deep research');
+    }
+    
+    const data = await response.json();
+    return data.research;
+  } catch (error: any) {
+    console.error('Error generating deep research:', error);
+    throw new Error('Failed to generate research with Claude 3.7 Sonnet: ' + error.message);
+  }
+}
+
+async function generatePerplexityResearch(
+  topic: string,
+  context: string,
+  sources?: string[]
+): Promise<string> {
+  try {
+    console.log('Calling Perplexity research API with:', { 
+      topic, 
+      context,
+      sources: sources || [] 
+    });
+    
+    // Validate topic to ensure it's not empty
+    if (!topic || topic.trim() === '') {
+      throw new Error('Empty research topic provided to Perplexity API');
+    }
+    
+    const response = await fetch('/api/perplexity/research', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        topic: topic.trim(), // Ensure clean topic
+        context: context.trim(),
+        sources: sources || []
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.research) {
+      throw new Error('No research content returned from Perplexity API');
+    }
+    
+    return data.research;
+  } catch (error) {
+    console.error('Error generating Perplexity research:', error);
+    throw error;
+  }
+}
+
+export default function ResearchPage() {
+  const router = useRouter();
+  const { t } = useTranslation();
+  
+  // State variables
+  const [currentStep, setCurrentStep] = useState(1);
+  const [contentDetails, setContentDetails] = useState<ContentDetails | null>(null);
+  const [selectedResearchMethods, setSelectedResearchMethods] = useState<string[]>(['perplexity']);
+  const [researchStep, setResearchStep] = useState(1);
+  const [showResearchResults, setShowResearchResults] = useState(true);
+  
+  // State for Perplexity research
+  const [basicResearch, setBasicResearch] = useState<string | null>(null);
+  const [deepResearch, setDeepResearch] = useState<string | null>(null);
+  const [showFullResearch, setShowFullResearch] = useState(false);
+  
+  // Add loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  
+  // Add missing state variables for trending topics
+  const [trendingResult, setTrendingResult] = useState<TrendingResult | null>(null);
+  const [selectedTopics, setSelectedTopics] = useState<TrendingTopic[]>([]);
+  
+  // State for follow-up questions
+  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
+  const [selectedFollowUpQuestions, setSelectedFollowUpQuestions] = useState<string[]>([]);
+  const [followUpAnswers, setFollowUpAnswers] = useState<string[]>(['', '', '']);
+  const [showFollowUpQuestions, setShowFollowUpQuestions] = useState(false);
+  const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
+  
+  // Add state for API setup guide
+  const [showApiSetupGuide, setShowApiSetupGuide] = useState(false);
+  const [apiTypeToSetup, setApiTypeToSetup] = useState<'anthropic' | 'perplexity'>('anthropic');
+  
+  // Add the missing state variables
+  const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['reddit', 'rss']);
+  const [selectedTrendingTopics, setSelectedTrendingTopics] = useState<TrendingTopic[]>([]);
+  const [selectedTrendingSources, setSelectedTrendingSources] = useState<string[]>(['rss']);
+  
+  // Add state for preview connections
+  const [topicConnections, setTopicConnections] = useState<{ [key: string]: string }>({});
+  const [showingConnections, setShowingConnections] = useState(false);
+  
+  // Add a ref to track if we're already fetching trending topics
+  const isFetchingTrendingRef = useRef(false);
+  
+  // Add this near the top of your component, with other state declarations
+  const [isGenerateDeepResearchDebounced, setIsGenerateDeepResearchDebounced] = useState(false);
+  
+  // Add a state to track if we're in personal mode
+  const [isPersonalUseCase, setIsPersonalUseCase] = useState<boolean>(false);
+  
+  // Add a state for retry count
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const MAX_RETRIES = 2; // Maximum number of automatic retries
+  
+  // Add a controller ref at the component level
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Add research results state
+  const [researchResults, setResearchResults] = useState<{
+    claudeResearch?: string;
+    perplexityResearch?: string;
+    researchMethod?: 'claude' | 'perplexity';
+  }>({});
+  
+  // Initialize content details from URL or session storage
+  useEffect(() => {
+    // Only try to load content details if in the browser environment
+    if (typeof window !== 'undefined') {
+      try {
+        const savedContentDetails = sessionStorage.getItem('contentDetails');
+        if (savedContentDetails) {
+          const parsedContentDetails = JSON.parse(savedContentDetails);
+          
+          // Build a safe object with fallbacks for all required fields
+          const safeContentDetails = {
+            researchTopic: 
+              parsedContentDetails.researchTopic || 
+              parsedContentDetails.primarySubject || 
+              parsedContentDetails.topic || 
+              'content creation',
+            businessType: parsedContentDetails.businessType || '',
+            targetAudience: parsedContentDetails.targetAudience || '',
+            audienceNeeds: parsedContentDetails.audienceNeeds || '',
+            platform: parsedContentDetails.platform || '',
+            contentType: parsedContentDetails.contentType || '',
+            subPlatform: parsedContentDetails.subPlatform || '',
+            isPersonalUseCase: detectPersonalUseCase(parsedContentDetails.researchTopic || parsedContentDetails.primarySubject || ''),
+            primarySubject: parsedContentDetails.primarySubject || parsedContentDetails.researchTopic || '',
+            subjectDetails: parsedContentDetails.subjectDetails || '',
+            youtubeTranscript: parsedContentDetails.youtubeTranscript || '',
+            youtubeUrl: parsedContentDetails.youtubeUrl || ''
+          };
+          
+          // Update state with validated content details
+          setContentDetails(safeContentDetails);
+        }
+      } catch (error) {
+        // Silent fail - default values will be used
+      }
+    }
+  }, []);
+  
+  // Add this right after the useEffect for initializing content details
+  // This will check the URL for a query parameter specifying which step to show
+
+  useEffect(() => {
+    // Only try to parse URL params in the browser environment
+    if (typeof window !== 'undefined') {
+      // Get the step from the URL query parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const stepParam = urlParams.get('step');
+      
+      if (stepParam) {
+        const parsedStep = parseInt(stepParam, 10);
+        // Only set the step if it's valid (1-5)
+        if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
+          setResearchStep(parsedStep);
+        }
+      }
+    }
+  }, []);
+  
+  // Function to generate follow-up questions
+  // Now using AI to generate truly tailored questions
+  const generateFollowUpQuestions = async () => {
+    if (!contentDetails) return;
+    
+    setIsLoading(true);
+    setError(''); // Clear any previous errors
+    
+    try {
+      // Prepare request payload
+      const payload = {
+        ...contentDetails,
+        isPersonalUseCase: detectPersonalUseCase(contentDetails.researchTopic)
+      };
+      
+      const response = await fetch('/api/claude/questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate follow-up questions');
+      }
+      
+      const data = await response.json();
+      
+      if (data.questions && Array.isArray(data.questions)) {
+        setFollowUpQuestions(data.questions);
+        setResearchStep(2); // Use the correct state setter
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error: any) {
+      setError(`Failed to generate questions: ${error.message}`);
+      toast.error(error.message || 'Failed to generate follow-up questions');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Add a useEffect to log step changes for debugging
+  useEffect(() => {
+    console.log(`[DEBUG] Research step changed to: ${researchStep}`);
+    console.log(`[DEBUG] Deep research data present: ${!!deepResearch}`);
+    console.log(`[DEBUG] Is generating: ${isGenerating}`);
+    console.log(`[DEBUG] Error state: ${error ? 'Yes' : 'No'}`);
+  }, [researchStep, deepResearch, isGenerating, error]);
+  
+  // Handle fetching data based on selected research method
+  const fetchInitialResearch = async () => {
+    try {
+      console.log('Fetching initial research...');
+      setIsLoading(true);
+      
+      const context = `Target Audience: ${safeContentDetails.targetAudience || 'general'}, Content Type: ${safeContentDetails.contentType || 'article'}, Platform: ${safeContentDetails.platform || 'general'}`;
+      
+      // Use perplexity for initial research with empty sources array
+      const sources: string[] = [];
+      
+      // Make call with proper parameters
+      const research = await generatePerplexityResearch(
+        safeContentDetails.researchTopic || '',
+        context,
+        sources
+      );
+      
+      setBasicResearch(research);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching initial research:', error);
+      setIsLoading(false);
+    }
+  };
+  
+  // Add a useEffect to automatically transition to step 3 when research is complete
+  useEffect(() => {
+    if (deepResearch && !isGenerating) {
+      console.log('Auto-transitioning to research complete step');
+      
+      // Use a slight delay to ensure UI is updated
+      const timer = setTimeout(() => {
+        setResearchStep(3);
+        // Make sure we save the research results again just in case
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+        console.log('Research step set to 3 (complete) and data saved');
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [deepResearch, isGenerating]);
+  
+  // Update the handleGenerateDeepResearch function to focus just on Perplexity
+  const handleGenerateDeepResearch = async () => {
+    // Prevent multiple simultaneous calls using debounce
+    if (isGenerating || isGenerateDeepResearchDebounced) {
+      console.log('[DEBUG] Skipping research generation - already in progress');
+      return;
+    }
+    
+    console.log('[DEBUG] Button clicked! Starting research generation');
+    alert('Starting research generation with Claude 3.7 Sonnet');
+    
+    try {
+      // Set debounce flag to prevent multiple calls
+      setIsGenerateDeepResearchDebounced(true);
+      
+      console.log('[DEBUG] Starting deep research generation');
+      setIsLoading(true);
+      setIsGenerating(true);
+      setStatusMessage('Generating deep analysis with Claude 3.7 Sonnet...');
+      setGenerationProgress(0);
+      
+      // Use optional chaining for all contentDetails access
+      const topic = safeContentDetails.primarySubject || safeContentDetails.businessType || '';
+      
+      console.log('[DEBUG] Research topic:', topic);
+      
+      if (!topic) {
+        throw new Error('No research topic specified');
+      }
+      
+      // Build base context without trending topics
+      const baseContext = `Target Audience: ${safeContentDetails.targetAudience || 'general audience'}, 
+                         Audience Needs: ${safeContentDetails.audienceNeeds || 'not specified'}, 
+                         Content Type: ${safeContentDetails.contentType || 'social-media'}, 
+                         Platform: ${safeContentDetails.platform || 'facebook'}`;
+      
+      // Generate research with Claude
+      setStatusMessage(t('researchPage.progress.starting', { service: 'Claude 3.7 Sonnet' }));
+      setGenerationProgress(40);
+      
+      console.log('[DEBUG] Making API call to Claude research endpoint');
+      
+      // Call the Claude research API without trending topics
+      const response = await fetch('/api/claude/research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic,
+          context: baseContext,
+          // Remove trending topics param
+        }),
+      });
+      
+      console.log('[DEBUG] Claude API response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(e => {
+          console.error('[DEBUG] Error parsing error response:', e);
+          return { error: 'Unknown error parsing response' };
+        });
+        console.error('[DEBUG] API error response:', errorData);
+        throw new Error(errorData.error || `Failed to generate research: Status ${response.status}`);
+      }
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('[DEBUG] Received research data:', data ? 'Data exists' : 'No data');
+        if (data && data.research) {
+          console.log('[DEBUG] Research data first 100 chars:', data.research.substring(0, 100));
+        } else {
+          console.error('[DEBUG] Missing research in response data:', data);
+        }
+      } catch (parseError) {
+        console.error('[DEBUG] Error parsing success response:', parseError);
+        throw new Error('Failed to parse API response');
+      }
+      
+      // Store the complete research
+      if (data && data.research) {
+        setDeepResearch(data.research);
+        console.log('[DEBUG] Set deep research complete!');
+        // Save to session storage as well for redundancy
+        sessionStorage.setItem('deepResearch', data.research);
+        
+        // Move to research step 3
+        setResearchStep(3);
+      } else {
+        throw new Error('Research data missing from API response');
+      }
+      
+    } catch (error: any) {
+      console.error('[DEBUG] Error generating deep research:', error);
+      // Display user-friendly error
+      const errorMessage = `Failed to generate research: ${error.message || 'Unknown error'}`;
+      setError(errorMessage);
+      alert(errorMessage);
+      
+    } finally {
+      setIsLoading(false);
+      setIsGenerating(false);
+      // Clear the debounce flag after a short delay
+      setTimeout(() => {
+        setIsGenerateDeepResearchDebounced(false);
+      }, 500);
+    }
+  };
+
+  // Helper function to build research context - simplified without trending data
+  const buildResearchContext = (trendingData: TrendingResult | null, selectedTopicsList?: TrendingTopic[]) => {
+    // Base context from content details with optional chaining
+    const baseContext = `Target Audience: ${safeContentDetails?.targetAudience || 'general audience'}, 
+                       Audience Needs: ${safeContentDetails?.audienceNeeds || 'not specified'}, 
+                       Content Type: ${safeContentDetails?.contentType || 'social-media'}, 
+                       Platform: ${safeContentDetails?.platform || 'facebook'}`;
+    
+    return baseContext;
+  };
+  
+  // Handle fetching trending topics when user switches to trending mode
+  useEffect(() => {
+    const fetchTrending = async () => {
+      // Check if we should fetch trending topics and aren't already fetching
+      if (
+        selectedResearchMethods.includes('trending') && 
+        !trendingResult && 
+        contentDetails?.businessType && // Use optional chaining
+        researchStep === 2 && 
+        !isFetchingTrendingRef.current
+      ) {
+        try {
+          // Set the ref to true to prevent multiple fetches
+          isFetchingTrendingRef.current = true;
+          setIsLoading(true);
+          setError(null);
+          
+          // Use optional chaining consistently
+          const businessType = contentDetails?.businessType || '';
+          console.log('Fetching trending topics for:', businessType, 'with sources:', selectedTrendingSources);
+          const result = await fetchTrendingTopics(businessType, selectedTrendingSources);
+          console.log('Trending topics result:', result);
+          setTrendingResult(result);
+        } catch (err: any) {
+          console.error('Failed to fetch trending topics:', err);
+          setError(err.message || 'Failed to fetch trending topics');
+        } finally {
+          setIsLoading(false);
+          // Always reset the ref after fetch completes (success or error)
+          isFetchingTrendingRef.current = false;
+        }
+      }
+    };
+    
+    fetchTrending();
+  }, [selectedResearchMethods, contentDetails?.businessType, researchStep, selectedTrendingSources, trendingResult]); // Use optional chaining in dependency array
+  
+  // Toggle topic selection
+  const toggleTopicSelection = (topic: TrendingTopic) => {
+    if (selectedTopics.some(t => t.title === topic.title)) {
+      const newTopics = selectedTopics.filter(t => t.title !== topic.title);
+      setSelectedTopics(newTopics);
+      // Save to session storage
+      sessionStorage.setItem('selectedTrendingTopics', JSON.stringify(newTopics));
+    } else {
+      const newTopics = [...selectedTopics, topic];
+      setSelectedTopics(newTopics);
+      // Save to session storage
+      sessionStorage.setItem('selectedTrendingTopics', JSON.stringify(newTopics));
+    }
+  };
+  
+  // Update the toggleResearchMethod function to better support multiple selections
+  const toggleResearchMethod = (method: string) => {
+    // If it's already selected, remove it unless it's the only one selected
+    if (selectedResearchMethods.includes(method)) {
+      if (selectedResearchMethods.length > 1) {
+        setSelectedResearchMethods(selectedResearchMethods.filter(m => m !== method));
+      }
+    } else {
+      // Add the method
+      setSelectedResearchMethods([...selectedResearchMethods, method]);
+      
+      // If this is trending method, reset any previous trending results to force a new fetch
+      if (method === 'trending') {
+        setTrendingResult(null);
+        setSelectedTopics([]);
+        // Reset the fetching flag just in case it got stuck
+        isFetchingTrendingRef.current = false;
+      }
+    }
+  };
+  
+  // Reset to step 1
+  const handleReset = () => {
+    // Reset state variables
+    setResearchStep(1);
+    setTrendingResult(null);
+    setSelectedTopics([]);
+    setBasicResearch(null);
+    setDeepResearch(null);
+    setShowFullResearch(false);
+    setFollowUpQuestions([]);
+    setSelectedFollowUpQuestions([]);
+    setFollowUpAnswers(['', '', '']);
+    setShowFollowUpQuestions(false);
+    setFollowUpSubmitted(false);
+    setShowApiSetupGuide(false);
+    setError(null);
+  };
+
+  // Add this function near the other utilities to provide a fallback research result
+  const getFallbackResearch = (topic: string, businessType: string): string => {
+    // Check if the topic is about cooking chicken
+    if (topic?.toLowerCase().includes('chicken') && topic?.toLowerCase().includes('cook')) {
+      return `# Research on Cooking Chicken Perfectly for Viewers
+
+## Overview
+
+Cooking chicken perfectly for a viewing audience requires a balance of technical cooking knowledge, presentation skills, and understanding viewer expectations. Here's a summary of key points to consider:
+
+### Essential Cooking Techniques for Chicken
+
+1. **Temperature Control**
+   - Chicken breasts: Cook to 165°F (74°C) internal temperature
+   - Chicken thighs: Best at 175°F (80°C) for tenderness
+   - Whole chicken: Breast to 165°F, thighs to 175°F
+   - Resting period: 5-10 minutes to redistribute juices
+
+2. **Preparation Methods**
+   - Brining: 4% salt solution for 30 minutes to 2 hours improves moisture retention
+   - Dry brining: Salt chicken and let it rest uncovered in refrigerator 4-24 hours
+   - Spatchcocking: Removing backbone and flattening for even cooking
+   - Pounding breasts to even thickness prevents dry edges
+
+3. **Popular Cooking Methods**
+   - Pan-searing: High heat to develop crust, medium to finish
+   - Oven-roasting: 375-425°F depending on cut
+   - Grilling: Direct heat for smaller pieces, indirect for larger cuts
+   - Air frying: 370°F for 20-25 minutes for juicy results
+   - Sous vide: 145-155°F for supremely juicy results (still requires finishing sear)
+
+### Visual Presentation for Viewers
+
+1. **Camera-Ready Techniques**
+   - Color development: Enhance browning with honey or sugar in marinades
+   - Garnishing: Fresh herbs added at the end for vibrant color contrast
+   - Plating: White plates show off golden chicken best
+   - Lighting: Side lighting shows texture better than overhead
+
+2. **Demonstration Elements**
+   - "Doneness check" moments create tension and educational value
+   - Cutting into chicken to show juiciness is essential viewer satisfaction
+   - Steam rising from freshly cooked chicken signals success visually
+   - Audio of crispy skin or juicy interior adds sensory engagement
+
+### Viewer Expectations and Preferences
+
+1. **Common Pain Points**
+   - Fear of undercooked chicken (show temperature checks)
+   - Dry, overcooked results (emphasize moisture preservation techniques)
+   - Bland flavor (demonstrate layering of seasonings)
+   - Inconsistent results (explain principles, not just recipes)
+
+2. **Trending Preferences**
+   - Health-conscious methods: Air fryer and sheet pan meals
+   - Global flavors: Beyond basic recipes to international techniques
+   - Time-saving techniques: One-pan or make-ahead components
+   - Budget considerations: Making the most of whole chickens
+
+## Next Steps
+
+You can proceed to content creation using this information as a foundation. When creating your content, focus on:
+- Demonstrating clear visual cues for perfectly cooked chicken
+- Explaining the "why" behind techniques, not just instructions
+- Addressing common viewer concerns about food safety
+- Incorporating personality and unique approaches to stand out
+
+Need to generate more specific content? Try again with a more specific focus on the type of chicken dish or cooking method you want to feature.`;
+    } else if (isPersonalUseCase) {
+      // Existing personal use case fallback
+      return `# Research Results for ${topic || safeContentDetails.businessType || 'Your Topic'}
+
+## Overview
+Due to a technical issue, we couldn't generate a complete research report. Here's some general information that might be helpful:
+
+### Key Points About ${topic || safeContentDetails.businessType || 'This Topic'}
+- This would typically include relevant information and insights on your topic
+- Reader interests and preferences would be detailed here
+- Similar content and inspiration would be presented
+- Current best practices would be outlined
+
+## Next Steps
+You can still proceed to content creation and our AI will help you generate content based on:
+- Your topic: ${topic || safeContentDetails.businessType || 'Not specified'}
+- Your target readers: ${safeContentDetails.targetAudience || 'General audience'}
+- Your content type: ${safeContentDetails.contentType || 'Not specified'}
+
+## Try Again Later
+If you'd like complete research, please try again later when our research service is back online.
+`;
+    } else {
+      // Existing business use case fallback
+      return `# Research Results for ${topic || safeContentDetails.businessType || 'Your Topic'}
+
+## Overview
+Due to a technical issue, we couldn't generate a complete research report. Here's some general information that might be helpful:
+
+### Key Points About ${topic || safeContentDetails.businessType || 'This Topic'}
+- This would typically include market trends and analysis
+- Audience demographics and preferences would be detailed here
+- Competitive landscape information would be presented
+- Current industry best practices would be outlined
+
+## Next Steps
+You can still proceed to content creation and our AI will help you generate content based on:
+- Your provided subject: ${topic || safeContentDetails.businessType || 'Not specified'}
+- Your target audience: ${safeContentDetails.targetAudience || 'General audience'}
+- Your content type: ${safeContentDetails.contentType || 'Not specified'}
+
+## Try Again Later
+If you'd like complete research, please try again later when our research service is back online.
+`;
+    }
+  };
+
+  // Update this useEffect to handle empty research results
+  useEffect(() => {
+    // Add more verbose logging for debugging purposes
+    console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
+    
+    // Check state changes that should trigger a transition
+    if (deepResearch && researchStep < 4) {
+      console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
+      
+      // Move to research step 4 (results) directly if we have data
+      const timer = setTimeout(() => {
+        console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
+        setResearchStep(4);
+        
+        // Save research results for redundancy
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Also transition if generation has stopped but we're still in step 2
+    if ((isGenerating === false) && deepResearch && researchStep === 2) {
+      console.log('[DEBUG TRANSITION] Generation complete but still in step 2');
+      
+      // Use a slight delay to ensure UI is updated
+      const timer = setTimeout(() => {
+        console.log('[DEBUG TRANSITION] Moving from step 2 to step 4 with research data');
+        setResearchStep(4);
+        
+        // Make sure we save the research results
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [deepResearch, isGenerating, researchStep]);
+
+  // Add handler for follow-up answer changes
+  const handleFollowUpChange = (index: number, value: string) => {
+    const newAnswers = [...followUpAnswers];
+    newAnswers[index] = value;
+    setFollowUpAnswers(newAnswers);
+  };
+
+  // Handle proceeding from follow-up questions to research generation
+  const handleProceedToResearch = () => {
+    setFollowUpSubmitted(true);
+    setShowFollowUpQuestions(false);
+    
+    // Process follow-up answers if they exist
+    let enrichedSubject = safeContentDetails.researchTopic || '';
+    let enrichedDetails = safeContentDetails.audienceNeeds || '';
+    
+    if (followUpAnswers.some(answer => answer.trim() !== '')) {
+      // Combine original topic with follow-up answers to create enriched information
+      const relevantAnswers = followUpAnswers.filter(a => a.trim() !== '');
+      
+      if (relevantAnswers.length > 0) {
+        // Use the additional context from answers
+        const additionalContext = relevantAnswers.join('. ');
+        enrichedDetails = enrichedDetails 
+          ? `${enrichedDetails}. ${additionalContext}` 
+          : additionalContext;
+            
+        // Update content details with enriched information
+        setContentDetails({
+          ...safeContentDetails,
+          primarySubject: enrichedSubject,
+          subjectDetails: enrichedDetails
+        });
+        
+        // Save to session storage
+        sessionStorage.setItem('contentDetails', JSON.stringify({
+          ...safeContentDetails,
+          primarySubject: enrichedSubject,
+          subjectDetails: enrichedDetails
+        }));
+      }
+    }
+    
+    // Move to research generation step
+    setResearchStep(3);
+  };
+
+  // Add a better error display component for API quota issues
+  // First, add a state variable to track if the error is specifically an API quota issue
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+
+  // Update the handleDeepAnalysisClick function to use the controller ref
+  const handleDeepAnalysisClick = async () => {
+    // Prevent multiple simultaneous calls
+    if (isGenerating) {
+      console.log('[DEBUG] Already generating, ignoring click');
+      return;
+    }
+    
+    // Create an AbortController for the fetch request
+    abortControllerRef.current = new AbortController();
+    const fetchTimeoutId = setTimeout(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    }, 360000); // 6 minute timeout (360 seconds)
+    
+    try {
+      console.log('[DEBUG] Starting deep analysis click handler');
+      setIsLoading(true);
+      setIsGenerating(true);
+      setError(null);
+      setStatusMessage('Preparing research request...');
+      setGenerationProgress(5);
+      
+      // Build context for research
+      const context = `Target Audience: ${safeContentDetails?.targetAudience || 'general audience'}, 
+                      Audience Needs: ${safeContentDetails?.audienceNeeds || 'not specified'}, 
+                      Content Type: ${safeContentDetails?.contentType || 'social-media'}, 
+                      Platform: ${safeContentDetails?.platform || 'facebook'}`;
+      
+      setStatusMessage('Connecting to research service...');
+      setGenerationProgress(10);
+      
+      // Call the Perplexity API
+      console.log('[DEBUG] Calling Perplexity API...');
+      setStatusMessage('Generating research with Perplexity...');
+      setGenerationProgress(15);
+      
+      // Create a periodic progress update - slower increments for longer research time
+      const progressIntervalId = setInterval(() => {
+        setGenerationProgress((prev) => {
+          // More gradual progress increase up to 95%
+          if (prev < 95) {
+            // Calculate a smaller increment to spread progress over ~6 minutes
+            // About 1-3% increase every 10 seconds
+            const increment = Math.random() * 2 + 1;
+            return Math.min(95, prev + increment);
+          }
+          return prev;
+        });
+        
+        const messages = [
+          'Researching latest information...',
+          'Analyzing relevant data...',
+          'Finding expert recommendations...',
+          'Gathering engagement data...',
+          'Compiling best practices...',
+          'Exploring current trends...',
+          'Researching audience preferences...',
+          'Evaluating content formats...',
+          'Identifying key insights...',
+          'Organizing research findings...',
+          'Finalizing research document...',
+          'Almost done...',
+        ];
+        
+        const randomIndex = Math.floor(Math.random() * messages.length);
+        setStatusMessage(messages[randomIndex]);
+      }, 10000); // Update every 10 seconds
+      
+      // Call Perplexity API
+      const perplexityData = await fetch('/api/perplexity/research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic: safeContentDetails?.researchTopic || '',
+          context,
+          sources: ['recent', 'scholar', 'news']
+        }),
+        signal: abortControllerRef.current?.signal
+      });
+      
+      // Clear the progress interval
+      clearInterval(progressIntervalId);
+      
+      if (!perplexityData.ok) {
+        const errorData = await perplexityData.json().catch(() => ({}));
+        throw new Error(errorData.error || `Perplexity API error: Status ${perplexityData.status}`);
+      }
+      
+      const data = await perplexityData.json();
+      
+      console.log('[DEBUG] Perplexity API response received');
+      
+      if (data && data.research) {
+        // Store results and move to next step
+        setResearchResults({
+          perplexityResearch: data.research,
+          researchMethod: 'perplexity'
+        });
+        setDeepResearch(data.research);
+        setResearchStep(4);
+      } else {
+        throw new Error('No research in response');
+      }
+    } catch (error: any) {
+      console.error('[DEBUG] Error in handleDeepAnalysisClick:', error);
+      
+      // Check for abort/timeout errors
+      const isTimeoutError = error.name === 'AbortError' || 
+                          error.message?.includes('timeout') || 
+                          error.message?.includes('Timeout');
+      
+      // Create a user-friendly error message
+      const errorMessage = isTimeoutError 
+        ? 'Research generation timed out. Please try again.'
+        : `Error: ${error.message || 'Unknown error'}`;
+      
+      // Display error to user
+      setError(errorMessage);
+      alert(errorMessage);
+    } finally {
+      // Always cleanup
+      setIsLoading(false);
+      setIsGenerating(false);
+      clearTimeout(fetchTimeoutId);
+    }
+  };
+
+  // Add a function to handle cancellation
+  const handleCancelResearch = () => {
+    if (abortControllerRef.current) {
+      console.log('[DEBUG] User canceled research generation');
+      abortControllerRef.current.abort();
+      
+      // Set a specific error message for cancellation
+      setError('Research generation was canceled by user.');
+      
+      // Do not use fallback research
+      
+      // Reset states
+      setIsLoading(false);
+      setIsGenerating(false);
+    }
+  };
+
+  // Next, update the button text to be clearer about what happens next
+  // Use this in all the Generate buttons throughout the file
+  const getActionButtonText = () => {
+    // For Perplexity research
+    if (needsPerplexityResearch) {
+      return "Run Perplexity Deep Research";
+    }
+    return "Generate Research with Perplexity";
+  };
+
+  // Update the main research button
+  const mainResearchButton = () => (
+    <div className="mt-6">
+      <button
+        id="research-button"
+        onClick={handleDeepAnalysisClick}
+        className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm font-semibold"
+      >
+        {getActionButtonText()}
+      </button>
+    </div>
+  );
+
+  // Add a useEffect to load saved trending topics on initial load
+  useEffect(() => {
+    // Restore selected trending topics from session storage if they exist
+    const savedSelectedTopics = sessionStorage.getItem('selectedTrendingTopics');
+    if (savedSelectedTopics) {
+      try {
+        const parsedTopics = JSON.parse(savedSelectedTopics);
+        if (Array.isArray(parsedTopics) && parsedTopics.length > 0) {
+          setSelectedTopics(parsedTopics);
+          console.log('[DEBUG] Restored selected trending topics from session storage:', parsedTopics.length);
+        }
+      } catch (error) {
+        console.error('[DEBUG] Error parsing saved trending topics:', error);
+      }
+    }
+  }, []);
+
+  // Add a useEffect to handle research step transitions and ensure topics are preserved
+  useEffect(() => {
+    // When moving to step 3 (results view), ensure selected topics are restored if needed
+    if (researchStep === 3 && selectedTopics.length === 0) {
+      // Try to restore from session storage
+      const savedTopics = sessionStorage.getItem('selectedTrendingTopics');
+      if (savedTopics) {
+        try {
+          const parsedTopics = JSON.parse(savedTopics);
+          if (Array.isArray(parsedTopics) && parsedTopics.length > 0) {
+            setSelectedTopics(parsedTopics);
+            console.log('[DEBUG] Restored topics when moving to step 3:', parsedTopics.length);
+          }
+        } catch (error) {
+          console.error('[DEBUG] Error parsing saved topics during step transition:', error);
+        }
+      }
+    }
+  }, [researchStep]);
+
+  // Function to proceed to content creation with research data
+  const proceedToContentCreation = async () => {
+    try {
+      console.log('Proceeding to content creation with research data');
+      
+      // Get the current user from Firebase Auth
+      const { auth } = await import('@/lib/firebase/firebase');
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        console.error('User not authenticated. Cannot save research data.');
+        toast.error('You must be logged in to save research data. Please log in and try again.');
+        return;
+      }
+      
+      // Create a research data object to save to Firebase
+      const researchData = {
+        topic: safeContentDetails.researchTopic || '',
+        contentType: safeContentDetails.contentType || 'article',
+        platform: safeContentDetails.platform || 'website',
+        targetAudience: safeContentDetails.targetAudience || 'general audience',
+        businessType: safeContentDetails.businessType || '',
+        research: deepResearch || '',
+        youtubeTranscript: safeContentDetails.youtubeTranscript || '',
+        youtubeUrl: safeContentDetails.youtubeUrl || '',
+        userId: currentUser.uid,
+        createdAt: new Date().toISOString(),
+      };
+      
+      console.log('Saving research data to session storage:', researchData);
+      
+      // Save to session storage for the content creation page
+      sessionStorage.setItem('researchData', JSON.stringify(researchData));
+      
+      // Save to Firebase Firestore
+      try {
+        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase/firebase');
+        
+        console.log('Saving research data to Firestore...');
+        const docRef = await addDoc(collection(db, 'research'), {
+          ...researchData,
+          createdAt: serverTimestamp(),
+        });
+        
+        console.log('Research data saved to Firestore with ID:', docRef.id);
+        
+        // Update session storage with the document ID
+        const updatedResearchData = {
+          ...researchData,
+          id: docRef.id
+        };
+        sessionStorage.setItem('researchData', JSON.stringify(updatedResearchData));
+        
+        toast.success('Research data saved successfully');
+      } catch (firestoreError) {
+        console.error('Error saving research data to Firestore:', firestoreError);
+        // Continue with navigation even if Firestore save fails
+        // The data is still in session storage
+      }
+      
+      // Set research step to 5 (Content Creation) to update the progress indicator
+      setResearchStep(5);
+      
+      // Add a slight delay to allow the UI to update before navigation
+      setTimeout(() => {
+        // Navigate to content creation page
+        router.push('/create/content');
+      }, 300);
+    } catch (error) {
+      console.error('Error proceeding to content creation:', error);
+      toast.error('Failed to proceed to content creation. Please try again.');
+    }
+  };
+  
+  // Function to start the research process
+  const handleStartResearch = async () => {
+    // Validate required fields
+    if (!safeContentDetails.researchTopic) {
+      setError('Please enter a research topic');
+      return;
+    }
+    
+    if (!safeContentDetails.targetAudience) {
+      setError('Please enter a target audience');
+      return;
+    }
+    
+    // Clear any previous errors
+    setError(null);
+    
+    try {
+      // Generate follow-up questions based on initial input
+      generateFollowUpQuestions();
+      
+      // Move to step 2 (follow-up questions)
+      setResearchStep(2);
+    } catch (error) {
+      console.error('Error starting research:', error);
+      setError(`Failed to start research: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Function to detect if the context appears to be personal rather than business
+  const detectPersonalUseCase = (topic: string): boolean => {
+    if (!topic) return false;
+    
+    const topicLower = topic.toLowerCase();
+    
+    // Business-oriented keywords - check these first
+    const businessKeywords = [
+      'business', 'company', 'corporate', 'enterprise', 'organization', 'industry', 'professional',
+      'commercial', 'b2b', 'b2c', 'client', 'customer', 'product', 'service', 'market', 'sales',
+      'revenue', 'profit', 'management', 'strategy', 'brand', 'marketing', 'advertising', 'commerce',
+      'retail', 'wholesale', 'startup', 'entrepreneur', 'investor', 'finance', 'investment',
+      'telecom', 'provider', 'isp', 'internet service', 'broadband', 'fiber', 'network', 
+      'connectivity', 'telecommunications', 'data service', 'wireless', 'rural internet',
+      'mbps', 'gigabit', 'bandwidth', 'enterprise', 'customer service', 'pricing', 'plans',
+      'packages', 'business solution', 'corporate solution', 'competitor', 'industry'
+    ];
+    
+    // Check for business indicators first
+    const hasBusinessIndicator = businessKeywords.some(keyword => 
+      topicLower.includes(keyword)
+    );
+    
+    // If it has business indicators, it's not personal
+    if (hasBusinessIndicator) {
+      return false;
+    }
+    
+    // Personal-oriented keywords - only check if no business keywords found
+    const personalKeywords = [
+      'personal', 'family', 'hobby', 'home', 'travel', 'lifestyle', 'vacation', 
+      'wedding', 'birthday', 'celebration', 'recipe', 'cooking', 'fitness',
+      'workout', 'diet', 'meditation', 'mindfulness', 'parenting', 'education',
+      'learning', 'study', 'school', 'college', 'university', 'dating', 'relationship',
+      'self-improvement', 'poetry', 'writing', 'novel', 'book', 'reading', 'art',
+      'drawing', 'painting', 'music', 'instrument', 'gardening', 'photography'
+    ];
+    
+    // Look for personal keywords in the topic
+    const hasPersonalIndicator = personalKeywords.some(keyword => 
+      topicLower.includes(keyword)
+    );
+    
+    return hasPersonalIndicator;
+  };
+
+  // Update effect to detect personal use case when topic changes
+  useEffect(() => {
+    if (contentDetails?.researchTopic) {
+      const isPersonal = detectPersonalUseCase(contentDetails.researchTopic);
+      setIsPersonalUseCase(isPersonal);
+    }
+  }, [contentDetails?.researchTopic]);
+
+  // Add at the start of the ResearchPage component, after initializing state variables
+  
+  // Add a comprehensive null check for all contentDetails operations
+  const safeContentDetails = contentDetails || {
+    contentType: 'social-media',
+    platform: 'facebook',
+    subPlatform: '', // Add missing field
+    targetAudience: 'general audience',
+    audienceNeeds: '',
+    businessType: '',
+    researchTopic: '',
+    primarySubject: '',
+    subjectDetails: '',
+    youtubeTranscript: '', // Add missing field
+    youtubeUrl: ''         // Add missing field
+  };
+  
+  // Use safeContentDetails instead of contentDetails throughout the component
+  // This ensures we always have default values instead of null
+
+  // Render the content for Step 1 (Research Setup)
+  const renderStep1Content = () => {
+    return (
+      <div className="space-y-8">
+        <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
+          <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-gray-100">
+            Research Setup
+          </h3>
+          
+          <div className="space-y-6">
+            {/* Subject Information */}
+            <div className="space-y-4">
+              <h4 className="text-md font-medium">Subject Information</h4>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Research Topic <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={safeContentDetails.researchTopic || ''}
+                  onChange={(e) => setContentDetails({...safeContentDetails, researchTopic: e.target.value})}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
+                  placeholder="Enter your research topic"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  What would you like to research? Be specific for better results.
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {isPersonalUseCase ? "Category or Context" : "Business Type"}
+                </label>
+                <input
+                  type="text"
+                  value={safeContentDetails.businessType || ''}
+                  onChange={(e) => setContentDetails({...safeContentDetails, businessType: e.target.value})}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
+                  placeholder={isPersonalUseCase 
+                    ? "E.g., Hobby, Education, Personal Development" 
+                    : "E.g., SaaS, E-commerce, Local Business"}
+                />
+                
+                {/* Add mode indicator */}
+                <div className="mt-2 flex items-center">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    isPersonalUseCase 
+                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                  }`}>
+                    <svg className="mr-1.5 h-2 w-2" fill="currentColor" viewBox="0 0 8 8">
+                      <circle cx="4" cy="4" r="3" />
+                    </svg>
+                    {isPersonalUseCase ? 'Personal Use Mode' : 'Business Use Mode'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPersonalUseCase(!isPersonalUseCase)}
+                    className="ml-2 text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  >
+                    Switch to {isPersonalUseCase ? 'Business' : 'Personal'} Mode
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Audience Information */}
+            <div className="space-y-4">
+              <h4 className="text-md font-medium">
+                {isPersonalUseCase ? "Reader Information" : "Audience Information"}
+              </h4>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {isPersonalUseCase ? "Target Readers" : "Target Audience"} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={safeContentDetails.targetAudience || ''}
+                  onChange={(e) => setContentDetails({...safeContentDetails, targetAudience: e.target.value})}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
+                  placeholder={isPersonalUseCase 
+                    ? "E.g., Friends, Family, Community members, Fellow enthusiasts" 
+                    : "E.g., Marketing Professionals, Small Business Owners"}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {isPersonalUseCase ? "Reader Interests" : "Audience Needs"}
+                </label>
+                <textarea
+                  value={safeContentDetails.audienceNeeds || ''}
+                  onChange={(e) => setContentDetails({...safeContentDetails, audienceNeeds: e.target.value})}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
+                  placeholder={isPersonalUseCase
+                    ? "What are your readers interested in learning about?"
+                    : "What does your audience need to know?"}
+                  rows={3}
+                />
+              </div>
+            </div>
+            
+            {/* Content Type */}
+            <div className="space-y-4">
+              <h4 className="text-md font-medium">Content Information</h4>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Content Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={safeContentDetails.contentType || 'social-media'}
+                  onChange={(e) => setContentDetails({...safeContentDetails, contentType: e.target.value})}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
+                >
+                  <option value="social-media">Social Media Post</option>
+                  <option value="blog-post">Blog Post</option>
+                  <option value="email">{isPersonalUseCase ? "Email/Newsletter" : "Email"}</option>
+                  <option value="video-script">{isPersonalUseCase ? "Video Script/Vlog" : "Video Script"}</option>
+                </select>
+              </div>
+              
+              {safeContentDetails.contentType === 'social-media' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Platform
+                  </label>
+                  
+                  {/* Display platform as read-only text instead of dropdown */}
+                  <div className="flex items-center justify-between">
+                    <div className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700/50">
+                      {safeContentDetails.platform 
+                        ? (
+                            <div className="flex items-center">
+                              <span className="font-medium">{
+                                safeContentDetails.platform.charAt(0).toUpperCase() + 
+                                safeContentDetails.platform.slice(1)
+                              }</span>
+                              <span className="ml-2 text-xs italic text-gray-500">
+                                (pre-selected from previous step)
+                              </span>
+                            </div>
+                          )
+                        : 'No platform selected'
+                      }
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* YouTube Transcript Analysis - Always available for all content types */}
+              
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+                  YouTube Transcript Feature Moved
+                </h4>
+                <p className="text-sm text-blue-700 dark:text-blue-400 mb-4">
+                  The YouTube transcript feature is now available on the first page of content creation for easier access.
+                </p>
+                
+                {safeContentDetails.youtubeTranscript && (
+                  <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                    <p className="text-xs text-green-700 dark:text-green-400">
+                      <span className="font-semibold">Transcript included:</span> The transcript from {safeContentDetails.youtubeUrl} has been included in your research.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* YouTube transcript feature message */}
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 text-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">YouTube Transcript Feature</h3>
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      The YouTube transcript feature is now available on the first page of the content creation process.
+                      {safeContentDetails.youtubeTranscript && (
+                        <> Your transcript from <strong>{safeContentDetails.youtubeUrl}</strong> has been included in your research.</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Show successful transcript inclusion if available */}
+              {safeContentDetails.youtubeTranscript && (
+                <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 text-green-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-green-800 dark:text-green-300">YouTube Transcript Included</h3>
+                      <p className="text-xs text-green-700 dark:text-green-400">
+                        Transcript from {safeContentDetails.youtubeUrl} has been included in your research parameters.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Navigation buttons */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={handleStartResearch}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                disabled={!safeContentDetails.researchTopic || !safeContentDetails.targetAudience}
+              >
+                Start Research
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render the content for Step 2 (Follow-up Questions)
+  const renderFollowUpQuestionsContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Generating tailored questions...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8">
+          <div className="text-center mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-2">Question Generation Failed</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              The Claude API could not generate follow-up questions. Please check your API configuration or try again.
+            </p>
+            <button
+              onClick={() => generateFollowUpQuestions()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => router.push('/create')}
+              className="px-4 py-2 ml-4 border border-gray-300 text-gray-700 dark:text-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Back to Content Setup
+            </button>
+          </div>
+        </div>
+      );
+    }
+    
+    if (!followUpQuestions || followUpQuestions.length === 0) {
+      return (
+        <div className="text-center p-8">
+          <p className="text-gray-600 dark:text-gray-400">No follow-up questions available. Please try generating them again.</p>
+          <button
+            onClick={() => generateFollowUpQuestions()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Generate Questions
+          </button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-8">
+        <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
+          <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-gray-100">
+            Help Us Understand Your Needs Better
+          </h3>
+          
+          <div className="space-y-6">
+            {/* Add a summary of current content details */}
+            <div className="mb-6 rounded-md bg-gray-50 p-4 dark:bg-gray-700/50">
+              <h4 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Your Content Summary
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Content Type:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.contentType === 'social-media' 
+                      ? 'Social Media Post' 
+                      : safeContentDetails.contentType === 'blog-post'
+                        ? 'Blog Post'
+                        : safeContentDetails.contentType === 'email'
+                          ? isPersonalUseCase ? 'Email/Newsletter' : 'Email'
+                          : safeContentDetails.contentType === 'video-script'
+                            ? isPersonalUseCase ? 'Video Script/Vlog' : 'Video Script'
+                            : safeContentDetails.contentType || 'Not specified'}
+                  </span>
+                </div>
+                {safeContentDetails.contentType === 'social-media' && (
+                  <div>
+                    <span className="font-medium text-gray-600 dark:text-gray-400">Platform:</span>{' '}
+                    <span className="text-gray-800 dark:text-gray-200">
+                      {safeContentDetails.platform 
+                        ? safeContentDetails.platform.charAt(0).toUpperCase() + 
+                          safeContentDetails.platform.slice(1)
+                        : 'Not specified'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Target Audience:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.targetAudience || 'Not specified'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Research Topic:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.researchTopic || 'Not specified'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Please answer these follow-up questions to help us generate more tailored research for <span className="font-medium">{safeContentDetails.researchTopic || 'your topic'}</span>.
+            </p>
+            
+            {followUpQuestions.map((question, index) => (
+              <div key={index} className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {question}
+                </label>
+                <textarea
+                  value={followUpAnswers[index] || ''}
+                  onChange={(e) => handleFollowUpChange(index, e.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
+                  placeholder="Your answer"
+                  rows={2}
+                />
+              </div>
+            ))}
+            
+            <div className="mt-6 flex justify-end space-x-4">
+              <button
+                onClick={() => router.push('/create')}
+                className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+              >
+                Back to Content Setup
+              </button>
+              
+              <button
+                onClick={handleProceedToResearch}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              >
+                Proceed to Research
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render the content for Step 3 (Research Generation)
+  const renderStep3Content = () => {
+    return (
+      <div className="space-y-8">
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Generate Detailed Research
+          </h3>
+          
+          {/* Your Content Summary section */}
+          <div className="mb-6">
+            <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3">
+              Your Content Summary
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 dark:bg-blue-900/20 rounded-md p-4 border border-blue-100 dark:border-blue-800">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Content Type: {safeContentDetails.contentType}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Research Topic: {safeContentDetails.researchTopic}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Target Audience: {safeContentDetails.targetAudience}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* API Quota Error Message - Only show if quota is exceeded */}
+          {isQuotaExceeded && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                    API Usage Quota Exceeded
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                    <p>Your API usage quota has been exceeded. This typically happens when:</p>
+                    <ul className="mt-1 list-disc pl-5 space-y-1">
+                      <li>You've reached your plan's request limit</li>
+                      <li>There are temporary rate limits on the research API</li>
+                      <li>Your API key needs to be refreshed or updated</li>
+                    </ul>
+                    <p className="mt-2">Please check your Supadata account or wait until the quota resets to try again.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Regular error display for other errors */}
+          {error && !isQuotaExceeded && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                    Research Generation Error
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                    <p>{error}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Research Information section */}
+          <div className="mb-6">
+            <h4 className="mb-2 text-md font-medium">Research Information</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              We'll use Perplexity Deep Research to generate detailed, high-quality research for your content.
+              This research will form the foundation of your content creation process.
+            </p>
+          </div>
+          
+          <div className="flex justify-between pt-4">
+            <button 
+              onClick={() => setResearchStep(2)}
+              className="px-6 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md transition-colors"
+              disabled={isGenerating}
+            >
+              Back
+            </button>
+            
+            <button
+              onClick={handleDeepAnalysisClick}
+              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              disabled={isLoading || isGenerating}
+            >
+              {isGenerating ? (
+                <div className="flex items-center space-x-2">
+                  <span className="animate-spin">⏳</span>
+                  <span>Generating Research...</span>
+                </div>
+              ) : (
+                'Generate Research'
+              )}
+            </button>
+          </div>
+        </div>
+        
+        {/* Progress indicator during generation */}
+        {isGenerating && (
+          <div className="mt-4 rounded-lg bg-white p-6 shadow-sm border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress: {Math.round(generationProgress)}%</span>
+                <div className="flex items-center space-x-3">
+                  {retryCount > 0 && (
+                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                      Retry {retryCount}/{MAX_RETRIES}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleCancelResearch}
+                    className="rounded bg-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div 
+                  className="absolute h-2 rounded-full bg-blue-600 transition-all duration-500 ease-out"
+                  style={{ width: `${generationProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {statusMessage || 'Generating research...'}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render the content for Step 4 (Research Results)
+  const renderStep4Content = () => {
+    // Use the existing deepResearch state variable
+    const research = deepResearch || '';
+    
+    return (
+      <div className="mb-12">
+        <h2 className="text-2xl md:text-3xl font-bold mb-4">Research Results</h2>
+        <div className="bg-white rounded-lg p-6 shadow-lg mb-6">
+          <h3 className="text-xl font-semibold mb-4">Generated Research</h3>
+          
+          {/* Display loading state if needed */}
+          {!research && <p className="text-gray-500">Loading research results...</p>}
+          
+          {/* Display the actual research content */}
+          {research && (
+            <div className="prose max-w-none">
+              <ReactMarkdown>{research}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+        
+        <div className="mt-6 flex space-x-4">
+          <button
+            onClick={() => setResearchStep(3)}
+            className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          >
+            Back
+          </button>
+          <button
+            onClick={proceedToContentCreation}
+            className="rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 flex items-center"
+          >
+            Proceed to Content Creation
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Inside the ResearchPage component, add the needsPerplexityResearch variable
+  const [researchMethod, setResearchMethod] = useState<'perplexity' | 'trending' | 'claude' | null>(null);
+
+  // Get perplexityResearch from results BEFORE using it
+  const perplexityResearch = researchResults?.perplexityResearch;
+  
+  // Now we can safely use perplexityResearch
+  const needsPerplexityResearch = selectedResearchMethods.includes('perplexity') && !perplexityResearch;
+
+  return (
+    <AppShell>
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <h1 className="mb-8 text-2xl font-bold text-gray-900 dark:text-white">
+          Research
+        </h1>
+        
+        {/* Research Steps - Update to include follow-up questions step */}
+        <div className="mb-8">
+          <ol className="flex items-center">
+            {[1, 2, 3, 4, 5].map((step) => (
+              <li 
+                key={step} 
+                className={`flex items-center ${step < 5 ? 'w-full' : ''}`}
+              >
+                <span 
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+                    researchStep >= step 
+                      ? 'border-indigo-600 bg-indigo-600 text-white' 
+                      : 'border-gray-300 bg-white text-gray-500'
+                  }`}
+                >
+                  {step}
+                </span>
+                {step < 5 && (
+                  <div className="h-0.5 w-full bg-gray-200 dark:bg-gray-700">
+                    <div 
+                      className="h-0.5 bg-indigo-600 transition-all duration-500 ease-in-out" 
+                      style={{ 
+                        width: researchStep > step ? '100%' : '0%',
+                      }}
+                    ></div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+          
+          <div className="mt-2 flex justify-between text-sm">
+            <span className={researchStep >= 1 ? 'text-indigo-600' : 'text-gray-500'}>
+              Initial Setup
+            </span>
+            <span className={researchStep >= 2 ? 'text-indigo-600' : 'text-gray-500'}>
+              Follow-up Questions
+            </span>
+            <span className={researchStep >= 3 ? 'text-indigo-600' : 'text-gray-500'}>
+              Generate Research
+            </span>
+            <span className={researchStep >= 4 ? 'text-indigo-600' : 'text-gray-500'}>
+              Research Results
+            </span>
+            <span className={researchStep >= 5 ? 'text-indigo-600' : 'text-gray-500'}>
+              Create Content
+            </span>
+          </div>
+        </div>
+        
+        {/* Step Content - Update to include follow-up questions step */}
+        <div className="mt-8">
+          {researchStep === 1 && renderStep1Content()}
+          {researchStep === 2 && renderFollowUpQuestionsContent()}
+          {researchStep === 3 && renderStep3Content()}
+          {researchStep === 4 && renderStep4Content()}
+        </div>
+      </div>
+    </AppShell>
+  );
+} 

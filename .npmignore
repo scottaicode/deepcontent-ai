@@ -1,0 +1,6 @@
+.git
+.gitignore
+.husky
+.githooks
+.git/hooks/
+node_modules 

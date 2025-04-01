@@ -1,0 +1,6 @@
+Known Build Issues:
+1. ESLint warnings about React useEffect dependencies in various files
+2. Unescaped entities in some files (react/no-unescaped-entities)
+3. Missing alt attributes on some img tags
+4. Recommendations to use next/image instead of img tags
+Note: These issues don't affect functionality but should be addressed for code quality.

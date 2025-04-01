@@ -1,0 +1,296 @@
+/**
+ * YouTubeTranscriptInput.tsx
+ * Component for inputting YouTube URLs and fetching transcripts
+ * 
+ * This component provides a user interface for fetching transcripts from YouTube videos.
+ * It uses the Supadata AI API via our internal API endpoint.
+ * 
+ * For detailed documentation, see: /docs/YouTube-Transcript-Feature.md
+ */
+
+'use client';
+
+import React, { useState } from 'react';
+import { isValidYouTubeUrl, fetchYouTubeTranscript, extractYouTubeVideoId } from '@/app/lib/services/YouTubeTranscriptService';
+import { useToast } from '@/lib/hooks/useToast';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import { Loader2, Play, Sparkles, Youtube } from 'lucide-react';
+
+interface YouTubeTranscriptInputProps {
+  url: string;
+  onUrlChange: (url: string) => void;
+  onTranscriptFetched: (transcript: string, videoUrl: string) => void;
+  transcript: string;
+  showFullTranscript: boolean;
+  onToggleTranscript: () => void;
+}
+
+export default function YouTubeTranscriptInput({
+  url,
+  onUrlChange,
+  onTranscriptFetched,
+  transcript,
+  showFullTranscript,
+  onToggleTranscript
+}: YouTubeTranscriptInputProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const { t } = useTranslation();
+  const [error, setError] = useState('');
+  const [showApiKeyInfo, setShowApiKeyInfo] = useState(false);
+  
+  const getErrorMessage = (err: any): string => {
+    const msg = err.message || 'Unknown error occurred';
+    
+    if (msg.includes('transcript-unavailable') || 
+        msg.includes('No transcript is available')) {
+      return 'This video does not have a transcript available. Please try a different video that has captions enabled.';
+    }
+    
+    if (msg.includes('API configuration error') || 
+        msg.includes('Missing API key') || 
+        msg.includes('No valid access key') ||
+        msg.includes('Authentication failed') ||
+        msg.includes('403')) {
+      setShowApiKeyInfo(true);
+      return 'API key error: A valid Supadata API key is required to use this feature.';
+    }
+    
+    if (msg.includes('Network error') || 
+        msg.includes('Failed to fetch') || 
+        msg.includes('Unable to connect') ||
+        msg.includes('internet connection')) {
+      return 'Unable to connect to the transcript service. Please check your internet connection and try again.';
+    }
+    
+    if (msg.includes('No transcript available')) {
+      return 'This video does not have a transcript available. Please try a different video that has captions.';
+    }
+    
+    if (msg.includes('Invalid YouTube URL')) {
+      return 'Please enter a valid YouTube video URL (e.g., https://www.youtube.com/watch?v=XXXXXX).';
+    }
+    
+    // For unexpected errors, give a more detailed message to help with debugging
+    return `Error: ${msg}. Please try again or contact support if the issue persists.`;
+  };
+  
+  const handleFetchTranscript = async () => {
+    if (!url) return;
+    
+    setIsLoading(true);
+    setError('');
+    setShowApiKeyInfo(false);
+    
+    try {
+      // Validate URL format
+      if (!isValidYouTubeUrl(url)) {
+        throw new Error('Invalid YouTube URL. Please enter a valid YouTube video link.');
+      }
+      
+      const videoId = extractYouTubeVideoId(url);
+      console.log('Fetching transcript for video ID:', videoId);
+      
+      // Use the GET endpoint with videoId parameter
+      const response = await fetch(`/api/youtube/transcript?videoId=${videoId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Error fetching transcript: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Process the transcript - check for error messages in the content
+      if (data.content && typeof data.content === 'string' && data.content.includes('"error"')) {
+        try {
+          // Try to parse error information from content
+          const errorInfo = JSON.parse(data.content);
+          if (errorInfo.error) {
+            throw new Error(errorInfo.message || errorInfo.error);
+          }
+        } catch (parseError) {
+          // If we can't parse it, just continue with the content as is
+          console.warn('Could not parse potential error in content:', parseError);
+        }
+      }
+      
+      // Process the transcript
+      let transcriptText = '';
+      
+      if (data.transcript) {
+        // If the API returns a transcript field directly
+        transcriptText = data.transcript;
+      } else if (data.content && Array.isArray(data.content)) {
+        // If the API returns content as an array of segments
+        transcriptText = data.content
+          .map((item: any) => item.text)
+          .join(' ')
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .trim();
+      } else if (typeof data.content === 'string') {
+        // If content is already a string
+        transcriptText = data.content;
+      } else {
+        throw new Error('Unexpected response format from transcript service');
+      }
+      
+      if (!transcriptText || transcriptText.length < 10) {
+        throw new Error('Transcript is too short or empty');
+      }
+      
+      console.log('Transcript fetched successfully');
+      
+      // Format the transcript with video info if available
+      const formattedTranscript = formatTranscript(transcriptText, data.lang, url);
+      
+      // Call the callback with the transcript and URL
+      onTranscriptFetched(formattedTranscript, url);
+      
+      // Clear the input field after successful fetch
+      onUrlChange('');
+      
+    } catch (err: any) {
+      console.error('Error fetching transcript:', err);
+      setError(getErrorMessage(err));
+      toast({
+        title: 'Error fetching transcript',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Helper to create a nicely formatted transcript with metadata
+  const formatTranscript = (text: string, lang?: string, url?: string): string => {
+    const videoId = url ? extractYouTubeVideoId(url) : null;
+    const langInfo = lang ? ` (${lang.toUpperCase()})` : '';
+    
+    // Create a formatted transcript with metadata - use translations
+    return `## ${t('youtubeTranscript.title', { defaultValue: 'YouTube Transcript' })}${langInfo}
+${t('youtubeTranscript.source', { defaultValue: 'Source' })}: ${url || t('common.notSpecified', { defaultValue: 'Unknown source' })}
+${videoId ? `${t('youtubeSection.videoId', { defaultValue: 'Video ID' })}: ${videoId}` : ''}
+
+${text}
+
+[${t('youtubeTranscript.endOfTranscript', { defaultValue: 'End of Transcript' })}]`;
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && url && !isLoading) {
+      e.preventDefault();
+      handleFetchTranscript();
+    }
+  };
+  
+  return (
+    <div>
+      <div className="flex items-center space-x-3 mb-4">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => onUrlChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={t('createPage.youtubeSection.urlPlaceholder', { defaultValue: 'Paste YouTube URL here (e.g., https://www.youtube.com/watch?v=...)' })}
+            className="w-full px-4 py-2.5 pl-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+          />
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 dark:text-red-400">
+            <Youtube size={18} />
+          </div>
+        </div>
+        
+        <button
+          onClick={handleFetchTranscript}
+          disabled={isLoading || !url}
+          className="inline-flex items-center justify-center px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+        >
+          {isLoading ? (
+            <span className="flex items-center">
+              <Loader2 className="animate-spin mr-2 h-4 w-4" />
+              {t('common.loading', { defaultValue: 'Loading...' })}
+            </span>
+          ) : (
+            <>
+              <Play className="mr-2 h-4 w-4" />
+              {t('createPage.youtubeSection.addTranscript', { defaultValue: 'Add Transcript' })}
+            </>
+          )}
+        </button>
+      </div>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 text-sm">
+          <p className="flex items-center">
+            <svg className="h-4 w-4 mr-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            {error}
+          </p>
+        </div>
+      )}
+      
+      {showApiKeyInfo && (
+        <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-800 dark:text-yellow-300 text-sm">
+          <p>
+            {t('youtubeTranscript.apiKeyMissing', {
+              defaultValue: 'An API key is required for this feature. Please contact your administrator for support.'
+            })}
+          </p>
+        </div>
+      )}
+      
+      {transcript && (
+        <div className="mt-5 transition-all duration-300">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center">
+              <Sparkles className="h-4 w-4 mr-2" />
+              {t('createPage.youtubeSection.transcriptPreview', { defaultValue: 'Transcript Preview' })}
+            </h4>
+            <button
+              onClick={onToggleTranscript}
+              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            >
+              {showFullTranscript ? t('createPage.youtubeSection.showLess', { defaultValue: 'Show Less' }) : t('createPage.youtubeSection.showMore', { defaultValue: 'Show More' })}
+            </button>
+          </div>
+          <div className="bg-gradient-to-r from-blue-50/50 to-white border border-blue-100 rounded-xl p-4 max-h-60 overflow-y-auto dark:from-blue-900/10 dark:to-gray-800 dark:border-blue-900/30">
+            <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-line">
+              {showFullTranscript ? transcript : `${transcript.substring(0, 250)}${transcript.length > 250 ? '...' : ''}`}
+            </p>
+          </div>
+          <div className="mt-2">
+            <div className="flex items-center">
+              <svg className="h-4 w-4 text-green-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {t('createPage.youtubeSection.transcriptAdded', { defaultValue: 'Transcript added to your research data' })}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {!transcript && !error && !isLoading && (
+        <div className="flex items-center justify-center p-4 border border-gray-200 dark:border-gray-700 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div className="text-center text-sm text-gray-500 dark:text-gray-400 flex items-center">
+            <svg className="h-4 w-4 mr-2 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {t('createPage.youtubeSection.transcriptInfo', { 
+              defaultValue: 'This feature requires videos with auto-generated or manual captions available.'
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+} 
