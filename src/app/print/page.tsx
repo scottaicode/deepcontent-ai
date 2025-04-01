@@ -18,7 +18,7 @@ export default function PrintPage() {
 
   useEffect(() => {
     // Check if we should use localStorage
-    const useLocalStorage = searchParams.get('useLocalStorage') === 'true';
+    const useLocalStorage = searchParams?.get('useLocalStorage') === 'true';
     
     if (useLocalStorage) {
       // Get content from localStorage
@@ -37,11 +37,11 @@ export default function PrintPage() {
       });
     } else {
       // Get content from URL params (fallback for smaller content)
-      const title = searchParams.get('title') || 'Generated Content';
-      const audience = searchParams.get('audience') || 'General Audience';
-      const style = searchParams.get('style') || 'Standard';
-      const content = searchParams.get('content') || 'No content available';
-      const date = searchParams.get('date') || new Date().toLocaleDateString();
+      const title = searchParams?.get('title') || 'Generated Content';
+      const audience = searchParams?.get('audience') || 'General Audience';
+      const style = searchParams?.get('style') || 'Standard';
+      const content = searchParams?.get('content') || 'No content available';
+      const date = searchParams?.get('date') || new Date().toLocaleDateString();
       
       setPageContent({
         title,
