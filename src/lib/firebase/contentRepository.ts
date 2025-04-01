@@ -32,6 +32,8 @@ export interface ContentItem {
   researchData?: string;
   status: 'draft' | 'published' | 'archived';
   mediaUrls?: string[];
+  style?: string;
+  length?: string;
 }
 
 const COLLECTION = 'content';

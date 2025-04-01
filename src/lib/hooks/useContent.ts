@@ -31,6 +31,7 @@ const sampleContentItems: ContentItem[] = [
     style: 'ariastar',
     length: 'medium',
     tags: ['sample', 'test', 'development'],
+    persona: 'professional',
   },
   {
     id: 'sample-content-2',
@@ -45,6 +46,7 @@ const sampleContentItems: ContentItem[] = [
     style: 'ecoessence',
     length: 'short',
     tags: ['product', 'sample', 'description'],
+    persona: 'friendly',
   }
 ];
 
