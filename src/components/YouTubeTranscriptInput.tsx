@@ -132,9 +132,13 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
     // Reset the transcript copy state
     setHasCopied(false);
     
-    // Extract YouTube ID from URL if possible
-    const id = extractYouTubeVideoId(url);
-    setYoutubeId(id);
+    // Extract YouTube ID from URL only if URL is present
+    if (url) {
+      const id = extractYouTubeVideoId(url);
+      setYoutubeId(id);
+    } else {
+      setYoutubeId(null); // Reset youtubeId if URL is cleared
+    }
   }, [url]);
 
   // Check if admin tools should be shown (client-side only)
