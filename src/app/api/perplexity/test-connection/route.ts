@@ -1,97 +1,66 @@
-import { NextRequest } from 'next/server';
+/**
+ * Test endpoint for Perplexity API Connection and Research
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { PerplexityClient } from '@/lib/api/perplexityClient';
 
-// Set a short maximum duration for this route - well under Vercel's limits
-export const maxDuration = 30; // 30 seconds max
+// Disable caching to ensure fresh test data
 export const dynamic = 'force-dynamic';
 
-// Simple endpoint to test Perplexity API connectivity
-export async function GET(req: NextRequest) {
-  console.log('[DIAG] Testing Perplexity API connection at', new Date().toISOString());
-  
+export async function GET(request: NextRequest) {
   try {
-    // Get API key from environment variables
+    // Get API key from environment
     const apiKey = process.env.PERPLEXITY_API_KEY;
     
     if (!apiKey) {
-      console.error('[DIAG] Perplexity API key not configured');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Perplexity API key not configured' 
-        }),
-        { 
-          status: 500, 
-          headers: { 'Content-Type': 'application/json' } 
-        }
-      );
+      return NextResponse.json({
+        success: false,
+        message: 'API key not found in environment variables'
+      }, { status: 400 });
     }
     
-    // Create a simple test query that won't require complex processing
-    const testQuery = 'What is 2+2? Just answer with the number, nothing else.';
-    console.log('[DIAG] Test query:', testQuery);
+    // Create Perplexity client
+    const perplexity = new PerplexityClient(apiKey);
     
-    // Start timer
-    const startTime = Date.now();
-    console.log('[DIAG] Sending test query to Perplexity API');
+    // Generate a simple test research
+    const testPrompt = "Provide a brief overview of artificial intelligence in 2-3 paragraphs.";
     
-    // Use a timeout to ensure we don't exceed Vercel's limits
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('API test timeout after 20 seconds')), 20000);
-    });
+    // Set up options
+    const options = {
+      maxTokens: 500,
+      temperature: 0.2,
+      timeoutMs: 30000, // 30 seconds timeout for quick test
+      language: 'en'
+    };
     
-    // Make a direct API call with very limited scope
-    const apiPromise = fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20240620',
-        messages: [{ role: 'user', content: testQuery }],
-        max_tokens: 10, // Very small limit for quick response
-        temperature: 0
-      })
-    });
+    // Make the API call
+    console.log('Testing Perplexity API with a simple research request...');
+    const research = await perplexity.generateResearch(testPrompt, options);
     
-    // Race the API call against the timeout
-    const response = await Promise.race([apiPromise, timeoutPromise]) as Response;
-    
-    if (!response.ok) {
-      throw new Error(`API returned status ${response.status}`);
+    if (research && research.length > 100) {
+      return NextResponse.json({
+        success: true,
+        message: 'Perplexity API test successful',
+        researchLength: research.length,
+        researchSample: research.substring(0, 200) + '...',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      return NextResponse.json({
+        success: false,
+        message: 'Perplexity API response too short or empty',
+        researchLength: research ? research.length : 0,
+        timestamp: new Date().toISOString()
+      }, { status: 500 });
     }
-    
-    const data = await response.json();
-    
-    // Calculate time taken
-    const timeTaken = Date.now() - startTime;
-    console.log('[DIAG] Perplexity API responded in', timeTaken, 'ms');
-    
-    // Return success response
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Perplexity API connection successful',
-        timeTaken
-      }),
-      { 
-        status: 200, 
-        headers: { 'Content-Type': 'application/json' } 
-      }
-    );
   } catch (error: any) {
-    console.error('[DIAG] Error testing Perplexity API:', error);
+    console.error('Error testing Perplexity API:', error);
     
-    // Return error response
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || 'Unknown error occurred'
-      }),
-      { 
-        status: 500, 
-        headers: { 'Content-Type': 'application/json' } 
-      }
-    );
+    return NextResponse.json({
+      success: false,
+      message: 'Error testing Perplexity API',
+      error: error.message || String(error),
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 } 

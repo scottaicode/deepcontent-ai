@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
       
       // Track time for research generation
       const startTime = Date.now();
-      logSection(requestId, 'EXECUTE', `Starting chunked research generation at ${new Date().toISOString()}`);
+      logSection(requestId, 'EXECUTE', `Starting research generation at ${new Date().toISOString()}`);
       
       // Track periodic updates for long-running calls
       diagInterval = setInterval(() => {
@@ -260,27 +260,22 @@ export async function POST(request: NextRequest) {
         logSection(requestId, 'PROGRESS', `Still processing at ${elapsedSeconds}s elapsed`);
       }, 30000); // Log every 30 seconds
       
-      // Call Perplexity API with chunked approach and timeout protection
+      // Call Perplexity API with timeout protection
       let research: string;
       
       try {
-        // Set a hard timeout limit for the entire research process
-        const timeoutMs = 240000; // 4 minutes timeout (to ensure we stay under 5 minute function limit)
+        // Set options for the API call
+        const options = {
+          maxTokens: 4000,
+          temperature: 0.2,
+          timeoutMs: 240000, // 4 minutes timeout
+          language: language
+        };
         
-        // Create a timeout promise
-        const timeoutPromise = new Promise<string>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('Research generation timed out after 4 minutes'));
-          }, timeoutMs);
-        });
+        // Regular API call with options
+        research = await perplexity.generateResearch(promptText, options);
         
-        // Regular API call
-        const apiPromise = perplexity.generateResearch(promptText);
-        
-        // Race the API call against the timeout
-        research = await Promise.race([apiPromise, timeoutPromise]);
-        
-        // If we get here, the API call succeeded within the timeout period
+        // If we get here, the API call succeeded
         logSection(requestId, 'SUCCESS', `Research generated successfully, length: ${research?.length || 0} characters`);
       } catch (apiError: any) {
         // Clear diagnostic interval if it's running
