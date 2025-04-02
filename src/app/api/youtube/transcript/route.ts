@@ -66,6 +66,106 @@ export async function GET(request: NextRequest) {
 }
 
 /**
+ * POST handler for extracting research content when standard transcript isn't available
+ * This is for the "Extract Research Content" button functionality
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    // Parse the request body
+    const body = await request.json();
+    const { youtubeUrl, videoId } = body;
+    
+    // Validate input
+    const actualVideoId = videoId || extractVideoId(youtubeUrl);
+    
+    if (!actualVideoId) {
+      return NextResponse.json({ 
+        error: 'Missing video ID or YouTube URL' 
+      }, { status: 400 });
+    }
+    
+    console.log(`Extracting research content for video ID: ${actualVideoId}`);
+    
+    // Call the youtube-audio-transcription endpoint to get video analysis
+    try {
+      const response = await fetch(`${getBaseUrl(request)}/api/youtube-audio-transcription?videoId=${actualVideoId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error from audio transcription service:', errorText);
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          return NextResponse.json({ 
+            error: errorData.error || 'Failed to extract research content',
+            source: 'research-extraction',
+            details: errorData
+          }, { status: response.status });
+        } catch (e) {
+          return NextResponse.json({ 
+            error: 'Failed to extract research content', 
+            details: errorText
+          }, { status: response.status });
+        }
+      }
+      
+      // Get the successful response
+      const data = await response.json();
+      
+      // Return the research content
+      return NextResponse.json({
+        transcript: data.transcript,
+        source: 'research-extraction',
+        metadata: data.metadata || {}
+      }, { status: 200 });
+      
+    } catch (error: any) {
+      console.error('Error extracting research content:', error);
+      return NextResponse.json({ 
+        error: `Error extracting research content: ${error.message}`,
+        source: 'research-extraction'
+      }, { status: 500 });
+    }
+  } catch (error: any) {
+    console.error('Error in YouTube research extraction API route:', error);
+    return NextResponse.json(
+      { error: `Error: ${error.message || 'Unknown error'}` },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Utility function to extract video ID from a YouTube URL
+ */
+function extractVideoId(url: string): string | null {
+  if (!url) return null;
+  
+  // Match various YouTube URL formats
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  
+  return (match && match[2].length === 11)
+    ? match[2]
+    : null;
+}
+
+/**
+ * Get the base URL for the current request
+ */
+function getBaseUrl(request: NextRequest): string {
+  const { headers } = request;
+  const protocol = headers.get('x-forwarded-proto') || 'http';
+  const host = headers.get('host') || 'localhost:3000';
+  return `${protocol}://${host}`;
+}
+
+/**
  * Fetch transcript using multiple APIs with fallback options
  */
 async function fetchTranscript(videoId: string): Promise<{ transcript: string, source: string }> {
@@ -192,90 +292,6 @@ async function fetchTranscript(videoId: string): Promise<{ transcript: string, s
       }
     }
   }
-}
-
-/**
- * Generate simulated transcript data for development/testing purposes
- * This provides an extended simulation with more content for better testing
- */
-function getSimulatedTranscriptData(videoId: string) {
-  // Create a simulated transcript specific to the given video ID
-  // This makes the simulation more realistic by returning different content for different videos
-  const isTechVideo = videoId.length % 2 === 0; // Just a simple way to vary content
-  
-  // Create a title based on the video ID to personalize the simulation
-  const videoTitle = isTechVideo ? 
-    "Building Modern Applications with AI Assistance" : 
-    "Understanding Business Requirements for Software Development";
-  
-  console.log(`Generating simulated transcript for "${videoTitle}" (ID: ${videoId})`);
-  
-  // Create intro segments with video-specific content
-  const intro = [
-    {
-      text: `Welcome to this video about ${isTechVideo ? 'coding with AI assistance' : 'developing business applications'}. I'm excited to share some insights with you today.`,
-      offset: 0,
-      duration: 5000,
-      lang: "en"
-    },
-    {
-      text: `In this tutorial, we'll explore ${isTechVideo ? 'how AI tools can accelerate development' : 'how to properly gather and understand business requirements'}.`,
-      offset: 5000,
-      duration: 4500,
-      lang: "en"
-    },
-    {
-      text: `I'll show you practical examples that you can apply to your own ${isTechVideo ? 'coding projects' : 'business analysis work'} right away.`,
-      offset: 9500,
-      duration: 4000,
-      lang: "en"
-    }
-  ];
-  
-  // Create several more content segments
-  const mainContent = [];
-  for (let i = 0; i < 20; i++) {
-    mainContent.push({
-      text: `${isTechVideo ? 
-        'Using AI tools like GitHub Copilot and Claude can significantly improve your productivity by helping with code generation, debugging, and optimization.' : 
-        'Understanding the business domain is critical before writing any code. You need to speak the language of your stakeholders to properly translate their needs into technical requirements.'}`,
-      offset: 15000 + (i * 8000),
-      duration: 6000,
-      lang: "en"
-    });
-  }
-  
-  // Add a video-specific conclusion
-  const conclusion = [
-    {
-      text: `To summarize, ${isTechVideo ? 
-        'AI tools should be part of every modern developer\'s toolkit, but remember that they\'re just tools that enhance your skills, not replace them.' : 
-        'Taking the time to fully understand business requirements at the beginning will save you countless hours of rework and frustration later.'}`,
-      offset: 180000,
-      duration: 6000,
-      lang: "en"
-    },
-    {
-      text: "Thanks for watching this tutorial. If you found it helpful, please subscribe for more content like this.",
-      offset: 186000,
-      duration: 5000,
-      lang: "en"
-    }
-  ];
-  
-  // Combine all sections
-  const simulatedContent = [
-    ...intro,
-    ...mainContent,
-    ...conclusion
-  ];
-
-  return {
-    videoId: videoId,
-    title: videoTitle,
-    lang: "en",
-    content: simulatedContent
-  };
 }
 
 /**

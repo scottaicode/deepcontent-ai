@@ -705,25 +705,29 @@ For your research, consider watching the video with captions enabled and taking 
     setError(null);
     
     try {
-      console.log('Attempting to generate video analysis for:', { youtubeId, url });
+      console.log('Attempting to extract research content for:', { youtubeId, url });
       
       // Show initial toast to indicate process has started
       toast({
         title: 'Analyzing video...',
-        description: 'Retrieving video details and generating analysis',
+        description: 'Extracting research-relevant content from the video',
       });
       
-      // Call our audio transcription endpoint
-      const response = await fetch(`/api/youtube-audio-transcription?videoId=${youtubeId}`, {
-        method: 'GET',
+      // Call our research extraction endpoint
+      const response = await fetch('/api/youtube/transcript', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          videoId: youtubeId,
+          youtubeUrl: url
+        }),
       });
       
-      // Get the response as text first
+      // Get the response as text first to ensure proper parsing
       const responseText = await response.text();
-      console.log('Video analysis response text:', {
+      console.log('Research extraction response text:', {
         status: response.status,
         ok: response.ok,
         text: responseText.substring(0, 200) + '...'
@@ -734,8 +738,8 @@ For your research, consider watching the video with captions enabled and taking 
       try {
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('Failed to parse video analysis response', parseError);
-        throw new Error('Invalid response from video analysis service');
+        console.error('Failed to parse research extraction response', parseError);
+        throw new Error('Invalid response from research extraction service');
       }
       
       // Handle rejected content
@@ -744,9 +748,9 @@ For your research, consider watching the video with captions enabled and taking 
         throw new Error(data.message || data.error || 'Content not suitable for research purposes');
       }
       
-      // Success case - we have transcript data and it's research-suitable
+      // Success case - we have transcript data
       if (data.transcript) {
-        console.log('Video analysis succeeded, transcript length:', data.transcript.length);
+        console.log('Research extraction succeeded, transcript length:', data.transcript.length);
         
         // Clean any HTML entities that might still be in the transcript
         let cleanTranscript = data.transcript;
@@ -762,20 +766,12 @@ For your research, consider watching the video with captions enabled and taking 
             .replace(/\r\n/g, '\n');
         }
         
-        // Only proceed if the transcript has actual research value
-        // (not just metadata or explanatory text)
-        if (cleanTranscript.includes('No Audio Available') || 
-            cleanTranscript.includes('Alternative Approaches') ||
-            (cleanTranscript.includes('YouTube Video Analysis') && cleanTranscript.includes('Note: This is'))) {
-          throw new Error('No research-valuable content available for this video');
-        }
-        
         // Call the callback with the clean transcript and URL
         onTranscriptFetched(cleanTranscript, url);
         
         toast({
-          title: 'Video Analysis Complete',
-          description: 'Successfully generated analysis for this video',
+          title: 'Research Content Extracted',
+          description: 'Successfully extracted research-relevant content from this video',
         });
         
         // Clear URL after successful transcription
@@ -787,15 +783,15 @@ For your research, consider watching the video with captions enabled and taking 
       throw new Error('No usable content available for research');
       
     } catch (err: any) {
-      console.error('Video analysis error:', err);
+      console.error('Research extraction error:', err);
       
       // Special case for no audio formats error
       if (err.message && err.message.includes('No audio formats available')) {
-        setError('This video cannot be transcribed or used for research');
+        setError('This video cannot be analyzed or used for research');
         
         toast({
           title: 'Not Suitable for Research',
-          description: 'This video cannot be transcribed. Please try a different video with more accessible content.',
+          description: 'This video cannot be analyzed. Please try a different video with more accessible content.',
           variant: 'destructive',
         });
       } else if (err.message && (
@@ -811,11 +807,11 @@ For your research, consider watching the video with captions enabled and taking 
           variant: 'destructive',
         });
       } else {
-        setError(`Video analysis failed: ${err.message}`);
+        setError(`Research extraction failed: ${err.message}`);
         
         toast({
-          title: 'Analysis Failed',
-          description: err.message || 'Failed to analyze video content. Please try again or use a different video.',
+          title: 'Extraction Failed',
+          description: err.message || 'Failed to extract research content. Please try again or use a different video.',
           variant: 'destructive',
         });
       }
