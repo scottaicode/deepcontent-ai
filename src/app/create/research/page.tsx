@@ -1403,98 +1403,337 @@ If you'd like complete research, please try again later when our research servic
       return;
     }
     
-    console.log('[FALLBACK] Function called - USING IMMEDIATE LOCAL FALLBACK WITH NO API CALLS');
+    console.log('[PERPLEXITY] Starting deep research with Perplexity API');
     
-    // Reset states - do this FIRST before anything else to clear any previous errors
+    // Reset states
     setError(null);
     setDeepResearch('');
     setIsLoading(true);
     setIsGenerating(true);
     setGenerationProgress(0);
-    setStatusMessage('Preparing research content...');
+    setStatusMessage('Preparing research request...');
     
-    // IMMEDIATE FALLBACK GENERATION - No API calls, no timeouts, no network dependencies
+    // Create abort controller for cancellation support
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Set timeout for cancellation - 4 minutes max (to prevent browser timeout which is usually at 5 minutes)
+    const fetchTimeoutId = setTimeout(() => {
+      console.log('[DIAG] Research generation timed out - aborting');
+      if (abortController && !abortController.signal.aborted) {
+        abortController.abort('timeout');
+        checkForCompletedResearchAfterTimeout(contentDetails?.researchTopic || '');
+      }
+    }, 240000); // 4 minutes timeout (shorter than the 5 minute server limit)
+    
+    // Track retry count
+    let currentRetryCount = 0;
+    const MAX_RETRIES = 2;
+    
+    // Create async retry function
+    const attemptResearchGeneration = async (): Promise<any> => {
+      try {
+        // Build context with all the selected metadata
+        const contextString = `Topic: "${contentDetails?.researchTopic || ''}"
+Platform: ${contentDetails?.platform || 'facebook'}, 
+Sub-Platform: ${contentDetails?.subPlatform || ''},
+Content Type: ${contentDetails?.contentType || 'social-post'},
+Target Audience: ${contentDetails?.targetAudience || 'general'},
+Business Name: ${contentDetails?.businessName || ''},
+Language: ${language || 'en'}`;
+        
+        // Show progressive status updates
+        setGenerationProgress(10);
+        setStatusMessage(safeTranslate('researchPage.progress.starting', 'Starting {service} analysis...').replace('{service}', 'Perplexity Deep Research'));
+        
+        console.log(`[DIAG] Starting research generation with topic: "${contentDetails?.researchTopic}"`);
+        console.log(`[DIAG] Business name: ${contentDetails?.businessName || 'N/A'}`);
+        console.log(`[DIAG] Retry count: ${currentRetryCount}`);
+        
+        // If retrying, include that in the status message
+        if (currentRetryCount > 0) {
+          setStatusMessage(`Retry attempt ${currentRetryCount}/${MAX_RETRIES}...`);
+          setGenerationProgress(5); // Reset progress a bit for the retry
+        }
+        
+        // Set up progress simulation
+        const progressIntervalId = setInterval(() => {
+          // Increase progress gradually to show activity
+          setGenerationProgress((prev) => {
+            if (prev < 90) {
+              // Smaller increments to spread progress over ~5 minutes
+              // For retries, progress faster
+              const baseIncrement = 0.5 + (currentRetryCount * 0.2);
+              return Math.min(90, prev + (Math.random() * baseIncrement + baseIncrement));
+            }
+            return prev;
+          });
+          
+          // Update status messages
+          const progressValue = generationProgress;
+          let statusMessage = 'Researching...';
+          
+          if (progressValue < 30) {
+            statusMessage = 'Querying knowledge databases...';
+          } else if (progressValue < 50) {
+            statusMessage = 'Analyzing information sources...';
+          } else if (progressValue < 70) {
+            statusMessage = 'Synthesizing research findings...';
+          } else if (progressValue < 85) {
+            statusMessage = 'Organizing research insights...';
+          } else {
+            statusMessage = 'Finalizing research document...';
+          }
+          
+          // Add retry info if retrying
+          if (currentRetryCount > 0) {
+            statusMessage = `[Retry ${currentRetryCount}] ${statusMessage}`;
+          }
+          
+          setStatusMessage(statusMessage);
+        }, 3000); // Update every 3 seconds
+        
+        // Generate a unique request ID for tracing purposes
+        const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        
+        try {
+          // Call Perplexity API directly (not using SSE)
+          console.log('[DIAG] Making fetch request to /api/perplexity/research at', new Date().toISOString());
+          
+          // Use a more specific topic if too general 
+          let researchTopic = contentDetails?.researchTopic || '';
+          if (researchTopic.split(' ').length < 3) {
+            // For very short topics, make it more specific to avoid timeouts
+            const specificTopic = `${researchTopic} for ${contentDetails?.targetAudience || 'users'} on ${contentDetails?.platform || 'social media'}`;
+            console.log(`[DIAG] Topic was very general, using more specific: "${specificTopic}"`);
+            researchTopic = specificTopic;
+          }
+          
+          const perplexityData = await fetch('/api/perplexity/research', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId
+            },
+            body: JSON.stringify({
+              topic: researchTopic,
+              context: contextString, 
+              sources: ['recent', 'scholar', 'news'],
+              language,
+              companyName: contentDetails?.businessName || '',
+              websiteContent: contentDetails?.websiteContent || null,
+              requestId,
+              contentType: contentDetails?.contentType || 'social-post',
+              platform: contentDetails?.platform || 'facebook'
+            }),
+            signal: abortController.signal
+          });
+          
+          // Clear the progress interval
+          clearInterval(progressIntervalId);
+          
+          // Set progress to indicate we're processing the response
+          setGenerationProgress(95);
+          setStatusMessage(safeTranslate('researchPage.progress.statusMessages.formatting', 'Formatting research results...'));
+          
+          console.log(`[DIAG] API response received: status ${perplexityData.status}`);
+          
+          if (!perplexityData.ok) {
+            // Try to get error details from the response
+            let errorData;
+            try {
+              errorData = await perplexityData.json();
+            } catch (e) {
+              errorData = { error: `API error: ${perplexityData.status}` };
+            }
+            
+            console.error('[DIAG] Perplexity API error:', perplexityData.status, errorData);
+            
+            // For 500 errors, allow retries
+            if (perplexityData.status === 500 && currentRetryCount < MAX_RETRIES) {
+              console.log(`[DIAG] Retrying research generation (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`);
+              currentRetryCount++;
+              
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              
+              // Try again
+              return attemptResearchGeneration();
+            }
+            
+            // Use the handleApiError helper for consistent error handling
+            const { errorMessage, shouldAttemptRecovery } = handleApiError(errorData, perplexityData.status);
+            
+            // Attempt recovery if appropriate
+            if (shouldAttemptRecovery) {
+              setTimeout(() => {
+                checkForCompletedResearchAfterTimeout(researchTopic);
+              }, 5000);
+            }
+            
+            throw new Error(errorMessage);
+          }
+          
+          const data = await perplexityData.json();
+          
+          console.log('[DIAG] Successfully parsed API response data at', new Date().toISOString());
+          console.log('[DIAG] Is response from cache?', data.fromCache ? 'Yes' : 'No');
+          if (data.fromCache) {
+            console.log('[DIAG] Cache match type:', data.matchType || 'unspecified');
+          }
+          if (data.isFallback) {
+            console.log('[DIAG] Using fallback data', data.fallbackType || '', data.fallbackKey || '');
+          }
+          
+          if (!data || !data.research) {
+            throw new Error('The research service returned an empty response. Please try again later.');
+          }
+          
+          // Complete progress and show success message
+          setGenerationProgress(100);
+          setStatusMessage(safeTranslate('researchPage.progress.statusMessages.complete', 'Research complete!'));
+          
+          // Process the research content
+          const cleanedResearch = removeThinkingTags(data.research);
+          
+          // Store the research data
+          setDeepResearch(cleanedResearch);
+          
+          // Store in session storage
+          sessionStorage.setItem('deepResearch', cleanedResearch);
+          
+          // Save research results
+          const researchResults = {
+            researchMethod: data.isFallback ? 'perplexity-fallback' : 'perplexity',
+            perplexityResearch: cleanedResearch
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          
+          // Show success toast
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          
+          // Move to the next step
+          setResearchStep(4);
+          
+          return data;
+        } catch (fetchError: any) {
+          // Clean up the progress interval
+          clearInterval(progressIntervalId);
+          
+          console.error('[DIAG] Fetch error during research generation:', fetchError);
+          
+          // Check if this is a timeout or abortion
+          if (fetchError.name === 'AbortError' || 
+              (typeof fetchError.message === 'string' && 
+               (fetchError.message.includes('aborted') || fetchError.message.includes('timeout')))) {
+              
+            console.log('[DIAG] Research request was aborted or timed out');
+            
+            // Get the current research topic for recovery
+            const currentResearchTopic = contentDetails?.researchTopic || '';
+            
+            // Try the improved timeout handler
+            const recoverySuccessful = await handleNetworkTimeout(currentResearchTopic);
+            if (recoverySuccessful) {
+              return { recovered: true };
+            }
+               
+            // If the recovery wasn't successful but we have retries left, try again
+            if (currentRetryCount < MAX_RETRIES) {
+              console.log(`[DIAG] Will retry after timeout (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`);
+              currentRetryCount++;
+                
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 3000));
+                
+              // Try again with a more specific topic
+              const moreSpecificTopic = `${currentResearchTopic} analysis focused on ${contentDetails?.platform || 'platform'} content`;
+              console.log(`[DIAG] Retrying with more specific topic: "${moreSpecificTopic}"`);
+              
+              // Update the content details with the more specific topic
+              setContentDetails({
+                ...safeContentDetails,
+                researchTopic: moreSpecificTopic
+              });
+                
+              return attemptResearchGeneration();
+            }
+                
+            // If we've used all retries, throw a user-friendly error
+            throw new Error('The research is taking longer than expected. Please try using a more specific topic like "Softcom Internet Service in Rural Montana" instead of just "Softcom Internet".');
+          }
+               
+          // Re-throw other errors  
+          throw fetchError;
+        }
+      } catch (error: any) {
+        // Rethrow the error to be handled by the outer try/catch
+        throw error;
+      }
+    };
+    
     try {
-      // Start very simple progress simulation
-      let progressValue = 0;
-      const progressInterval = setInterval(() => {
-        progressValue += 5; // Fast progress increments
-        if (progressValue > 100) progressValue = 100;
-        setGenerationProgress(progressValue);
-        
-        // Update status message based on progress
-        if (progressValue < 25) {
-          setStatusMessage('Analyzing topic details...');
-        } else if (progressValue < 50) {
-          setStatusMessage('Gathering research insights...');
-        } else if (progressValue < 75) {
-          setStatusMessage('Synthesizing content structure...');
-        } else if (progressValue < 95) {
-          setStatusMessage('Finalizing research document...');
-        } else {
-          setStatusMessage('Research complete!');
-        }
-        
-        // Clear interval when done
-        if (progressValue >= 100) {
-          clearInterval(progressInterval);
-        }
-      }, 100); // Very fast updates for smooth progress - 100ms intervals
+      // Start the research generation with automatic retry
+      await attemptResearchGeneration();
+    } catch (error: any) {
+      console.error('[DIAG] Error in handleDeepAnalysisClick:', error);
       
-      // Generate fallback content IMMEDIATELY - no waiting
-      console.log('[FALLBACK] Generating local fallback content immediately');
-      const fallbackContent = generateEmergencyFallbackResearch();
-      console.log('[FALLBACK] Content generated successfully, length:', fallbackContent.length);
+      // Check for specific error types
+      const isTimeoutError = error.name === 'AbortError' || 
+                            error.message?.includes('timeout') || 
+                            error.message?.includes('timed out') ||
+                            error.message?.includes('aborted');
       
-      // Complete the progress quickly but with some delay for UI effect
-      setTimeout(() => {
-        // Clean up simulation
-        clearInterval(progressInterval);
-        setGenerationProgress(100);
+      // Check for network errors
+      const isNetworkError = error.message?.includes('fetch') || 
+                            error.message?.includes('network') ||
+                            !navigator.onLine;
+      
+      // Create appropriate status code based on error type
+      const errorStatus = isTimeoutError ? 504 : isNetworkError ? 503 : 500;
+      
+      // Use our error handler
+      const { shouldAttemptRecovery } = handleApiError(error, errorStatus);
+      
+      // Attempt recovery if appropriate - add delay to ensure server has time to save any results
+      if (shouldAttemptRecovery) {
+        const topic = contentDetails?.researchTopic || '';
+        console.log('[RECOVERY] Will check for completed research after error recovery delay');
         
-        // Save fallback content
+        // Set timeout to check for completed research after a delay
+        setTimeout(() => {
+          checkForCompletedResearchAfterTimeout(topic);
+        }, 5000);
+      }
+      
+      // If all else fails, generate emergency fallback content as last resort
+      if (isTimeoutError || isNetworkError) {
+        console.log('[EMERGENCY FALLBACK] Generating emergency fallback content after all recovery attempts failed');
+        const fallbackContent = generateEmergencyFallbackResearch();
+        
         setDeepResearch(fallbackContent);
         sessionStorage.setItem('deepResearch', fallbackContent);
-        console.log('[FALLBACK] Content saved to state and session storage');
         
-        // Save as research results
-        const researchResults = {
+        // Save as fallback research results
+        const fallbackResults = {
           researchMethod: 'emergency-fallback',
           perplexityResearch: fallbackContent
         };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        console.log('[FALLBACK] Research results saved to session storage');
+        sessionStorage.setItem('researchResults', JSON.stringify(fallbackResults));
         
-        // Update UI with success
+        // Update UI
         setGenerationProgress(100);
-        setStatusMessage('Research completed successfully');
-        setResearchStep(4); // Go directly to results
-        setIsGenerating(false);
-        setIsLoading(false);
+        setStatusMessage('Research completed with fallback content due to API issues');
+        setResearchStep(4);
         
-        // Show success notification
-        toast.success('Research generated successfully!');
-      }, 1500); // Just a 1.5 second delay for UI effect
-      
-    } catch (e) {
-      console.error('[FALLBACK] Error in emergency fallback generation:', e);
-      
-      // Even if there's an error in the fallback generation, create a minimal response
-      const minimalFallback = `# Research Report: ${contentDetails?.researchTopic || 'Topic'}\n\n## Overview\nThis is a basic overview of the topic.\n\n## Key Points\n- Important point 1\n- Important point 2\n- Important point 3`;
-      
-      // Save the minimal fallback and continue
-      setDeepResearch(minimalFallback);
-      sessionStorage.setItem('deepResearch', minimalFallback);
-      
-      // Complete the process
-      setGenerationProgress(100);
-      setStatusMessage('Research completed with minimal content');
-      setResearchStep(4);
-      setIsGenerating(false);
+        // Inform user
+        toast.success('Generated basic research content due to API timeout. You can proceed with content creation.');
+      }
+    } finally {
+      // Always cleanup
       setIsLoading(false);
-      
-      // Show notification
-      toast.success('Research generated with basic content');
+      setIsGenerating(false);
+      clearTimeout(fetchTimeoutId);
     }
   };
 
@@ -2448,23 +2687,6 @@ If you'd like complete research, please try again later when our research servic
   const renderMinimalStep3Content = () => {
     return (
       <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-        {/* Info banner about instant research generation */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">Instant Research Generation</h3>
-              <div className="mt-2 text-sm text-blue-700 dark:text-blue-400">
-                <p>Our research server is currently experiencing high demand. To provide you with immediate results, we're generating research locally with our AI model. You can proceed with content creation using this research.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">
           {(() => {
             // First try the regular translation with safeTranslate
@@ -3545,8 +3767,11 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
   // Next, update the button text to be clearer about what happens next
   // Use this in all the Generate buttons throughout the file
   const getActionButtonText = () => {
-    // For local generation
-    return "Generate Research Instantly";
+    // For Perplexity research
+    if (needsPerplexityResearch) {
+      return "Run Perplexity Deep Research";
+    }
+    return "Generate Research with Perplexity";
   };
 
   // Update the main research button
@@ -3559,9 +3784,6 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
       >
         {getActionButtonText()}
       </button>
-      <p className="mt-2 text-xs text-gray-500">
-        Using local generation for instant results
-      </p>
     </div>
   );
   
