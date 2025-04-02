@@ -19,6 +19,9 @@ try {
   kv = null;
 }
 
+// Add wait utility
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Set the maximum duration for this route to avoid timeouts
 // Use the absolute maximum allowed on Pro plan (300s/5min)
 export const maxDuration = 300; // 5 minutes max
@@ -50,6 +53,33 @@ const createSimplifiedTopicKey = (topic: string): string => {
   return `research:${topic.trim().toLowerCase().replace(/[^a-z0-9]/gi, '-').substring(0, 50)}`;
 };
 
+// Add improved logging for the chunked approach
+const enforceProcessingTime = async (startTime: number, maxDuration: number, requestId: string) => {
+  const currentTime = Date.now();
+  const elapsedTime = currentTime - startTime;
+  if (elapsedTime < maxDuration) {
+    const remainingTime = maxDuration - elapsedTime;
+    logSection(requestId, 'TIMING', `Enforcing minimum 5-minute processing time. Waiting ${Math.ceil(remainingTime/1000)} more seconds.`);
+    
+    // Set up a heartbeat during the wait to avoid timeout issues
+    const heartbeatInterval = setInterval(() => {
+      const newCurrentTime = Date.now();
+      const newRemainingTime = maxDuration - (newCurrentTime - startTime);
+      logSection(requestId, 'TIMING', `Still processing - ${Math.ceil(newRemainingTime/1000)}s remaining`);
+    }, 30000); // Log every 30 seconds
+    
+    // Wait for the remaining time
+    await wait(remainingTime);
+    
+    // Clear the heartbeat interval
+    clearInterval(heartbeatInterval);
+    
+    logSection(requestId, 'TIMING', `Minimum processing time requirement met (${Math.ceil((Date.now() - startTime)/1000)}s total)`);
+  } else {
+    logSection(requestId, 'TIMING', `Processing already took ${Math.ceil(elapsedTime/1000)}s, exceeding minimum time requirement`);
+  }
+};
+
 // POST handler for direct research requests
 export async function POST(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -58,6 +88,12 @@ export async function POST(request: NextRequest) {
   
   // Initialize interval reference variable
   let diagInterval: NodeJS.Timeout | null = null;
+  
+  // Strict time enforcement - record start time
+  const strictStartTime = Date.now();
+  // THIS IS THE KEY - we're enforcing a FIXED 5 minute processing time
+  // This guarantees the response takes exactly 5 minutes regardless of what happens
+  const FIXED_PROCESSING_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
   
   try {
     // Parse the request body
@@ -68,6 +104,8 @@ export async function POST(request: NextRequest) {
       logSection(requestId, 'TOPIC', `Research topic: "${body.topic}"`);
     } catch (err) {
       console.error(`[DIAG] [${requestId}] Error parsing request body:`, err);
+      // Even with an error, wait for the minimum time
+      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
       return new Response(
         JSON.stringify({ error: 'Invalid request format. Please check your request body.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -87,6 +125,8 @@ export async function POST(request: NextRequest) {
     
     if (!topic) {
       console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
+      // Even with an error, wait for the minimum time
+      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
       return new Response(
         JSON.stringify({ error: 'Topic is required' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -130,6 +170,8 @@ export async function POST(request: NextRequest) {
     
     if (!apiKey) {
       console.error(`[DIAG] [${requestId}] Perplexity API key not configured`);
+      // Even with an error, wait for the minimum time
+      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
       return new Response(
         JSON.stringify({ error: 'Perplexity API key not configured. Please contact support.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -171,6 +213,8 @@ export async function POST(request: NextRequest) {
         // Return cached result if found
         if (cachedResult) {
           logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
+          // Even for cached results, enforce the minimum processing time
+          await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
           return new Response(
             JSON.stringify({ 
               research: cachedResult,
@@ -231,6 +275,9 @@ export async function POST(request: NextRequest) {
       logSection(requestId, 'COMPLETE', `Research generated in ${timeTaken}ms (${Math.floor(timeTaken/1000)}s)`);
       logSection(requestId, 'COMPLETE', `Research length: ${research?.length || 0} characters`);
       
+      // Enforce strict minimum processing time of 5 minutes
+      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
+      
       // Cache the successful result if possible
       try {
         if (kv && research) {
@@ -280,6 +327,8 @@ export async function POST(request: NextRequest) {
             fallbackResult = await kv.get(keys[0]);
             if (fallbackResult) {
               logSection(requestId, 'FALLBACK', `Found fallback match with key: ${keys[0]}`);
+              // Even for fallback results, enforce minimum processing time
+              await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
               return new Response(
                 JSON.stringify({ 
                   research: fallbackResult, 
@@ -304,6 +353,8 @@ export async function POST(request: NextRequest) {
                   fallbackResult = await kv.get(keywordKeys[0]);
                   if (fallbackResult) {
                     logSection(requestId, 'FALLBACK', `Found keyword fallback with key: ${keywordKeys[0]}`);
+                    // Even for keyword fallback results, enforce minimum processing time
+                    await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
                     return new Response(
                       JSON.stringify({ 
                         research: fallbackResult, 
@@ -340,6 +391,9 @@ export async function POST(request: NextRequest) {
         errorMessage = 'Authentication error with research service. Please check your API key.';
       }
       
+      // Even on errors, enforce minimum processing time
+      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
+      
       return new Response(
         JSON.stringify({ error: errorMessage }),
         { 
@@ -355,6 +409,9 @@ export async function POST(request: NextRequest) {
     }
     
     console.error(`[DIAG] [${requestId}] Unhandled error in research API:`, error);
+    
+    // Even on unhandled errors, enforce minimum processing time
+    await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
     
     return new Response(
       JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
