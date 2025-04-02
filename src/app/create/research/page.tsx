@@ -1415,14 +1415,14 @@ If you'd like complete research, please try again later when our research servic
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     
-    // Set timeout for cancellation - 5 minutes max (to match Vercel Pro limit)
+    // Set timeout for cancellation - 4 minutes max (to prevent browser timeout which is usually at 5 minutes)
     const fetchTimeoutId = setTimeout(() => {
       console.log('[DIAG] Research generation timed out - aborting');
       if (abortController && !abortController.signal.aborted) {
-        abortController.abort();
+        abortController.abort('timeout');
         checkForCompletedResearchAfterTimeout(contentDetails?.researchTopic || '');
       }
-    }, 290000); // 4 minutes 50 seconds timeout (just under the 5 minute limit)
+    }, 240000); // 4 minutes timeout (shorter than the 5 minute server limit)
     
     // Track retry count
     let currentRetryCount = 0;
@@ -1494,116 +1494,176 @@ Language: ${language || 'en'}`;
         // Generate a unique request ID for tracing purposes
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         
-        // Call Perplexity API directly (not using SSE)
-        console.log('[DIAG] Making fetch request to /api/perplexity/research at', new Date().toISOString());
-        
-        const perplexityData = await fetch('/api/perplexity/research', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Request-ID': requestId
-          },
-          body: JSON.stringify({
-            topic: contentDetails?.researchTopic || '',
-            context: contextString, 
-            sources: ['recent', 'scholar', 'news'],
-            language,
-            companyName: contentDetails?.businessName || '',
-            websiteContent: contentDetails?.websiteContent || null,
-            requestId,
-            contentType: contentDetails?.contentType || 'social-post',
-            platform: contentDetails?.platform || 'facebook'
-          }),
-          signal: abortController.signal
-        });
-        
-        // Clear the progress interval
-        clearInterval(progressIntervalId);
-        
-        // Set progress to indicate we're processing the response
-        setGenerationProgress(95);
-        setStatusMessage(safeTranslate('researchPage.progress.statusMessages.formatting', 'Formatting research results...'));
-        
-        console.log(`[DIAG] API response received: status ${perplexityData.status}`);
-        
-        if (!perplexityData.ok) {
-          // Try to get error details from the response
-          let errorData;
-          try {
-            errorData = await perplexityData.json();
-          } catch (e) {
-            errorData = { error: `API error: ${perplexityData.status}` };
+        try {
+          // Call Perplexity API directly (not using SSE)
+          console.log('[DIAG] Making fetch request to /api/perplexity/research at', new Date().toISOString());
+          
+          // Use a more specific topic if too general 
+          let researchTopic = contentDetails?.researchTopic || '';
+          if (researchTopic.split(' ').length < 3) {
+            // For very short topics, make it more specific to avoid timeouts
+            const specificTopic = `${researchTopic} for ${contentDetails?.targetAudience || 'users'} on ${contentDetails?.platform || 'social media'}`;
+            console.log(`[DIAG] Topic was very general, using more specific: "${specificTopic}"`);
+            researchTopic = specificTopic;
           }
           
-          console.error('[DIAG] Perplexity API error:', perplexityData.status, errorData);
+          const perplexityData = await fetch('/api/perplexity/research', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId
+            },
+            body: JSON.stringify({
+              topic: researchTopic,
+              context: contextString, 
+              sources: ['recent', 'scholar', 'news'],
+              language,
+              companyName: contentDetails?.businessName || '',
+              websiteContent: contentDetails?.websiteContent || null,
+              requestId,
+              contentType: contentDetails?.contentType || 'social-post',
+              platform: contentDetails?.platform || 'facebook'
+            }),
+            signal: abortController.signal
+          });
           
-          // For 500 errors, allow retries
-          if (perplexityData.status === 500 && currentRetryCount < MAX_RETRIES) {
-            console.log(`[DIAG] Retrying research generation (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`);
-            currentRetryCount++;
+          // Clear the progress interval
+          clearInterval(progressIntervalId);
+          
+          // Set progress to indicate we're processing the response
+          setGenerationProgress(95);
+          setStatusMessage(safeTranslate('researchPage.progress.statusMessages.formatting', 'Formatting research results...'));
+          
+          console.log(`[DIAG] API response received: status ${perplexityData.status}`);
+          
+          if (!perplexityData.ok) {
+            // Try to get error details from the response
+            let errorData;
+            try {
+              errorData = await perplexityData.json();
+            } catch (e) {
+              errorData = { error: `API error: ${perplexityData.status}` };
+            }
             
-            // Wait a bit before retrying
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            console.error('[DIAG] Perplexity API error:', perplexityData.status, errorData);
             
-            // Try again
-            return attemptResearchGeneration();
+            // For 500 errors, allow retries
+            if (perplexityData.status === 500 && currentRetryCount < MAX_RETRIES) {
+              console.log(`[DIAG] Retrying research generation (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`);
+              currentRetryCount++;
+              
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              
+              // Try again
+              return attemptResearchGeneration();
+            }
+            
+            // Use the handleApiError helper for consistent error handling
+            const { errorMessage, shouldAttemptRecovery } = handleApiError(errorData, perplexityData.status);
+            
+            // Attempt recovery if appropriate
+            if (shouldAttemptRecovery) {
+              setTimeout(() => {
+                checkForCompletedResearchAfterTimeout(researchTopic);
+              }, 5000);
+            }
+            
+            throw new Error(errorMessage);
           }
           
-          // Use the handleApiError helper for consistent error handling
-          const { errorMessage, shouldAttemptRecovery } = handleApiError(errorData, perplexityData.status);
+          const data = await perplexityData.json();
           
-          // Attempt recovery if appropriate
-          if (shouldAttemptRecovery) {
-            setTimeout(() => {
-              checkForCompletedResearchAfterTimeout(contentDetails?.researchTopic || '');
-            }, 5000);
+          console.log('[DIAG] Successfully parsed API response data at', new Date().toISOString());
+          console.log('[DIAG] Is response from cache?', data.fromCache ? 'Yes' : 'No');
+          if (data.fromCache) {
+            console.log('[DIAG] Cache match type:', data.matchType || 'unspecified');
+          }
+          if (data.isFallback) {
+            console.log('[DIAG] Using fallback data', data.fallbackType || '', data.fallbackKey || '');
           }
           
-          throw new Error(errorMessage);
+          if (!data || !data.research) {
+            throw new Error('The research service returned an empty response. Please try again later.');
+          }
+          
+          // Complete progress and show success message
+          setGenerationProgress(100);
+          setStatusMessage(safeTranslate('researchPage.progress.statusMessages.complete', 'Research complete!'));
+          
+          // Process the research content
+          const cleanedResearch = removeThinkingTags(data.research);
+          
+          // Store the research data
+          setDeepResearch(cleanedResearch);
+          
+          // Store in session storage
+          sessionStorage.setItem('deepResearch', cleanedResearch);
+          
+          // Save research results
+          const researchResults = {
+            researchMethod: data.isFallback ? 'perplexity-fallback' : 'perplexity',
+            perplexityResearch: cleanedResearch
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          
+          // Show success toast
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          
+          // Move to the next step
+          setResearchStep(4);
+          
+          return data;
+        } catch (fetchError: any) {
+          // Clean up the progress interval
+          clearInterval(progressIntervalId);
+          
+          console.error('[DIAG] Fetch error during research generation:', fetchError);
+          
+          // Check if this is a timeout or abortion
+          if (fetchError.name === 'AbortError' || 
+              (typeof fetchError.message === 'string' && 
+              (fetchError.message.includes('aborted') || fetchError.message.includes('timeout')))) {
+              
+            console.log('[DIAG] Research request was aborted or timed out');
+            
+            // Get the current research topic for recovery
+            const currentResearchTopic = contentDetails?.researchTopic || '';
+               
+            // Try to recover any partial results
+            const recovered = await checkForCompletedResearchAfterTimeout(currentResearchTopic);
+            if (recovered) {
+              return { recovered: true };
+            }
+               
+            // If it's a timeout and we have retries left, try again
+            if (currentRetryCount < MAX_RETRIES) {
+              console.log(`[DIAG] Will retry after timeout (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`);
+              currentRetryCount++;
+                
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 3000));
+                
+              // Try again with a more specific topic
+              const moreSpecificTopic = `${currentResearchTopic} analysis focused on ${contentDetails?.platform || 'platform'} content`;
+              console.log(`[DIAG] Retrying with more specific topic: "${moreSpecificTopic}"`);
+              
+              // Update the content details with the more specific topic
+              setContentDetails({
+                ...safeContentDetails,
+                researchTopic: moreSpecificTopic
+              });
+                
+              return attemptResearchGeneration();
+            }
+                
+            // If we've used all retries, throw a user-friendly error
+            throw new Error('The research is taking longer than expected. Please try using a more specific topic like "Softcom Internet Service in Rural Montana" instead of just "Softcom Internet".');
+          }
+              
+          // Re-throw other errors
+          throw fetchError;
         }
-        
-        const data = await perplexityData.json();
-        
-        console.log('[DIAG] Successfully parsed API response data at', new Date().toISOString());
-        console.log('[DIAG] Is response from cache?', data.fromCache ? 'Yes' : 'No');
-        if (data.fromCache) {
-          console.log('[DIAG] Cache match type:', data.matchType || 'unspecified');
-        }
-        if (data.isFallback) {
-          console.log('[DIAG] Using fallback data', data.fallbackType || '', data.fallbackKey || '');
-        }
-        
-        if (!data || !data.research) {
-          throw new Error('The research service returned an empty response. Please try again later.');
-        }
-        
-        // Complete progress and show success message
-        setGenerationProgress(100);
-        setStatusMessage(safeTranslate('researchPage.progress.statusMessages.complete', 'Research complete!'));
-        
-        // Process the research content
-        const cleanedResearch = removeThinkingTags(data.research);
-        
-        // Store the research data
-        setDeepResearch(cleanedResearch);
-        
-        // Store in session storage
-        sessionStorage.setItem('deepResearch', cleanedResearch);
-        
-        // Save research results
-        const researchResults = {
-          researchMethod: data.isFallback ? 'perplexity-fallback' : 'perplexity',
-          perplexityResearch: cleanedResearch
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        
-        // Show success toast
-        toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-        
-        // Move to the next step
-        setResearchStep(4);
-        
-        return data;
       } catch (error: any) {
         // Rethrow the error to be handled by the outer try/catch
         throw error;
@@ -1619,7 +1679,8 @@ Language: ${language || 'en'}`;
       // Check for specific error types
       const isTimeoutError = error.name === 'AbortError' || 
                             error.message?.includes('timeout') || 
-                            error.message?.includes('timed out');
+                            error.message?.includes('timed out') ||
+                            error.message?.includes('aborted');
       
       // Check for network errors
       const isNetworkError = error.message?.includes('fetch') || 
@@ -1632,10 +1693,14 @@ Language: ${language || 'en'}`;
       // Use our error handler
       const { shouldAttemptRecovery } = handleApiError(error, errorStatus);
       
-      // Attempt recovery if appropriate
+      // Attempt recovery if appropriate - add delay to ensure server has time to save any results
       if (shouldAttemptRecovery) {
+        const topic = contentDetails?.researchTopic || '';
+        console.log('[RECOVERY] Will check for completed research after error recovery delay');
+        
+        // Set timeout to check for completed research after a delay
         setTimeout(() => {
-          checkForCompletedResearchAfterTimeout(contentDetails?.researchTopic || '');
+          checkForCompletedResearchAfterTimeout(topic);
         }, 5000);
       }
     } finally {
