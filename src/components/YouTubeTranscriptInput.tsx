@@ -801,6 +801,13 @@ For your research, consider watching the video with captions enabled and taking 
           if (data.transcript) {
             console.log(`[DEBUG-FRONTEND] Research extraction succeeded with source:`, data.source);
             
+            // Check if the result is just fallback content
+            if (data.isFallback || data.source === 'fallback-analysis') {
+              console.warn('[DEBUG-FRONTEND] Received fallback content, not using for research.');
+              // Throw an error to prevent passing fallback to Perplexity
+              throw new Error('Video details could not be fully retrieved, unable to perform research.');
+            }
+            
             // Clean any HTML entities that might still be in the transcript
             let cleanTranscript = data.transcript;
             if (typeof cleanTranscript === 'string') {
