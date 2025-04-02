@@ -32,8 +32,13 @@ export class PerplexityClient {
   /**
    * Generate a completion using the Perplexity Claude API
    */
-  async generateCompletion(prompt: string, model: string = 'claude-3-5-sonnet-20240620', maxTokens: number = 1000): Promise<string> {
+  async generateCompletion(prompt: string, model: string = 'claude-3-5-sonnet-20240620', maxTokens: number = 4000): Promise<string> {
     try {
+      console.log(`[PERPLEXITY] Making API call with model: ${model}, max tokens: ${maxTokens}`);
+      
+      // Add artificial delay to ensure thorough processing (1-2 seconds)
+      await wait(Math.floor(Math.random() * 1000) + 1000);
+      
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -45,7 +50,9 @@ export class PerplexityClient {
           messages: [
             { role: 'user', content: prompt }
           ],
-          max_tokens: maxTokens
+          max_tokens: maxTokens,
+          temperature: 0.2, // Lower temperature for more factual responses
+          timeout: 120 // Longer timeout (120 seconds) for more thorough research
         })
       });
       
@@ -59,6 +66,9 @@ export class PerplexityClient {
       if (!data.choices || data.choices.length === 0) {
         throw new Error('No response from Perplexity API');
       }
+      
+      // Add artificial delay after receiving response to allow processing
+      await wait(1000);
       
       return data.choices[0].message.content;
     } catch (error: any) {
@@ -154,6 +164,14 @@ export class PerplexityClient {
       const topicMatch = promptText.match(/Topic:\s*"([^"]+)"/i);
       const topic = topicMatch ? topicMatch[1] : 'the requested topic';
       
+      console.log(`[PERPLEXITY] Researching topic: "${topic}"`);
+      
+      // Add delay before starting research to prevent quick returns
+      await wait(2000);
+      
+      // Start timing the whole process
+      const totalStartTime = Date.now();
+      
       // Split the research into manageable subtasks
       const { subtaskPrompts, recombinationPrompt } = this.splitResearchIntoSubtasks(topic, promptText);
       
@@ -161,24 +179,32 @@ export class PerplexityClient {
       const subtaskResults: string[] = [];
       
       for (let i = 0; i < subtaskPrompts.length; i++) {
-        console.log(`[PERPLEXITY] Processing subtask ${i+1}/${subtaskPrompts.length}`);
+        console.log(`[PERPLEXITY] Processing subtask ${i+1}/${subtaskPrompts.length} (expecting 30-60 seconds per component)`);
+        
+        // Add artificial delay between components to ensure thoroughness
+        if (i > 0) {
+          console.log('[PERPLEXITY] Waiting between research components for thorough processing');
+          await wait(3000); // Wait 3 seconds between components
+        }
         
         // Try up to 3 times with exponential backoff
         let attempt = 0;
         let result = '';
         let success = false;
         
+        const startTime = Date.now();
+        
         while (attempt < 3 && !success) {
           try {
             if (attempt > 0) {
               // Wait with exponential backoff before retrying
-              const backoffMs = Math.pow(2, attempt) * 1000;
+              const backoffMs = Math.pow(2, attempt + 2) * 1000; // Increased backoff (8s, 16s, 32s)
               console.log(`[PERPLEXITY] Retrying subtask ${i+1} after ${backoffMs}ms (attempt ${attempt+1}/3)`);
               await wait(backoffMs);
             }
             
-            // Generate research for this subtask
-            result = await this.generateCompletion(subtaskPrompts[i], 'claude-3-5-sonnet-20240620', 4000);
+            // Generate research for this subtask with increased token limit
+            result = await this.generateCompletion(subtaskPrompts[i], 'claude-3-5-sonnet-20240620', 6000);
             success = true;
           } catch (error) {
             attempt++;
@@ -191,19 +217,21 @@ export class PerplexityClient {
               // Create a more detailed fallback prompt that focuses on depth for that specific component
               let fallbackPrompt = '';
               if (i === 0) {
-                fallbackPrompt = `Perform comprehensive market research on "${topic}" including market size, growth trajectory, recent trends, key statistics, and major players. Focus on providing specific data points, statistics, and factual information from reliable sources. Be thorough and detailed.`;
+                fallbackPrompt = `Perform comprehensive market research on "${topic}" including market size, growth trajectory, recent trends, key statistics, and major players. Focus on providing specific data points, statistics, and factual information from reliable sources. Be thorough and detailed. Take your time to consider all relevant aspects.`;
               } else if (i === 1) {
-                fallbackPrompt = `Conduct a detailed analysis of the target audience and customer pain points for "${topic}". Include demographic information, psychographic profiles, specific needs, common challenges, and customer journey insights. Provide real examples and be as specific as possible.`;
+                fallbackPrompt = `Conduct a detailed analysis of the target audience and customer pain points for "${topic}". Include demographic information, psychographic profiles, specific needs, common challenges, and customer journey insights. Provide real examples and be as specific as possible. Consider both primary and secondary audience segments.`;
               } else {
-                fallbackPrompt = `Analyze the competitive landscape and best practices related to "${topic}". Identify major competitors, their positioning, strengths and weaknesses, industry benchmarks, successful strategies, and emerging trends. Include specific examples, case studies, and actionable insights.`;
+                fallbackPrompt = `Analyze the competitive landscape and best practices related to "${topic}". Identify major competitors, their positioning, strengths and weaknesses, industry benchmarks, successful strategies, and emerging trends. Include specific examples, case studies, and actionable insights. Evaluate at least 5-7 key competitors in detail.`;
               }
               
               try {
                 // Try the improved fallback with a different model and higher token limit
-                result = await this.generateCompletion(fallbackPrompt, 'claude-3-5-sonnet-20240620', 4000);
+                result = await this.generateCompletion(fallbackPrompt, 'claude-3-5-sonnet-20240620', 6000);
                 success = true;
               } catch (fallbackError) {
                 console.error(`[PERPLEXITY] First fallback failed for subtask ${i+1}:`, fallbackError);
+                
+                await wait(5000); // Wait 5 seconds before final attempt
                 
                 // If the first fallback fails, try an even simpler approach with a different model
                 try {
@@ -212,9 +240,9 @@ export class PerplexityClient {
                     i === 0 ? 'key market facts, statistics, and trends' : 
                     i === 1 ? 'target audience details and their pain points' : 
                     'major competitors and industry best practices'
-                  }. Be thorough and detailed.`;
+                  }. Be thorough and detailed. Include as many specific facts and examples as possible.`;
                   
-                  result = await this.generateCompletion(simplePrompt, 'claude-3-5-sonnet-20240620', 3000);
+                  result = await this.generateCompletion(simplePrompt, 'claude-3-5-sonnet-20240620', 5000);
                   success = true;
                 } catch (finalError) {
                   // If all attempts fail, use a minimal template with placeholder that clearly indicates this is a section that needs manual research
@@ -231,8 +259,24 @@ export class PerplexityClient {
           }
         }
         
+        const componentTime = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`[PERPLEXITY] Component ${i+1} completed in ${componentTime} seconds`);
+        
+        // Ensure minimum processing time of 30 seconds per component for thoroughness
+        const minComponentTime = 30 * 1000; // 30 seconds
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < minComponentTime) {
+          const additionalWaitTime = minComponentTime - elapsedTime;
+          console.log(`[PERPLEXITY] Ensuring minimum processing time with additional ${Math.floor(additionalWaitTime/1000)}s wait`);
+          await wait(additionalWaitTime);
+        }
+        
         subtaskResults.push(result);
       }
+      
+      // Add delay before recombination phase
+      console.log('[PERPLEXITY] All components collected, waiting before recombination phase');
+      await wait(3000);
       
       // Now recombine the subtask results
       console.log('[PERPLEXITY] Recombining subtask results');
@@ -248,17 +292,19 @@ export class PerplexityClient {
       let recombineSuccess = false;
       let recombineAttempt = 0;
       
+      const recombineStartTime = Date.now();
+      
       while (recombineAttempt < 3 && !recombineSuccess) {
         try {
           if (recombineAttempt > 0) {
             // Wait with exponential backoff before retrying
-            const backoffMs = Math.pow(2, recombineAttempt) * 1000;
+            const backoffMs = Math.pow(2, recombineAttempt + 2) * 1000; // Increased backoff
             console.log(`[PERPLEXITY] Retrying recombination after ${backoffMs}ms (attempt ${recombineAttempt+1}/3)`);
             await wait(backoffMs);
           }
           
-          // Recombine the research components
-          recombinedResult = await this.generateCompletion(fullRecombinationPrompt, 'claude-3-5-sonnet-20240620', 5000);
+          // Recombine the research components with increased token limit
+          recombinedResult = await this.generateCompletion(fullRecombinationPrompt, 'claude-3-5-sonnet-20240620', 7000);
           recombineSuccess = true;
         } catch (error) {
           recombineAttempt++;
@@ -286,7 +332,21 @@ export class PerplexityClient {
         }
       }
       
-      console.log('[PERPLEXITY] Research generation complete');
+      const recombineTime = Math.floor((Date.now() - recombineStartTime) / 1000);
+      console.log(`[PERPLEXITY] Recombination completed in ${recombineTime} seconds`);
+      
+      // Ensure minimum total processing time of 3 minutes for thoroughness
+      const totalElapsedTime = Date.now() - totalStartTime;
+      const minTotalTime = 3 * 60 * 1000; // 3 minutes
+      if (totalElapsedTime < minTotalTime) {
+        const finalWaitTime = minTotalTime - totalElapsedTime;
+        console.log(`[PERPLEXITY] Ensuring thorough research with final ${Math.floor(finalWaitTime/1000)}s processing period`);
+        await wait(finalWaitTime);
+      }
+      
+      const totalTimeMinutes = Math.floor(((Date.now() - totalStartTime) / (60 * 1000)) * 10) / 10;
+      console.log(`[PERPLEXITY] Research generation complete in ${totalTimeMinutes} minutes`);
+      
       return recombinedResult;
     } catch (error: any) {
       console.error('Error in Perplexity generateResearch:', error);

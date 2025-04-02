@@ -23,6 +23,10 @@ try {
 // Use the absolute maximum allowed on Pro plan (300s/5min)
 export const maxDuration = 300; // 5 minutes max
 
+// Set the maximum size for request/response to handle large research results
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
 // Ensure dynamic behavior
 export const dynamic = 'force-dynamic';
 

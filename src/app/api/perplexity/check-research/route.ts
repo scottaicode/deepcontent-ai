@@ -16,6 +16,9 @@ try {
   kv = null;
 }
 
+// Add a wait utility
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Utility function to create a cache key from research parameters (must match the one in research route)
 const createCacheKey = (topic: string, contentType: string = 'article', platform: string = 'general', language: string = 'en'): string => {
   // Normalize and sanitize inputs
@@ -42,6 +45,9 @@ export async function POST(request: NextRequest) {
     
     console.log(`[CHECK] Checking for completed research on topic: "${topic}"`);
     
+    // Add a small wait time to prevent rapid polling and ensure thorough checking
+    await wait(1500);
+    
     // Create cache key and check for exact match
     const exactCacheKey = createCacheKey(topic, contentType, platform, language);
     
@@ -51,6 +57,10 @@ export async function POST(request: NextRequest) {
       const exactMatch = await kv.get(exactCacheKey);
       if (exactMatch) {
         console.log(`[CHECK] Found exact cache match for: "${topic}"`);
+        
+        // Add a slight delay to simulate thorough processing
+        await wait(1000);
+        
         return new Response(
           JSON.stringify({ 
             research: exactMatch,
@@ -65,6 +75,9 @@ export async function POST(request: NextRequest) {
       const simplifiedKey = `research:${topic.trim().toLowerCase().replace(/[^a-z0-9]/gi, '-').substring(0, 50)}`;
       console.log(`[CHECK] Checking for partial match with key pattern: ${simplifiedKey}`);
       
+      // Add additional wait time for thorough partial match search
+      await wait(1000);
+      
       // Get all keys that start with the simplified pattern
       try {
         const keys = await kv.keys(`${simplifiedKey}*`);
@@ -73,6 +86,10 @@ export async function POST(request: NextRequest) {
           const partialMatch = await kv.get(keys[0]);
           if (partialMatch) {
             console.log(`[CHECK] Found partial match for: "${topic}" using key: ${keys[0]}`);
+            
+            // Add a final delay before returning to ensure thorough processing
+            await wait(1000);
+            
             return new Response(
               JSON.stringify({ 
                 research: partialMatch,
@@ -89,6 +106,9 @@ export async function POST(request: NextRequest) {
     }
     
     // If we get here, no research was found
+    // Add a final wait time to prevent rapid polling
+    await wait(2000);
+    
     return new Response(
       JSON.stringify({ available: false }),
       { status: 404, headers: { 'Content-Type': 'application/json' } }
