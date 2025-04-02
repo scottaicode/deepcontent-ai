@@ -238,82 +238,74 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   };
   
   const handleFetchTranscript = async () => {
-    if (!url) return;
+    if (!youtubeId) return;
     
     setIsLoading(true);
-    setError('');
-    setApiStatus('idle');
+    setError(null);
     
-    console.log('🔍 CLIENT DIAGNOSTIC: Starting transcript fetch', {
-      url,
-      timestamp: new Date().toISOString()
-    });
-
+    console.log('[DEBUG-FRONTEND] Fetching transcript for:', youtubeId);
+    
     try {
-      // Check if the URL is valid
-      if (!isValidYouTubeUrl(url)) {
-        setError(t('youtubeTranscript.errors.invalidUrl', {
-          defaultValue: 'Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=XXXXXX).'
-        }));
-        setIsLoading(false);
+      // Try to extract transcript using the API
+      const response = await fetch(`/api/youtube-transcript?videoId=${youtubeId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('[DEBUG-FRONTEND] Transcript response received:', { 
+        status: response.status,
+        ok: response.ok
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get transcript');
+      }
+      
+      const data = await response.json();
+      
+      if (data.transcript) {
+        console.log('[DEBUG-FRONTEND] Transcript found, length:', data.transcript.length);
+        
+        // Use the transcript formatter function to clean and format
+        const formattedTranscript = formatTranscript(data.transcript);
+        
+        // Call the callback with the transcript and URL
+        onTranscriptFetched(formattedTranscript, url);
+        
+        // Clear URL after successful transcription
+        onUrlChange('');
+      } else {
+        throw new Error('No transcript content returned');
+      }
+    } catch (err: any) {
+      console.error('[DEBUG-FRONTEND] Transcript fetch error:', err);
+      
+      // Check if error is about missing transcript/captions
+      if (err.message && (
+        err.message.includes('captions') || 
+        err.message.includes('transcript') || 
+        err.message.includes('uploader') || 
+        err.message.includes('No transcript') ||
+        err.message.includes('Transcript is disabled')
+      )) {
+        // Instead of showing error and "Extract Research Content" button,
+        // automatically try research extraction
+        console.log('[DEBUG-FRONTEND] Standard transcript unavailable, automatically trying research extraction');
+        toast({
+          title: 'Standard transcript unavailable',
+          description: 'Automatically trying AI-enhanced research extraction...',
+        });
+        
+        // Call the research extraction function directly
+        handleAudioTranscription();
         return;
       }
       
-      // Get the video ID from the URL
-      const videoId = extractYouTubeVideoId(url);
-      if (!videoId) {
-        throw new Error('Could not extract video ID from URL');
-      }
-      
-      setYoutubeId(videoId);
-      
-      // Send a request to the API to get the transcript
-      const response = await fetch(`/api/youtube-direct?videoId=${videoId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-exclude-rewrite': 'true'
-        }
-      });
-      
-      // Parse the response
-      const data = await response.json();
-      
-      // If there's no transcript, throw an error
-      if (data.errorType === 'NO_CAPTIONS') {
-        throw new Error(t('youtubeTranscript.errors.noTranscript', {
-          defaultValue: 'This video doesn\'t have a transcript available. Please try a different video with captions enabled.'
-        }));
-      }
-      
-      if (!data.transcript) {
-        throw new Error('No transcript found in response');
-      }
-      
-      // Format the transcript if it's a fallback
-      let formattedTranscript = data.transcript;
-      if (data.isFallback) {
-        console.log('🔍 CLIENT DIAGNOSTIC: Using fallback transcript');
-      } else {
-        // Format the transcript if it's a real transcript
-        formattedTranscript = formatTranscript(data.transcript, 'en', url);
-      }
-      
-      // Call the callback with the transcript and URL
-      onTranscriptFetched(formattedTranscript, url);
-      
-      // Toast a success message
-      toast({
-        title: t('youtubeTranscript.transcriptAdded', { defaultValue: 'YouTube transcript added successfully' }),
-        description: t('youtubeTranscript.description', { defaultValue: 'Enhance your research by analyzing an existing YouTube video on this topic.' }),
-        variant: 'default',
-      });
-      
-      // Reset loading and error states
-      setIsLoading(false);
-      setError(null);
-    } catch (err) {
-      console.error('🔍 CLIENT DIAGNOSTIC: Error fetching transcript:', err);
-      setError(getErrorMessage(err));
+      // For other types of errors, show the error message
+      setError(err.message || 'Failed to get transcript');
       setIsLoading(false);
     }
   };
