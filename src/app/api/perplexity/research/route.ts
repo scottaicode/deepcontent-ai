@@ -92,158 +92,159 @@ export async function POST(request: NextRequest) {
   const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || `req_${Date.now()}`;
   logSection(requestId, 'INIT', `Received research request at ${new Date().toISOString()}`);
 
+  // Parse the request body outside the try block so it's available in the catch block
+  let body;
   try {
-    // Parse the request body
-    let body;
-    try {
-      body = await request.json();
-      logSection(requestId, 'PARSE', 'Request body parsed successfully');
-      logSection(requestId, 'TOPIC', `Research topic: "${body.topic}"`);
-    } catch (err) {
-      console.error(`[DIAG] [${requestId}] Error parsing request body:`, err);
-      return new Response(
-        JSON.stringify({ error: 'Invalid request format. Please check your request body.' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+    body = await request.json();
+    logSection(requestId, 'PARSE', 'Request body parsed successfully');
+    logSection(requestId, 'TOPIC', `Research topic: "${body.topic}"`);
+  } catch (err) {
+    console.error(`[DIAG] [${requestId}] Error parsing request body:`, err);
+    return new Response(
+      JSON.stringify({ error: 'Invalid request format. Please check your request body.' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  const { 
+    topic, 
+    context, 
+    sources = ['recent', 'scholar'], 
+    language = 'en',
+    companyName,
+    websiteContent,
+    contentType = 'article',
+    platform = 'general'
+  } = body;
+  
+  if (!topic) {
+    console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
+    return new Response(
+      JSON.stringify({ error: 'Topic is required' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Extract audience, content type, and platform from context
+  let audience = 'general audience';
+  let extractedContentType = contentType || 'article';
+  let extractedPlatform = platform || 'general';
+  
+  if (context) {
+    const audienceMatch = context.match(/Target Audience: ([^,]+)/i);
+    if (audienceMatch && audienceMatch[1]) {
+      audience = audienceMatch[1].trim();
     }
     
-    const { 
-      topic, 
-      context, 
-      sources = ['recent', 'scholar'], 
-      language = 'en',
-      companyName,
-      websiteContent,
-      contentType = 'article',
-      platform = 'general'
-    } = body;
-    
-    if (!topic) {
-      console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
-      return new Response(
-        JSON.stringify({ error: 'Topic is required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+    const contentTypeMatch = context.match(/Content Type: ([^,]+)/i);
+    if (contentTypeMatch && contentTypeMatch[1]) {
+      extractedContentType = contentTypeMatch[1].trim();
     }
     
-    // Extract audience, content type, and platform from context
-    let audience = 'general audience';
-    let extractedContentType = contentType || 'article';
-    let extractedPlatform = platform || 'general';
-    
-    if (context) {
-      const audienceMatch = context.match(/Target Audience: ([^,]+)/i);
-      if (audienceMatch && audienceMatch[1]) {
-        audience = audienceMatch[1].trim();
-      }
-      
-      const contentTypeMatch = context.match(/Content Type: ([^,]+)/i);
-      if (contentTypeMatch && contentTypeMatch[1]) {
-        extractedContentType = contentTypeMatch[1].trim();
-      }
-      
-      const platformMatch = context.match(/Platform: ([^,]+)/i);
-      if (platformMatch && platformMatch[1]) {
-        extractedPlatform = platformMatch[1].trim();
-      }
+    const platformMatch = context.match(/Platform: ([^,]+)/i);
+    if (platformMatch && platformMatch[1]) {
+      extractedPlatform = platformMatch[1].trim();
     }
-    
-    logSection(requestId, 'PARAMS', JSON.stringify({
-      topic,
-      language,
-      audience,
-      contentType: extractedContentType,
-      platform: extractedPlatform,
-      hasCompanyInfo: !!companyName,
-      hasWebsiteContent: !!websiteContent
-    }));
-    
-    // Get API key from environment variables
-    const apiKey = process.env.PERPLEXITY_API_KEY;
-    
-    if (!apiKey) {
-      console.error(`[DIAG] [${requestId}] Perplexity API key not configured`);
-      return new Response(
-        JSON.stringify({ error: 'Perplexity API key not configured. Please contact support.' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+  }
+  
+  logSection(requestId, 'PARAMS', JSON.stringify({
+    topic,
+    language,
+    audience,
+    contentType: extractedContentType,
+    platform: extractedPlatform,
+    hasCompanyInfo: !!companyName,
+    hasWebsiteContent: !!websiteContent
+  }));
+  
+  // Get API key from environment variables
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  
+  if (!apiKey) {
+    console.error(`[DIAG] [${requestId}] Perplexity API key not configured`);
+    return new Response(
+      JSON.stringify({ error: 'Perplexity API key not configured. Please contact support.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
-    // Create a cache key for this research request
-    const cacheKey = createCacheKey(topic, extractedContentType, extractedPlatform, language);
-    logSection(requestId, 'CACHE', `Cache key: ${cacheKey}`);
-    
-    // Check if research is already cached
-    let cachedResult = null;
-    try {
-      if (kv) {
-        // Try to get the exact cache match
-        cachedResult = await kv.get(cacheKey);
+  // Create a cache key for this research request
+  const cacheKey = createCacheKey(topic, extractedContentType, extractedPlatform, language);
+  logSection(requestId, 'CACHE', `Cache key: ${cacheKey}`);
+  
+  // Check if research is already cached
+  let cachedResult = null;
+  try {
+    if (kv) {
+      // Try to get the exact cache match
+      cachedResult = await kv.get(cacheKey);
+      
+      // If exact match not found, try a simplified key lookup
+      if (!cachedResult) {
+        const simplifiedKey = createSimplifiedTopicKey(topic);
+        logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
         
-        // If exact match not found, try a simplified key lookup
-        if (!cachedResult) {
-          const simplifiedKey = createSimplifiedTopicKey(topic);
-          logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
-          
-          // Try to get any keys that start with the simplified pattern
-          try {
-            const keys = await kv.keys(`${simplifiedKey}*`);
-            if (keys && keys.length > 0) {
-              logSection(requestId, 'CACHE', `Found ${keys.length} potential matches with simplified key pattern`);
-              // Get the first match (could improve this to get the most recent one)
-              cachedResult = await kv.get(keys[0]);
-              if (cachedResult) {
-                logSection(requestId, 'CACHE', `Found partial match with key: ${keys[0]}`);
-              }
+        // Try to get any keys that start with the simplified pattern
+        try {
+          const keys = await kv.keys(`${simplifiedKey}*`);
+          if (keys && keys.length > 0) {
+            logSection(requestId, 'CACHE', `Found ${keys.length} potential matches with simplified key pattern`);
+            // Get the first match (could improve this to get the most recent one)
+            cachedResult = await kv.get(keys[0]);
+            if (cachedResult) {
+              logSection(requestId, 'CACHE', `Found partial match with key: ${keys[0]}`);
             }
-          } catch (err) {
-            console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
           }
-        }
-        
-        // Return cached result if found
-        if (cachedResult) {
-          logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
-          return new Response(
-            JSON.stringify({ 
-              research: cachedResult,
-              fromCache: true,
-              cacheKey 
-            }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          );
-        } else {
-          logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
+        } catch (err) {
+          console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
         }
       }
-    } catch (err) {
-      console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
+      
+      // Return cached result if found
+      if (cachedResult) {
+        logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
+        return new Response(
+          JSON.stringify({ 
+            research: cachedResult,
+            fromCache: true,
+            cacheKey 
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
+      }
     }
-    
-    // Build the prompt
-    const promptText = getPromptForTopic(topic, {
-      audience,
-      contentType: extractedContentType,
-      platform: extractedPlatform,
-      sources,
-      language,
-      companyName,
-      websiteContent
-    });
-    
-    logSection(requestId, 'PROMPT', `Prompt built, length: ${promptText.length} characters`);
-    
-    // Create Perplexity client with proper configuration
-    const perplexity = new PerplexityClient(apiKey);
-    logSection(requestId, 'CLIENT', `Perplexity client initialized successfully`);
-    
-    // Set up options for the API call
-    const options = {
-      maxTokens: 4000,
-      temperature: 0.2,
-      language
-    };
-    
+  } catch (err) {
+    console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
+  }
+  
+  // Build the prompt
+  const promptText = getPromptForTopic(topic, {
+    audience,
+    contentType: extractedContentType,
+    platform: extractedPlatform,
+    sources,
+    language,
+    companyName,
+    websiteContent
+  });
+  
+  logSection(requestId, 'PROMPT', `Prompt built, length: ${promptText.length} characters`);
+  
+  // Create Perplexity client with proper configuration
+  const perplexity = new PerplexityClient(apiKey);
+  logSection(requestId, 'CLIENT', `Perplexity client initialized successfully`);
+  
+  // Set up options for the API call
+  const options = {
+    maxTokens: 4000,
+    temperature: 0.2,
+    language
+  };
+  
+  // Return the research data directly - no job ID or polling mechanism
+  try {
     // Make the direct API call - not using jobs
     const research = await perplexity.generateResearch(promptText, options);
     
@@ -264,7 +265,6 @@ export async function POST(request: NextRequest) {
       console.warn(`[DIAG] [${requestId}] Failed to cache research:`, err);
     }
     
-    // Return the research data directly - no job ID or polling mechanism
     return new Response(
       JSON.stringify({ research }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -273,7 +273,6 @@ export async function POST(request: NextRequest) {
     // Handle errors with fallback
     console.error(`Error generating research: ${error.message}`);
     
-    // Keep the topic and other variables in scope by using the ones from the outer scope
     // Generate fallback content - maintain the existing fallback code
     let fallbackResult = `# Research on ${topic}\n\n`;
     
