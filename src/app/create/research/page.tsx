@@ -1414,6 +1414,10 @@ If you'd like complete research, please try again later when our research servic
     // Track whether the initial request was sent
     let requestSent = false;
     
+    // Generate a unique request ID for correlation
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    console.log(`[DIAG] Starting research request ${requestId} at ${new Date().toISOString()}`);
+    
     try {
       // Build context with all the selected metadata
       const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
@@ -1428,36 +1432,33 @@ Language: ${language || 'en'}`;
       setGenerationProgress(10);
       setStatusMessage(safeTranslate('researchPage.progress.starting', 'Starting {service} analysis...').replace('{service}', 'Perplexity Deep Research'));
       
-      console.log(`Starting research generation with business name: ${safeContentDetails.businessName || 'N/A'}`);
+      console.log(`[DIAG] Research topic: "${safeContentDetails?.researchTopic}"`);
+      console.log(`[DIAG] Starting research generation with business name: ${safeContentDetails.businessName || 'N/A'}`);
       
       // Get website content from contentDetails and log details
       const websiteContent = safeContentDetails.websiteContent;
       if (websiteContent) {
-        console.log('📊 Website content will be used for enhanced company research:');
+        console.log('[DIAG] Website content will be used for enhanced company research:');
         console.log(`   - Title: ${websiteContent.title || 'Not available'}`);
         console.log(`   - Headings: ${websiteContent.headings?.length || 0}`);
         console.log(`   - Paragraphs: ${websiteContent.paragraphs?.length || 0}`);
-        console.log(`   - Has About content: ${!!websiteContent.aboutContent}`);
-        console.log(`   - Has Product info: ${!!websiteContent.productInfo}`);
-        if (websiteContent.contactInfo) {
-          console.log(`   - Contact info: ${websiteContent.contactInfo.emails?.length || 0} emails, ${websiteContent.contactInfo.phones?.length || 0} phones`);
-        }
       } else {
-        console.log('⚠️ No website content available - research will rely on Perplexity search only');
+        console.log('[DIAG] No website content available - research will rely on Perplexity search only');
       }
       
       // Show 25% progress while preparing request
       setGenerationProgress(25);
       
       // Create a timestamp to avoid caching
-      const timestamp = new Date().getTime();
+      const timestamp = Date.now();
       
       // First, pre-send the POST request to initialize the research
-      // This is more reliable than connecting to SSE first
+      console.log(`[DIAG] Sending initial POST request at ${new Date().toISOString()}`);
       const initResponse = await fetch('/api/perplexity/research-sse', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Request-ID': requestId
         },
         body: JSON.stringify({
           topic: safeContentDetails?.researchTopic || '',
@@ -1465,34 +1466,40 @@ Language: ${language || 'en'}`;
           sources: ['recent', 'scholar', 'news'],
           language,
           companyName: safeContentDetails?.businessName || '',
-          websiteContent: safeContentDetails?.websiteContent || null
+          websiteContent: safeContentDetails?.websiteContent || null,
+          requestId // Include request ID for correlation
         }),
       });
       
+      console.log(`[DIAG] Initial response status: ${initResponse.status}, ok: ${initResponse.ok}`);
+      
       if (!initResponse.ok) {
+        const errorText = await initResponse.text();
+        console.error(`[DIAG] Initial request failed: ${errorText}`);
         throw new Error(`Failed to start research process: ${initResponse.status} ${initResponse.statusText}`);
       }
       
       requestSent = true;
-      console.log('[DEBUG] Research request sent successfully, connecting to SSE...');
+      console.log('[DIAG] Research request sent successfully, connecting to SSE...');
       
       // Update status message
       setStatusMessage('Research in progress - connecting to live updates...');
       
       // Now connect to the SSE endpoint to receive progress updates
       // Use SSE (Server-Sent Events) for streaming response
-      const eventSourceUrl = `/api/perplexity/research-sse?t=${timestamp}`;
-      console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
+      const eventSourceUrl = `/api/perplexity/research-sse?t=${timestamp}&requestId=${requestId}`;
+      console.log(`[DIAG] Opening SSE connection to: ${eventSourceUrl} at ${new Date().toISOString()}`);
       
       // Close any existing connection first
       if (typeof window !== 'undefined' && window.researchEventSource && window.researchEventSource.readyState !== 2) {
-        console.log('[DEBUG] Closing existing EventSource connection');
+        console.log('[DIAG] Closing existing EventSource connection');
         window.researchEventSource.close();
         window.researchEventSource = null;
       }
       
       // Create new connection with proper error handling
       const eventSource = new EventSource(eventSourceUrl);
+      console.log(`[DIAG] EventSource created with readyState: ${eventSource.readyState}`); // 0=connecting, 1=open, 2=closed
       
       // Store in window for potential cleanup later
       if (typeof window !== 'undefined') {
@@ -1508,24 +1515,31 @@ Language: ${language || 'en'}`;
         data: string;
       }
       
+      // Log when the connection opens
+      eventSource.onopen = () => {
+        console.log(`[DIAG] SSE connection opened at ${new Date().toISOString()}`);
+        console.log(`[DIAG] EventSource readyState after open: ${eventSource.readyState}`);
+      };
+      
       // Set up listeners for the different event types
       eventSource.addEventListener('progress', (event: Event) => {
         const messageEvent = event as MessageEvent;
         try {
           const data = JSON.parse(messageEvent.data);
-          console.log('[DEBUG] Progress update:', data);
+          console.log(`[DIAG] Progress update at ${new Date().toISOString()}:`, data);
           setGenerationProgress(data.progress);
           setStatusMessage(data.status);
         } catch (e) {
-          console.error('[DEBUG] Error parsing progress event data:', e);
+          console.error('[DIAG] Error parsing progress event data:', e);
         }
       });
       
       eventSource.addEventListener('complete', (event: Event) => {
         const messageEvent = event as MessageEvent;
         try {
+          console.log(`[DIAG] Complete event received at ${new Date().toISOString()}`);
           const data = JSON.parse(messageEvent.data);
-          console.log('[DEBUG] Research complete:', data);
+          console.log('[DIAG] Research complete, data length:', data.research?.length || 0);
           
           // Save the full research
           if (data.research) {
@@ -1556,11 +1570,13 @@ Language: ${language || 'en'}`;
           }
           
           // Close the connection when complete
+          console.log('[DIAG] Closing SSE connection after completion');
           eventSource.close();
+          console.log(`[DIAG] EventSource readyState after close: ${eventSource.readyState}`);
           setIsGenerating(false);
           setIsLoading(false);
         } catch (e) {
-          console.error('[DEBUG] Error parsing complete event data:', e);
+          console.error('[DIAG] Error parsing complete event data:', e);
           setError('Error processing research results. Please try again.');
           eventSource.close();
           setIsGenerating(false);
@@ -1569,7 +1585,8 @@ Language: ${language || 'en'}`;
       });
       
       eventSource.addEventListener('error', (event: Event) => {
-        console.error('[DEBUG] SSE error event received:', event);
+        console.error(`[DIAG] SSE error event received at ${new Date().toISOString()}:`, event);
+        console.log(`[DIAG] EventSource readyState at error: ${eventSource.readyState}`);
         
         // Try to extract error details from the event
         let errorMessage = 'An error occurred during research generation.';
@@ -1577,12 +1594,13 @@ Language: ${language || 'en'}`;
           // Try to parse error data if available
           const messageEvent = event as MessageEvent;
           if (messageEvent.data) {
+            console.log('[DIAG] Error event data:', messageEvent.data);
             const errorData = JSON.parse(messageEvent.data);
             errorMessage = errorData.error || errorMessage;
           }
         } catch (e) {
           // If we can't parse the error, use a generic message
-          console.error('Could not parse error data:', e);
+          console.error('[DIAG] Could not parse error data:', e);
         }
         
         // With Pro plan's longer function duration, timeouts are less likely

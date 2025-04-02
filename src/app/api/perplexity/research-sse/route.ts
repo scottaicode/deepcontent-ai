@@ -22,6 +22,11 @@ export async function OPTIONS(request: NextRequest) {
 
 // POST handler for SSE
 export async function POST(request: NextRequest) {
+  // Extract request ID from headers or URL for correlation
+  const requestUrl = new URL(request.url);
+  const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || 'unknown';
+  console.log(`[DIAG] [${requestId}] Received ${request.method} request at ${new Date().toISOString()}`);
+  
   // Create a TransformStream for SSE
   const encoder = new TextEncoder();
   const stream = new TransformStream();
@@ -34,42 +39,47 @@ export async function POST(request: NextRequest) {
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Request-ID',
     'X-Accel-Buffering': 'no' // Disable buffering for Nginx
   };
   
   // Function to send events to the client
   const sendEvent = async (event: string, data: any) => {
     try {
+      console.log(`[DIAG] [${requestId}] Sending '${event}' event at ${new Date().toISOString()}`);
       await writer.write(
         encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
       );
+      console.log(`[DIAG] [${requestId}] '${event}' event sent successfully`);
     } catch (err) {
-      console.error(`Error sending SSE event '${event}':`, err);
+      console.error(`[DIAG] [${requestId}] Error sending SSE event '${event}':`, err);
     }
   };
   
   // Function to send progress updates
   const sendProgress = async (progress: number, status: string) => {
+    console.log(`[DIAG] [${requestId}] Sending progress update: ${progress}%, status: ${status}`);
     await sendEvent('progress', { progress, status });
   };
 
   // Function to handle errors and close the stream
   const handleError = async (message: string, details?: any) => {
-    console.error(`Research SSE Error: ${message}`, details);
+    console.error(`[DIAG] [${requestId}] Research SSE Error: ${message}`, details);
     
     try {
       await sendEvent('error', { error: message });
       
       // Ensure we always try to close the stream
       try {
+        console.log(`[DIAG] [${requestId}] Closing stream writer after error`);
         await writer.close();
+        console.log(`[DIAG] [${requestId}] Stream writer closed successfully after error`);
       } catch (closeErr) {
-        console.error('Error closing stream writer after error:', closeErr);
+        console.error(`[DIAG] [${requestId}] Error closing stream writer after error:`, closeErr);
       }
       
     } catch (eventErr) {
-      console.error('Failed to send error event to client:', eventErr);
+      console.error(`[DIAG] [${requestId}] Failed to send error event to client:`, eventErr);
     }
   };
 
@@ -78,7 +88,11 @@ export async function POST(request: NextRequest) {
     let body;
     try {
       body = await request.json();
+      console.log(`[DIAG] [${requestId}] Request body parsed successfully`);
+      // Safely log topic without exposing full request body
+      console.log(`[DIAG] [${requestId}] Research topic: "${body.topic}"`);
     } catch (err) {
+      console.error(`[DIAG] [${requestId}] Error parsing request body:`, err);
       await handleError('Invalid request format. Please check your request body.');
       return new Response(stream.readable, { headers });
     }
@@ -86,6 +100,7 @@ export async function POST(request: NextRequest) {
     const { topic, context, sources = ['recent', 'scholar'], companyName, websiteContent, language = 'en' } = body;
     
     if (!topic) {
+      console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
       await handleError('Topic is required');
       return new Response(stream.readable, { headers });
     }
@@ -115,7 +130,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    console.log('Research request parameters:', {
+    console.log(`[DIAG] [${requestId}] Research parameters:`, {
       topic,
       language,
       audience,
@@ -131,6 +146,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.PERPLEXITY_API_KEY;
     
     if (!apiKey) {
+      console.error(`[DIAG] [${requestId}] Perplexity API key not configured`);
       await handleError('Perplexity API key not configured. Please contact support.');
       return new Response(stream.readable, { headers });
     }
@@ -148,18 +164,22 @@ export async function POST(request: NextRequest) {
       websiteContent
     });
     
+    console.log(`[DIAG] [${requestId}] Prompt built, length: ${promptText.length} characters`);
     await sendProgress(20, 'Sending request to Perplexity...');
     
     // Create Perplexity client
     let perplexity;
     try {
       perplexity = new PerplexityClient(apiKey);
+      console.log(`[DIAG] [${requestId}] Perplexity client initialized successfully`);
     } catch (clientError) {
+      console.error(`[DIAG] [${requestId}] Failed to initialize Perplexity client:`, clientError);
       await handleError('Failed to initialize research service. Please try again.');
       return new Response(stream.readable, { headers });
     }
     
     const startTime = Date.now();
+    console.log(`[DIAG] [${requestId}] Process start time: ${new Date(startTime).toISOString()}`);
     
     // Setup progress tracking with additional error handling
     let progressStep = 20;
@@ -167,7 +187,7 @@ export async function POST(request: NextRequest) {
     
     try {
       // With Pro plan, we can use a more gradual progress update approach
-      // since we have up to 15 minutes to complete the research
+      // since we have up to 5 minutes to complete the research
       progressInterval = setInterval(async () => {
         // Increase progress up to 90% before completion
         if (progressStep < 90) {
@@ -192,46 +212,66 @@ export async function POST(request: NextRequest) {
             statusMessage = 'Finalizing research document...';
           }
           
+          const currentTime = Date.now();
+          const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
+          console.log(`[DIAG] [${requestId}] Progress update at ${elapsedSeconds}s elapsed: ${Math.round(progressStep)}%`);
+          
           await sendProgress(progressStep, statusMessage);
         }
       }, 5000); // Update every 5 seconds for smoother progress
     } catch (intervalError) {
-      console.error('Error setting up progress interval:', intervalError);
+      console.error(`[DIAG] [${requestId}] Error setting up progress interval:`, intervalError);
       // Continue without progress updates if interval setup fails
     }
     
-    // Cleanup function for the interval
-    const clearProgressInterval = () => {
+    // Setup a diagnostic interval to log status during the API call
+    const diagInterval = setInterval(() => {
+      const currentTime = Date.now();
+      const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
+      console.log(`[DIAG] [${requestId}] Still processing at ${elapsedSeconds}s elapsed`);
+    }, 30000); // Log every 30 seconds
+    
+    // Cleanup function for the intervals
+    const clearIntervals = () => {
       if (progressInterval) {
         clearInterval(progressInterval);
         progressInterval = null;
       }
+      if (diagInterval) {
+        clearInterval(diagInterval);
+      }
+      console.log(`[DIAG] [${requestId}] Intervals cleared`);
     };
     
     // Call Perplexity API
-    console.log('Sending request to Perplexity API...');
+    console.log(`[DIAG] [${requestId}] Sending request to Perplexity API at ${new Date().toISOString()}`);
     try {
+      console.time(`[DIAG] [${requestId}] Perplexity API call`);
       const response = await perplexity.generateResearch(promptText);
+      console.timeEnd(`[DIAG] [${requestId}] Perplexity API call`);
       
       // Clear the progress interval once we have a response
-      clearProgressInterval();
+      clearIntervals();
       
       // Calculate actual time taken
       const endTime = Date.now();
       const timeTaken = endTime - startTime;
-      console.log(`Successfully received research from Perplexity API in ${timeTaken}ms`);
+      console.log(`[DIAG] [${requestId}] Successfully received research from Perplexity API in ${timeTaken}ms (${Math.floor(timeTaken/1000)}s)`);
+      console.log(`[DIAG] [${requestId}] Response length: ${response?.length || 0} characters`);
       
       // Send completion status
       await sendProgress(95, 'Processing final results...');
       
       // Send the research result
+      console.log(`[DIAG] [${requestId}] Sending complete event with research results`);
       await sendEvent('complete', { research: response });
       
       // Final progress update
       await sendProgress(100, 'Research completed successfully!');
     } catch (apiError: any) {
-      console.error('Error from Perplexity API:', apiError);
-      clearProgressInterval();
+      console.error(`[DIAG] [${requestId}] Error from Perplexity API:`, apiError);
+      console.timeEnd(`[DIAG] [${requestId}] Perplexity API call`);
+      clearIntervals();
       
       // Create a user-friendly error message
       let errorMessage = apiError.message || 'Error from Perplexity API';
@@ -245,22 +285,26 @@ export async function POST(request: NextRequest) {
         errorMessage = 'Authentication error with research service. Please contact support.';
       }
       
+      console.log(`[DIAG] [${requestId}] Reporting error to client: ${errorMessage}`);
       await handleError(errorMessage);
       return new Response(stream.readable, { headers });
     }
     
     // Close the writer
     try {
+      console.log(`[DIAG] [${requestId}] Closing stream writer`);
       await writer.close();
+      console.log(`[DIAG] [${requestId}] Stream writer closed successfully`);
     } catch (closeError) {
-      console.error('Error closing writer stream:', closeError);
+      console.error(`[DIAG] [${requestId}] Error closing writer stream:`, closeError);
     }
     
     // Return the response with proper headers
+    console.log(`[DIAG] [${requestId}] Returning response at ${new Date().toISOString()}`);
     return new Response(stream.readable, { headers });
     
   } catch (error: any) {
-    console.error('Error generating research:', error);
+    console.error(`[DIAG] [${requestId}] Unhandled error generating research:`, error);
     
     // Send error to client and close the connection
     await handleError(error.message || 'Unknown error occurred');
