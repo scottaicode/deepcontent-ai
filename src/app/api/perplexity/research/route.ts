@@ -9,28 +9,34 @@
 import { NextRequest } from 'next/server';
 import { PerplexityClient } from '@/lib/api/perplexityClient';
 import { getPromptForTopic } from '@/lib/api/promptBuilder';
+import { kv } from '@vercel/kv';
 
-// Update the KV initialization to be more robust
-let kv: any;
-try {
-  kv = require('@vercel/kv');
-  // Test KV connection immediately
-  (async () => {
-    try {
-      // Simple test write/read
-      const testKey = `kv-test-${Date.now()}`;
-      await kv.set(testKey, 'test-value', { ex: 60 }); // 60 second expiration
-      const testValue = await kv.get(testKey);
-      console.log(`[KV] Connection test: ${testValue === 'test-value' ? 'SUCCESS' : 'FAILED'}`);
-    } catch (e) {
-      console.error('[KV] Test connection failed:', e);
-      // Don't disable KV here, it might work for subsequent calls
-    }
-  })();
-} catch (e) {
-  console.warn('[KV] Storage not available, caching will be disabled:', e);
-  kv = null;
+// Define an interface for the job object stored in KV
+interface Job {
+  status: 'pending' | 'completed' | 'failed';
+  resultKey?: string; // Key where the result is stored (if completed)
+  error?: string; // Error message (if failed)
+  progress?: string; // Progress percentage
+  isFallback?: string; // Indicate if result is fallback
+  // Add other potential fields if necessary
+  [key: string]: any; // Add index signature to satisfy hgetall constraint
 }
+
+// Test KV connection immediately upon module load
+(async () => {
+  try {
+    // Simple test write/read
+    const testKey = `kv-test-${Date.now()}`;
+    await kv.set(testKey, 'test-value', { ex: 60 }); // 60 second expiration
+    const testValue = await kv.get(testKey);
+    await kv.del(testKey); // Clean up test key
+    console.log(`[KV] Connection test: ${testValue === 'test-value' ? 'SUCCESS' : 'FAILED'}`);
+  } catch (e) {
+    console.error('[KV] Initial connection test failed:', e);
+    // Note: KV operations might still work later even if this initial test fails.
+    // Consider adding more robust health checks if needed.
+  }
+})();
 
 // Add wait utility
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -73,12 +79,27 @@ const createSimplifiedTopicKey = (topic: string): string => {
   return `research:${topic.trim().toLowerCase().replace(/[^a-z0-9]/gi, '-').substring(0, 50)}`;
 };
 
-// Check if a job is complete
-async function checkJobStatus(jobId: string) {
-  if (!kv) return null;
-  
+// Check if a job is complete, now returning the defined Job type
+async function checkJobStatus(jobId: string): Promise<Job | null> {
+  // kv check removed as kv is now imported directly and should always exist
+  // if (!kv) return null; 
+
   try {
-    const job = await kv.hgetall(jobId);
+    // Explicitly type the result of hgetall
+    const job = await kv.hgetall<Job>(jobId);
+    
+    // hgetall returns null if key doesn't exist, handle that explicitly
+    if (!job) {
+      console.log(`[KV] Job not found for ID: ${jobId}`);
+      return null;
+    }
+
+    // Ensure status exists, default to pending if missing for some reason
+    if (!job.status) {
+        console.warn(`[KV] Job ${jobId} missing status field. Defaulting to pending.`);
+        job.status = 'pending';
+    }
+    
     return job;
   } catch (err) {
     console.error(`Error checking job status for ${jobId}:`, err);
@@ -356,8 +377,9 @@ export async function GET(request: NextRequest) {
       }
       
       // Return job status without research content
+      const responseBody = JSON.stringify(job || {}); // Stringify first, ensuring not null
       return new Response(
-        JSON.stringify(job),
+        responseBody, // Pass the pre-stringified body
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     } catch (error: any) {
