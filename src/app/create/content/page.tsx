@@ -982,10 +982,8 @@ export default function ContentGenerator() {
         targetAudience: contentDetails.targetAudience,
         businessType: contentDetails.businessType,
         persona: currentPersona,
-        length: contentSettings.length,
+        length: contentSettings.length as 'short' | 'medium' | 'long',
         status: 'published' as const,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
       
       // Save the content using the content service
