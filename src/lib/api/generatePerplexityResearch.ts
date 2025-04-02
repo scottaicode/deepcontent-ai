@@ -28,7 +28,24 @@ export async function generatePerplexityResearch(
       throw new Error('Empty research topic provided to Perplexity API');
     }
     
-    // First, create a research job
+    // First check if we already have cached research for this topic
+    const cachedCheckResponse = await fetch(`/api/perplexity/research?topic=${encodeURIComponent(topic.trim())}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+    // If we found cached research, return it immediately
+    if (cachedCheckResponse.ok) {
+      const cachedData = await cachedCheckResponse.json();
+      if (cachedData.research) {
+        console.log('Found cached research for topic, using it directly');
+        return cachedData.research;
+      }
+    }
+    
+    // Create a research job
     const jobResponse = await fetch('/api/perplexity/research', {
       method: 'POST',
       headers: {
@@ -57,8 +74,30 @@ export async function generatePerplexityResearch(
     }
     
     // Poll for job completion
-    const maxPollAttempts = 30; // 5 minutes maximum (10 second intervals)
+    const maxPollAttempts = 60; // 10 minutes maximum (up from 5 minutes)
     let pollAttempt = 0;
+    let consecutiveErrors = 0;
+    
+    // Store progress updates for reporting
+    let lastReportedProgress = 0;
+    
+    // Function to dispatch progress events that the UI can listen to
+    const reportProgress = (progress: number, message: string) => {
+      if (progress > lastReportedProgress) {
+        lastReportedProgress = progress;
+        // Only dispatch if we're in a browser environment
+        if (typeof window !== 'undefined') {
+          const progressEvent = new CustomEvent('perplexity-research-progress', { 
+            detail: { progress, message } 
+          });
+          window.dispatchEvent(progressEvent);
+          console.log(`Research progress: ${progress}% - ${message}`);
+        }
+      }
+    };
+    
+    // Report initial progress
+    reportProgress(5, 'Starting research job...');
     
     // Function to poll the job status
     const pollJobStatus = async (): Promise<string> => {
@@ -68,46 +107,120 @@ export async function generatePerplexityResearch(
       
       pollAttempt++;
       
-      // Add exponential backoff as polling attempts increase
-      const delayTime = Math.min(10000, 2000 + (pollAttempt * 500));
-      console.log(`Polling job status (attempt ${pollAttempt}/${maxPollAttempts}), waiting ${delayTime}ms`);
+      // Add exponential backoff as polling attempts increase, but with a minimum delay
+      // This ensures we wait longer between polls as time goes on
+      const minDelay = 2000; // Minimum 2 seconds
+      const maxDelay = 15000; // Maximum 15 seconds
+      
+      // Calculate delay with exponential backoff but capped
+      const exponentialDelay = Math.min(maxDelay, minDelay * Math.pow(1.2, pollAttempt - 1));
+      
+      // Add slight randomization to avoid thundering herd problem
+      const jitter = Math.random() * 500;
+      const delayTime = Math.floor(exponentialDelay + jitter);
+      
+      // Report waiting status for longer waits
+      if (delayTime > 5000 && pollAttempt % 3 === 0) {
+        reportProgress(
+          Math.min(85, Math.max(lastReportedProgress, 10 + (pollAttempt * 2))), 
+          'Continuing research analysis...'
+        );
+      }
       
       // Wait before polling
       await new Promise(resolve => setTimeout(resolve, delayTime));
       
-      // Check job status
-      const statusResponse = await fetch(`/api/perplexity/research?jobId=${jobData.jobId}`, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache'
+      try {
+        // Check job status
+        const statusResponse = await fetch(`/api/perplexity/research?jobId=${jobData.jobId}`, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (!statusResponse.ok) {
+          const errorData = await statusResponse.json().catch(() => ({}));
+          
+          // Count consecutive errors
+          consecutiveErrors++;
+          
+          // If we've had too many consecutive errors, throw an error
+          if (consecutiveErrors >= 3) {
+            throw new Error(`Job status check failed after multiple attempts: ${statusResponse.status} - ${JSON.stringify(errorData)}`);
+          }
+          
+          // Otherwise, just retry
+          console.warn(`Job status check error (attempt ${pollAttempt}, consecutive errors: ${consecutiveErrors}):`, errorData);
+          return pollJobStatus();
         }
-      });
-      
-      if (!statusResponse.ok) {
-        const errorData = await statusResponse.json().catch(() => ({}));
-        throw new Error(`Job status check failed: ${statusResponse.status} - ${JSON.stringify(errorData)}`);
+        
+        // Reset consecutive errors on success
+        consecutiveErrors = 0;
+        
+        const statusData = await statusResponse.json();
+        
+        // If job completed, return the research content
+        if (statusData.status === 'completed' && statusData.research) {
+          // Report 100% progress on completion
+          reportProgress(100, 'Research complete!');
+          return statusData.research;
+        }
+        
+        // If job failed, throw an error
+        if (statusData.status === 'failed') {
+          throw new Error(`Research job failed: ${statusData.error || 'Unknown error'}`);
+        }
+        
+        // Report progress if available
+        if (statusData.progress) {
+          const progressValue = parseInt(statusData.progress);
+          if (!isNaN(progressValue) && progressValue > 0) {
+            // Use different messages based on progress
+            let message = 'Researching topic...';
+            
+            if (progressValue < 30) {
+              message = 'Gathering initial research data...';
+            } else if (progressValue < 60) {
+              message = 'Analyzing research findings...';
+            } else if (progressValue < 90) {
+              message = 'Compiling comprehensive results...';
+            } else {
+              message = 'Finalizing research document...';
+            }
+            
+            reportProgress(progressValue, message);
+          }
+        } else {
+          // If no progress reported, use the attempt count to estimate progress
+          // This ensures the UI shows some movement even if the backend isn't reporting progress
+          const estimatedProgress = Math.min(80, 5 + (pollAttempt * 3));
+          if (estimatedProgress > lastReportedProgress) {
+            reportProgress(estimatedProgress, 'Continuing research...');
+          }
+        }
+        
+        // Job still processing, continue polling
+        return pollJobStatus();
+      } catch (error: any) {
+        // Handle network errors with more tolerance
+        if (error.message.includes('fetch failed') || error.name === 'TypeError') {
+          consecutiveErrors++;
+          
+          if (consecutiveErrors >= 5) {
+            throw new Error('Network error: Failed to check research status after multiple attempts');
+          }
+          
+          console.warn(`Network error during polling (attempt ${pollAttempt}, consecutive errors: ${consecutiveErrors}):`, error);
+          
+          // Wait a bit longer for network issues and retry
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          return pollJobStatus();
+        }
+        
+        // For other errors, rethrow
+        throw error;
       }
-      
-      const statusData = await statusResponse.json();
-      console.log('Job status:', statusData);
-      
-      // If job completed, return the research content
-      if (statusData.status === 'completed' && statusData.research) {
-        return statusData.research;
-      }
-      
-      // If job failed, throw an error
-      if (statusData.status === 'failed') {
-        throw new Error(`Research job failed: ${statusData.error || 'Unknown error'}`);
-      }
-      
-      // Report progress if available
-      if (statusData.progress) {
-        console.log(`Research progress: ${statusData.progress}%`);
-      }
-      
-      // Job still processing, continue polling
-      return pollJobStatus();
     };
     
     // Start polling
@@ -118,7 +231,7 @@ export async function generatePerplexityResearch(
     }
     
     return research;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating Perplexity research:', error);
     throw error;
   }
