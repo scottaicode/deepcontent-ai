@@ -164,28 +164,104 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       
       // Check content quality - is this just error/fallback content?
+      let isLowQualityContent = false;
       if (data.transcript) {
         const contentPreview = data.transcript.substring(0, 200);
         console.log('[DEBUG-YOUTUBE] Transcript content preview:', contentPreview);
         
         // Check if content seems like generic fallback or error content
-        const isGenericContent = 
+        isLowQualityContent = 
+          data.isFallback || 
           contentPreview.includes('Unable to Retrieve Video Details') || 
           contentPreview.includes('This is a sample transcript generated as a fallback') ||
           contentPreview.includes('This could happen because:') ||
           contentPreview.includes('We couldn\'t access complete information');
         
-        if (isGenericContent) {
-          console.log('[DEBUG-YOUTUBE] Detected generic fallback content that may not be research-quality');
+        if (isLowQualityContent) {
+          console.log('[DEBUG-YOUTUBE] Detected low-quality fallback content - will enhance with Perplexity');
         }
       }
       
-      // Return the research content
+      // If we have low-quality or fallback content, enhance it with Perplexity
+      if (isLowQualityContent && data.metadata) {
+        console.log('[DEBUG-YOUTUBE] Enhancing content with Perplexity research');
+        
+        try {
+          // Extract metadata to use for research
+          const videoMetadata = data.metadata;
+          const topic = videoMetadata.videoTitle || `YouTube video ${actualVideoId}`;
+          
+          // Build a context string for the research
+          let context = `Topic: YouTube video "${topic}"`;
+          if (videoMetadata.author) {
+            context += `\nCreator: ${videoMetadata.author}`;
+          }
+          if (videoMetadata.viewCount) {
+            context += `\nViews: ${videoMetadata.viewCount}`;
+          }
+          if (videoMetadata.publishDate) {
+            context += `\nPublished: ${videoMetadata.publishDate}`;
+          }
+          
+          console.log('[DEBUG-YOUTUBE] Calling Perplexity research with context:', context);
+          
+          // Call Perplexity API for enhanced research
+          const perplexityResponse = await fetch(`${getBaseUrl(request)}/api/perplexity/research`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              topic: topic,
+              context: context,
+              sources: ['recent', 'scholar'],
+            }),
+          });
+          
+          if (!perplexityResponse.ok) {
+            throw new Error(`Perplexity API returned ${perplexityResponse.status}`);
+          }
+          
+          const perplexityData = await perplexityResponse.json();
+          
+          if (perplexityData && perplexityData.research) {
+            console.log('[DEBUG-YOUTUBE] Successfully enhanced content with Perplexity', {
+              researchLength: perplexityData.research.length,
+              preview: perplexityData.research.substring(0, 100) + '...'
+            });
+            
+            // Format the enhanced research content to include video information
+            const enhancedContent = formatEnhancedResearch(
+              perplexityData.research,
+              topic,
+              actualVideoId,
+              videoMetadata
+            );
+            
+            // Return the enhanced content
+            return NextResponse.json({
+              transcript: enhancedContent,
+              source: 'perplexity-enhanced',
+              metadata: data.metadata,
+              quality: 'research',
+              videoId: actualVideoId
+            }, { status: 200 });
+          } else {
+            console.error('[DEBUG-YOUTUBE] Perplexity API returned no research content');
+          }
+        } catch (perplexityError) {
+          console.error('[DEBUG-YOUTUBE] Error enhancing content with Perplexity:', perplexityError);
+          // Continue with the original content if Perplexity enhancement fails
+        }
+      }
+      
+      // If we have quality content or Perplexity enhancement failed, return the original content
       return NextResponse.json({
         transcript: data.transcript,
-        source: 'research-extraction',
+        source: data.source,
         metadata: data.metadata || {},
-        quality: data.isFallback ? 'fallback' : 'research'
+        quality: isLowQualityContent ? 'fallback' : 'research',
+        videoId: actualVideoId
       }, { status: 200 });
       
     } catch (error: any) {
@@ -202,6 +278,49 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Format the enhanced research content from Perplexity to include video information
+ */
+function formatEnhancedResearch(
+  research: string,
+  videoTitle: string,
+  videoId: string,
+  metadata: any
+): string {
+  // Add video information at the top
+  let formattedContent = `# Research on YouTube Video: "${videoTitle}"\n\n`;
+  
+  // Add video metadata
+  formattedContent += `## Video Information\n`;
+  formattedContent += `- **URL**: https://www.youtube.com/watch?v=${videoId}\n`;
+  
+  if (metadata.author) {
+    formattedContent += `- **Channel**: ${metadata.author}\n`;
+  }
+  
+  if (metadata.publishDate) {
+    formattedContent += `- **Published**: ${metadata.publishDate}\n`;
+  }
+  
+  if (metadata.viewCount) {
+    formattedContent += `- **Views**: ${metadata.viewCount}\n`;
+  }
+  
+  // Add thumbnail image
+  formattedContent += `\n![Video Thumbnail](https://img.youtube.com/vi/${videoId}/hqdefault.jpg)\n\n`;
+  
+  // Add a separation line
+  formattedContent += `---\n\n`;
+  
+  // Add the enhanced research content
+  formattedContent += research.trim();
+  
+  // Add a note about content generation
+  formattedContent += `\n\n---\n\n*Note: This research content was AI-generated based on available video metadata. For the most accurate information, watch the video directly.*\n`;
+  
+  return formattedContent;
 }
 
 /**

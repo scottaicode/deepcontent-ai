@@ -758,21 +758,39 @@ For your research, consider watching the video with captions enabled and taking 
         console.log('[DEBUG-FRONTEND] Backend quality assessment:', data.quality);
       }
       
+      // Check if this is Perplexity-enhanced content
+      const isPerplexityEnhanced = data.source === 'perplexity-enhanced';
+      if (isPerplexityEnhanced) {
+        console.log('[DEBUG-FRONTEND] Received Perplexity-enhanced research content');
+      }
+      
       // Success case - we have transcript data
       if (data.transcript) {
         console.log('[DEBUG-FRONTEND] Research extraction succeeded, transcript length:', data.transcript.length);
         
         // Analyze content quality
         const contentPreview = data.transcript.substring(0, 200);
-        const isFallback = data.isFallback || 
-                           contentPreview.includes('Unable to Retrieve Video Details') || 
+        const isFallback = data.quality === 'fallback' || 
+                           (!isPerplexityEnhanced && 
+                           (contentPreview.includes('Unable to Retrieve Video Details') || 
                            contentPreview.includes('What You Can Do Instead') || 
-                           contentPreview.includes('This could happen because:');
+                           contentPreview.includes('This could happen because:')));
                            
         console.log('[DEBUG-FRONTEND] Content quality assessment:', { 
           isFallback, 
+          isPerplexityEnhanced,
           contentPreview 
         });
+        
+        // For fallback content that isn't Perplexity-enhanced, warn the user
+        if (isFallback && !isPerplexityEnhanced) {
+          console.log('[DEBUG-FRONTEND] Warning user about fallback content quality');
+          toast({
+            title: 'Limited Content Available',
+            description: 'Only basic information about this video could be extracted. For better results, try a different video.',
+            variant: 'default',
+          });
+        }
         
         // Clean any HTML entities that might still be in the transcript
         let cleanTranscript = data.transcript;
@@ -793,10 +811,18 @@ For your research, consider watching the video with captions enabled and taking 
         // Call the callback with the clean transcript and URL
         onTranscriptFetched(cleanTranscript, url);
         
-        toast({
-          title: 'Research Content Extracted',
-          description: 'Successfully extracted research-relevant content from this video',
-        });
+        // Use different toast message based on content type
+        if (isPerplexityEnhanced) {
+          toast({
+            title: 'AI-Enhanced Research Generated',
+            description: 'Successfully generated AI-enhanced research content based on video information',
+          });
+        } else {
+          toast({
+            title: 'Research Content Extracted',
+            description: 'Successfully extracted research-relevant content from this video',
+          });
+        }
         
         // Clear URL after successful transcription
         onUrlChange('');
@@ -829,6 +855,15 @@ For your research, consider watching the video with captions enabled and taking 
         toast({
           title: 'Not Suitable for Research',
           description: 'This video does not contain content that can be used in the research process. Please try a different video.',
+          variant: 'destructive',
+        });
+      } else if (err.message && err.message.includes('Perplexity API')) {
+        // Handle Perplexity API errors
+        setError('Research enhancement service is currently unavailable');
+        
+        toast({
+          title: 'Research Enhancement Failed',
+          description: 'The AI research enhancement service is temporarily unavailable. Please try again later.',
           variant: 'destructive',
         });
       } else {
