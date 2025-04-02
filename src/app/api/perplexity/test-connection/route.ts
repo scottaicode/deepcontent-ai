@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server';
-import { PerplexityClient } from '@/lib/api/perplexityClient';
+
+// Set a short maximum duration for this route - well under Vercel's limits
+export const maxDuration = 30; // 30 seconds max
+export const dynamic = 'force-dynamic';
 
 // Simple endpoint to test Perplexity API connectivity
 export async function GET(req: NextRequest) {
@@ -23,32 +26,52 @@ export async function GET(req: NextRequest) {
       );
     }
     
-    // Create a simple test query
-    const testQuery = 'What is today\'s date? Answer in one short sentence.';
+    // Create a simple test query that won't require complex processing
+    const testQuery = 'What is 2+2? Just answer with the number, nothing else.';
     console.log('[DIAG] Test query:', testQuery);
-    
-    // Initialize client
-    const perplexity = new PerplexityClient(apiKey);
-    console.log('[DIAG] Perplexity client initialized');
     
     // Start timer
     const startTime = Date.now();
     console.log('[DIAG] Sending test query to Perplexity API');
     
-    // Send a simple query to test the connection
-    const response = await perplexity.generateResearch(testQuery);
+    // Use a timeout to ensure we don't exceed Vercel's limits
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('API test timeout after 20 seconds')), 20000);
+    });
+    
+    // Make a direct API call with very limited scope
+    const apiPromise = fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20240620',
+        messages: [{ role: 'user', content: testQuery }],
+        max_tokens: 10, // Very small limit for quick response
+        temperature: 0
+      })
+    });
+    
+    // Race the API call against the timeout
+    const response = await Promise.race([apiPromise, timeoutPromise]) as Response;
+    
+    if (!response.ok) {
+      throw new Error(`API returned status ${response.status}`);
+    }
+    
+    const data = await response.json();
     
     // Calculate time taken
     const timeTaken = Date.now() - startTime;
     console.log('[DIAG] Perplexity API responded in', timeTaken, 'ms');
-    console.log('[DIAG] Response:', response);
     
     // Return success response
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'Perplexity API connection successful',
-        response,
         timeTaken
       }),
       { 
@@ -63,8 +86,7 @@ export async function GET(req: NextRequest) {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'Unknown error occurred', 
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: error.message || 'Unknown error occurred'
       }),
       { 
         status: 500, 
