@@ -260,20 +260,62 @@ export async function POST(request: NextRequest) {
         logSection(requestId, 'PROGRESS', `Still processing at ${elapsedSeconds}s elapsed`);
       }, 30000); // Log every 30 seconds
       
-      // Call Perplexity API with chunked approach
-      const research = await perplexity.generateResearch(promptText);
+      // Call Perplexity API with chunked approach and timeout protection
+      let research: string;
+      
+      try {
+        // Set a hard timeout limit for the entire research process
+        const timeoutMs = 240000; // 4 minutes timeout (to ensure we stay under 5 minute function limit)
+        
+        // Create a timeout promise
+        const timeoutPromise = new Promise<string>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('Research generation timed out after 4 minutes'));
+          }, timeoutMs);
+        });
+        
+        // Regular API call
+        const apiPromise = perplexity.generateResearch(promptText);
+        
+        // Race the API call against the timeout
+        research = await Promise.race([apiPromise, timeoutPromise]);
+        
+        // If we get here, the API call succeeded within the timeout period
+        logSection(requestId, 'SUCCESS', `Research generated successfully, length: ${research?.length || 0} characters`);
+      } catch (apiError: any) {
+        // Clear diagnostic interval if it's running
+        if (diagInterval) {
+          clearInterval(diagInterval);
+          diagInterval = null;
+        }
+        
+        // Log the error
+        console.error(`[DIAG] [${requestId}] Error generating research:`, apiError);
+        
+        // Try to get simple fallback content
+        logSection(requestId, 'FALLBACK', 'Generating simplified fallback content due to timeout');
+        
+        // Create more generalized fallback content that doesn't rely on API
+        let fallbackResult = `# Research on ${topic}\n\n`;
+        fallbackResult += `## Overview\n\nThis topic requires in-depth research. Due to technical limitations, we could only generate a basic outline of the important areas to research.\n\n`;
+        fallbackResult += `## Key Areas to Research\n\n`;
+        fallbackResult += `1. Market trends and current statistics\n`;
+        fallbackResult += `2. Target audience demographics and preferences\n`;
+        fallbackResult += `3. Competitive landscape and differentiation opportunities\n`;
+        fallbackResult += `4. Content strategy best practices for ${extractedPlatform}\n`;
+        fallbackResult += `5. Success metrics and benchmarks\n\n`;
+        fallbackResult += `## Next Steps\n\n`;
+        fallbackResult += `Consider researching these topics individually for more detailed insights. You may want to try again with a more specific research topic to get better results.`;
+        
+        research = fallbackResult;
+        logSection(requestId, 'FALLBACK', `Generated fallback content with length: ${research.length} characters`);
+      }
       
       // Clear diagnostic interval
       if (diagInterval) {
         clearInterval(diagInterval);
         diagInterval = null;
       }
-      
-      // Calculate time taken
-      const endTime = Date.now();
-      const timeTaken = endTime - startTime;
-      logSection(requestId, 'COMPLETE', `Research generated in ${timeTaken}ms (${Math.floor(timeTaken/1000)}s)`);
-      logSection(requestId, 'COMPLETE', `Research length: ${research?.length || 0} characters`);
       
       // Enforce strict minimum processing time of 5 minutes
       await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
@@ -301,7 +343,7 @@ export async function POST(request: NextRequest) {
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     } catch (error: any) {
-      // Clear diagnostic interval if it's still running
+      // Clean up interval if still running
       if (diagInterval) {
         clearInterval(diagInterval);
         diagInterval = null;

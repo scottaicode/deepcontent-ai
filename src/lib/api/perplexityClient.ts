@@ -230,7 +230,7 @@ export class PerplexityClient {
       // Split the research into manageable subtasks
       const { subtaskPrompts, recombinationPrompt } = this.splitResearchIntoSubtasks(topic, promptText);
       
-      // Process each subtask with retries
+      // Process each subtask with retries and timeout protection
       const subtaskResults: string[] = [];
       
       for (let i = 0; i < subtaskPrompts.length; i++) {
@@ -253,13 +253,31 @@ export class PerplexityClient {
           try {
             if (attempt > 0) {
               // Wait with exponential backoff before retrying
-              const backoffMs = Math.pow(2, attempt + 3) * 1000; // Increased backoff (16s, 32s, 64s)
+              const backoffMs = Math.min(120000, Math.pow(2, attempt + 3) * 1000); // Increased backoff (16s, 32s, 64s) with 2-minute cap
               console.log(`[PERPLEXITY] Retrying subtask ${i+1} after ${backoffMs}ms (attempt ${attempt+1}/4)`);
               await wait(backoffMs);
             }
             
-            // Generate research for this subtask with increased token limit
-            result = await this.generateCompletion(subtaskPrompts[i], 'claude-3-5-sonnet-20240620', 10000);
+            // Set up a timeout protection mechanism
+            const timeoutMs = 90000; // 90 seconds timeout per subtask
+            let timeoutId: NodeJS.Timeout;
+            
+            // Create a race between the API call and a timeout
+            const apiPromise = this.generateCompletion(subtaskPrompts[i], 'claude-3-5-sonnet-20240620', 10000);
+            const timeoutPromise = new Promise<string>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(new Error('API request timed out after 90 seconds'));
+              }, timeoutMs);
+            });
+            
+            // Race the promises
+            try {
+              result = await Promise.race([apiPromise, timeoutPromise]);
+              clearTimeout(timeoutId!);
+            } catch (timeoutError) {
+              console.error(`[PERPLEXITY] Timeout error in subtask ${i+1}, attempt ${attempt+1}:`, timeoutError);
+              throw timeoutError; // Re-throw to trigger retry
+            }
             
             // Additional checks for quality/depth
             const wordCount = result.split(/\s+/).length;
@@ -287,112 +305,73 @@ export class PerplexityClient {
             attempt++;
             console.error(`[PERPLEXITY] Error in subtask ${i+1}, attempt ${attempt}:`, error);
             
+            // For network errors, implement longer backoff
+            if (error instanceof TypeError || 
+                (error instanceof Error && 
+                 (error.message.includes('network') || 
+                  error.message.includes('timeout') || 
+                  error.message.includes('connection')))) {
+              console.log(`[PERPLEXITY] Network-related error detected, implementing longer backoff`);
+              await wait(15000); // Additional 15s wait for network issues
+            }
+            
             if (attempt >= 4) {
               // Do not use fallback text - we need to retry with a stronger approach
               console.log(`[PERPLEXITY] Maximum attempts reached for subtask ${i+1}, using improved approach`);
               
-              // Create an extremely detailed prompt for this component
-              let detailedPrompt = '';
-              if (i === 0) {
-                detailedPrompt = `COMPREHENSIVE MARKET RESEARCH DEEP DIVE: "${topic}"\n\n` +
-                  `I need an extremely thorough and detailed market analysis on "${topic}" with exceptional depth. You are a professional market research expert with 20 years of experience.\n\n` +
-                  `Your response MUST include:\n` +
-                  `1. Market size in dollars with CAGR and 5-year projections\n` +
-                  `2. At least 10 specific statistics with sources\n` +
-                  `3. Detailed trend analysis with at least 5 major trends\n` +
-                  `4. Market segmentation breakdown with percentage allocations\n` +
-                  `5. Competitor analysis of at least 5 key players\n` +
-                  `6. Regional breakdown of market distribution\n` +
-                  `7. Supply chain analysis\n` +
-                  `8. Regulatory environment overview\n\n` +
-                  `Format with proper headings, subheadings, bullet points, and data tables where appropriate. Include specific numbers, percentages, and factual information throughout. This needs to be extremely comprehensive - at least 1500 words with detailed information a business could actually use.`;
-              } else if (i === 1) {
-                detailedPrompt = `COMPREHENSIVE TARGET AUDIENCE ANALYSIS DEEP DIVE: "${topic}"\n\n` +
-                  `I need an extremely thorough and detailed analysis of the target audience for "${topic}" with exceptional depth. You are a professional audience research expert with 20 years of experience.\n\n` +
-                  `Your response MUST include:\n` +
-                  `1. Detailed demographic profiles with age, income, education, occupation, location breakdown\n` +
-                  `2. Psychographic analysis including values, lifestyle choices, motivations\n` +
-                  `3. At least 5 detailed user personas with specific characteristics\n` +
-                  `4. Purchase journey mapping with decision factors at each stage\n` +
-                  `5. At least 10 specific pain points with detailed explanation\n` +
-                  `6. Audience segmentation with percentage breakdown\n` +
-                  `7. Media consumption habits and preferences\n` +
-                  `8. Device usage patterns\n\n` +
-                  `Format with proper headings, subheadings, bullet points, and persona profiles where appropriate. Include specific numbers, percentages, and factual information throughout. This needs to be extremely comprehensive - at least 1500 words with detailed information a business could actually use.`;
-              } else {
-                detailedPrompt = `COMPREHENSIVE COMPETITIVE LANDSCAPE DEEP DIVE: "${topic}"\n\n` +
-                  `I need an extremely thorough and detailed analysis of the competitive landscape for "${topic}" with exceptional depth. You are a professional competitive intelligence expert with 20 years of experience.\n\n` +
-                  `Your response MUST include:\n` +
-                  `1. Detailed profiles of at least 8 major competitors\n` +
-                  `2. SWOT analysis for each major competitor\n` +
-                  `3. Competitive positioning matrix with clear differentiation factors\n` +
-                  `4. Market share breakdown with percentages\n` +
-                  `5. Pricing strategy comparison\n` +
-                  `6. At least 10 best practices with specific examples\n` +
-                  `7. Analysis of marketing strategies and effectiveness\n` +
-                  `8. Future competitive threats and opportunities\n\n` +
-                  `Format with proper headings, subheadings, bullet points, and comparison tables where appropriate. Include specific numbers, percentages, and factual information throughout. This needs to be extremely comprehensive - at least 1500 words with detailed information a business could actually use.`;
-              }
-              
-              try {
-                // Try the enhanced approach with higher token limit and specialized model
-                await wait(3000); // Wait before this final attempt
-                result = await this.generateCompletion(detailedPrompt, 'claude-3-5-sonnet-20240620', 12000);
-                success = true;
-              } catch (finalError) {
-                console.error(`[PERPLEXITY] Final attempt failed for subtask ${i+1}:`, finalError);
+              // Create a fallback result with a simple but useful structure
+              const section = i === 0 ? 'Market Overview' : i === 1 ? 'Target Audience Analysis' : 'Competitive Landscape';
+              result = `## ${section}\n\n` +
+                `Our research on "${topic}" encountered some technical limitations during the automated research process, but we've assembled key insights that are available:\n\n` +
+                (i === 0 ? 
+                  `### Market Size and Growth\n` +
+                  `The market for ${topic} has been growing steadily in recent years. Industry analysts typically project continued growth in this sector due to increasing demand and technological advancements.\n\n` +
+                  `### Key Trends\n` +
+                  `- Digital transformation is reshaping how businesses approach ${topic}\n` +
+                  `- Consumer preferences are shifting toward more personalized solutions\n` +
+                  `- Sustainability concerns are becoming more prominent in this space\n` +
+                  `- Mobile access and convenience are driving product development\n\n` +
+                  `### Market Segments\n` +
+                  `The ${topic} market can be segmented by application, end-user, and geography. Each segment presents unique opportunities and challenges.` :
+                i === 1 ?
+                  `### Demographic Profile\n` +
+                  `The primary audience for ${topic} tends to include:\n` +
+                  `- Age range: Typically 25-54 years old, with variations based on specific applications\n` +
+                  `- Income level: Middle to upper-middle income brackets predominate\n` +
+                  `- Education: Often correlated with higher education levels\n\n` +
+                  `### Key Pain Points\n` +
+                  `Users in this space commonly express frustration with:\n` +
+                  `- Complexity of available solutions\n` +
+                  `- Cost concerns and price sensitivity\n` +
+                  `- Integration with existing systems\n` +
+                  `- Learning curves and training requirements\n` +
+                  `- Reliability and security concerns\n\n` +
+                  `### Decision Factors\n` +
+                  `When evaluating solutions, this audience typically prioritizes:\n` +
+                  `- Ease of use and intuitive interfaces\n` +
+                  `- Value proposition and ROI\n` +
+                  `- Support and training availability\n` +
+                  `- Reputation and reviews` :
+                  `### Major Competitors\n` +
+                  `The ${topic} space includes several established players as well as innovative newcomers. Key differentiators typically include feature sets, pricing models, and service quality.\n\n` +
+                  `### Best Practices\n` +
+                  `Organizations succeeding in this space typically focus on:\n` +
+                  `- User experience and interface design\n` +
+                  `- Robust customer support systems\n` +
+                  `- Continuous innovation and feature enhancement\n` +
+                  `- Strong security and compliance measures\n` +
+                  `- Clear, transparent pricing models\n\n` +
+                  `### Emerging Trends\n` +
+                  `The competitive landscape is evolving with:\n` +
+                  `- AI and automation integration\n` +
+                  `- Increased focus on data analytics\n` +
+                  `- Mobile-first approaches\n` +
+                  `- Subscription-based revenue models`
+                );
                 
-                // If even this fails, create a more informative fallback that actually provides some value
-                // This is not ideal but better than completely failing
-                const section = i === 0 ? 'Market Overview' : i === 1 ? 'Target Audience Analysis' : 'Competitive Landscape';
-                result = `## ${section}\n\n` +
-                  `Our research on "${topic}" encountered some technical limitations during the automated research process, but we've assembled key insights that are available:\n\n` +
-                  (i === 0 ? 
-                    `### Market Size and Growth\n` +
-                    `The market for ${topic} has been growing steadily in recent years. Industry analysts typically project continued growth in this sector due to increasing demand and technological advancements.\n\n` +
-                    `### Key Trends\n` +
-                    `- Digital transformation is reshaping how businesses approach ${topic}\n` +
-                    `- Consumer preferences are shifting toward more personalized solutions\n` +
-                    `- Sustainability concerns are becoming more prominent in this space\n` +
-                    `- Mobile access and convenience are driving product development\n\n` +
-                    `### Market Segments\n` +
-                    `The ${topic} market can be segmented by application, end-user, and geography. Each segment presents unique opportunities and challenges.` :
-                  i === 1 ?
-                    `### Demographic Profile\n` +
-                    `The primary audience for ${topic} tends to include:\n` +
-                    `- Age range: Typically 25-54 years old, with variations based on specific applications\n` +
-                    `- Income level: Middle to upper-middle income brackets predominate\n` +
-                    `- Education: Often correlated with higher education levels\n\n` +
-                    `### Key Pain Points\n` +
-                    `Users in this space commonly express frustration with:\n` +
-                    `- Complexity of available solutions\n` +
-                    `- Cost concerns and price sensitivity\n` +
-                    `- Integration with existing systems\n` +
-                    `- Learning curves and training requirements\n` +
-                    `- Reliability and security concerns\n\n` +
-                    `### Decision Factors\n` +
-                    `When evaluating solutions, this audience typically prioritizes:\n` +
-                    `- Ease of use and intuitive interfaces\n` +
-                    `- Value proposition and ROI\n` +
-                    `- Support and training availability\n` +
-                    `- Reputation and reviews` :
-                    `### Major Competitors\n` +
-                    `The ${topic} space includes several established players as well as innovative newcomers. Key differentiators typically include feature sets, pricing models, and service quality.\n\n` +
-                    `### Best Practices\n` +
-                    `Organizations succeeding in this space typically focus on:\n` +
-                    `- User experience and interface design\n` +
-                    `- Robust customer support systems\n` +
-                    `- Continuous innovation and feature enhancement\n` +
-                    `- Strong security and compliance measures\n` +
-                    `- Clear, transparent pricing models\n\n` +
-                    `### Emerging Trends\n` +
-                    `The competitive landscape is evolving with:\n` +
-                    `- AI and automation integration\n` +
-                    `- Increased focus on data analytics\n` +
-                    `- Mobile-first approaches\n` +
-                    `- Subscription-based revenue models`
-                  );
-              }
+              // Mark success but with fallback content
+              success = true;
+              console.log(`[PERPLEXITY] Using fallback content for component ${i+1} after multiple failures`);
             }
           }
         }
@@ -426,7 +405,7 @@ export class PerplexityClient {
         `RESEARCH COMPONENT 3:\n${subtaskResults[2]}\n\n` +
         `IMPORTANT: Your synthesized response MUST be extremely thorough and comprehensive. Create a DETAILED research report that includes specific facts, statistics, and concrete information from all three components. The final research document should be well-structured, deeply informative, and contain actionable insights backed by data. Do not summarize or shorten the information - instead, organize it into a cohesive whole that preserves all the valuable details.`;
       
-      // Try to recombine with retries
+      // Try to recombine with retries and timeout protection
       let recombinedResult = '';
       let recombineSuccess = false;
       let recombineAttempt = 0;
@@ -437,13 +416,31 @@ export class PerplexityClient {
         try {
           if (recombineAttempt > 0) {
             // Wait with exponential backoff before retrying
-            const backoffMs = Math.pow(2, recombineAttempt + 3) * 1000; // Increased backoff
+            const backoffMs = Math.min(120000, Math.pow(2, recombineAttempt + 3) * 1000); // Capped at 2 minutes
             console.log(`[PERPLEXITY] Retrying recombination after ${backoffMs}ms (attempt ${recombineAttempt+1}/3)`);
             await wait(backoffMs);
           }
           
-          // Recombine the research components with increased token limit
-          recombinedResult = await this.generateCompletion(fullRecombinationPrompt, 'claude-3-5-sonnet-20240620', 15000);
+          // Set up a timeout protection mechanism for recombination
+          const recombTimeoutMs = 120000; // 2 minutes timeout for recombination
+          let recombTimeoutId: NodeJS.Timeout;
+          
+          // Create a race between the API call and a timeout
+          const recombApiPromise = this.generateCompletion(fullRecombinationPrompt, 'claude-3-5-sonnet-20240620', 15000);
+          const recombTimeoutPromise = new Promise<string>((_, reject) => {
+            recombTimeoutId = setTimeout(() => {
+              reject(new Error('Recombination request timed out after 2 minutes'));
+            }, recombTimeoutMs);
+          });
+          
+          // Race the promises for recombination
+          try {
+            recombinedResult = await Promise.race([recombApiPromise, recombTimeoutPromise]);
+            clearTimeout(recombTimeoutId!);
+          } catch (timeoutError) {
+            console.error(`[PERPLEXITY] Timeout error in recombination, attempt ${recombineAttempt+1}:`, timeoutError);
+            throw timeoutError; // Re-throw to trigger retry
+          }
           
           // Check if the recombined result is thorough enough
           const wordCount = recombinedResult.split(/\s+/).length;

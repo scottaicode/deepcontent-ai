@@ -1629,14 +1629,14 @@ Language: ${language || 'en'}`;
             
             // Get the current research topic for recovery
             const currentResearchTopic = contentDetails?.researchTopic || '';
-               
-            // Try to recover any partial results
-            const recovered = await checkForCompletedResearchAfterTimeout(currentResearchTopic);
-            if (recovered) {
+            
+            // Try the improved timeout handler
+            const recoverySuccessful = await handleNetworkTimeout(currentResearchTopic);
+            if (recoverySuccessful) {
               return { recovered: true };
             }
                
-            // If it's a timeout and we have retries left, try again
+            // If the recovery wasn't successful but we have retries left, try again
             if (currentRetryCount < MAX_RETRIES) {
               console.log(`[DIAG] Will retry after timeout (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`);
               currentRetryCount++;
@@ -3373,6 +3373,70 @@ This report was generated as backup content on ${dateNow}.`;
     
     // Return whether recovery should be attempted
     return { errorMessage, shouldAttemptRecovery };
+  };
+
+  // Function to handle network timeouts more gracefully
+  const handleNetworkTimeout = async (topic: string): Promise<boolean> => {
+    console.log('[RECOVERY] Handling network timeout for topic:', topic);
+    
+    // Show a more informative status message
+    setStatusMessage('The research request is taking longer than expected. Attempting recovery...');
+    
+    try {
+      // First, wait a moment to allow any in-progress operations to complete
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Check if we have any results stored on the server
+      console.log('[RECOVERY] Checking for any research results after timeout');
+      const recovered = await checkForCompletedResearchAfterTimeout(topic);
+      
+      if (recovered) {
+        console.log('[RECOVERY] Successfully recovered research after timeout');
+        return true;
+      }
+      
+      // If we couldn't recover anything, offer user a choice
+      setStatusMessage('Recovery attempt completed. Would you like to try again with a more specific topic?');
+      
+      // Create a more specific topic suggestion
+      let specificTopic = topic;
+      if (contentDetails?.platform) {
+        specificTopic = `${topic} for ${contentDetails.platform}`;
+      }
+      if (contentDetails?.targetAudience) {
+        specificTopic = `${specificTopic} targeting ${contentDetails.targetAudience}`;
+      }
+      
+      // Show toast with suggestion
+      toast.success(
+        <div>
+          <p>Research timed out. Try a more specific topic:</p>
+          <button 
+            onClick={() => {
+              if (contentDetails) {
+                setContentDetails({
+                  ...contentDetails,
+                  researchTopic: specificTopic
+                });
+                // Wait a moment then retry
+                setTimeout(() => {
+                  handleDeepAnalysisClick();
+                }, 500);
+              }
+            }}
+            className="mt-2 px-3 py-1 bg-blue-600 text-white rounded text-sm"
+          >
+            Use "{specificTopic}"
+          </button>
+        </div>,
+        { duration: 10000, position: 'bottom-center' }
+      );
+      
+      return false;
+    } catch (error) {
+      console.error('[RECOVERY] Error during timeout recovery:', error);
+      return false;
+    }
   };
 
   // Replace the return statement near the end of the file with a flex layout that includes the footer
