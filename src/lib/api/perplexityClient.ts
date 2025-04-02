@@ -8,7 +8,7 @@
 export class PerplexityClient {
   private apiKey: string;
   private baseUrl: string = 'https://api.perplexity.ai/chat/completions';
-  private model: string = 'claude-3-5-sonnet-20240620';  // Use Claude model instead of sonar
+  private model: string = 'sonar-medium-online';  // Use Sonar model as per working backup
   
   constructor(apiKey: string) {
     // Validate API key
@@ -75,7 +75,7 @@ export class PerplexityClient {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
-      // Configure request body for Claude model
+      // Configure request body for Sonar model - updated based on successful backup
       const requestBody = {
         model: this.model,
         messages: [
@@ -89,10 +89,7 @@ export class PerplexityClient {
           }
         ],
         max_tokens: maxTokens,
-        temperature: temperature,
-        timeout: 180, // 3 minute timeout within the API request itself
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
+        temperature: temperature
       };
       
       // Call API
