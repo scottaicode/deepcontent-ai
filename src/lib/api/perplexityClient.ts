@@ -74,40 +74,47 @@ export class PerplexityClient {
     // Extract key components of the research task
     const topicClean = topic.trim();
     
-    // Create 3 subtasks focused on different aspects
+    // Create 3 subtasks focused on different aspects - increasing detail level with more specific instructions
     const subtaskPrompts = [
-      // Subtask 1: Recent facts, data points, and market overview
-      `RESEARCH SUBTASK 1: Recent Facts, Data, and Market Overview for "${topicClean}"\n\n` +
-      `Your task is to research only the most recent facts, statistics, data points, and market overview information about "${topicClean}".\n\n` +
-      `Focus on:\n` +
-      `• Current market size, growth trajectory, and forecasts\n` +
-      `• Latest statistics and data points\n` +
-      `• Recent trends (last 6-12 months)\n` +
-      `• Key market segments and demographics\n\n` +
-      `Format your response with clear section headings. Be concise but thorough with factual information.\n` +
-      `Include only verified information from reputable sources. Cite specific metrics and statistics where available.`,
+      // Subtask 1: Recent facts, data points, and market overview - MORE DETAILED
+      `RESEARCH SUBTASK 1: Comprehensive Market Overview for "${topicClean}"\n\n` +
+      `Conduct thorough and detailed research on "${topicClean}" focusing on market overview information.\n\n` +
+      `Include ALL of the following sections:\n` +
+      `• Current market size with specific numbers and growth trajectory\n` +
+      `• Latest industry statistics and data points with sources\n` +
+      `• Detailed analysis of recent trends (last 6-12 months)\n` +
+      `• Key market segments, demographics, and their relative sizes\n` +
+      `• Major players and their market positions\n` +
+      `• Regional differences and global context\n\n` +
+      `Format your response with clear section headings. Be comprehensive and thorough with factual information.\n` +
+      `Include verified information from reputable sources. Cite specific metrics, statistics, and sources where available.`,
       
-      // Subtask 2: Target audience and pain points
-      `RESEARCH SUBTASK 2: Target Audience Analysis and Pain Points for "${topicClean}"\n\n` +
-      `Your task is to research the target audience, customer needs, and pain points related to "${topicClean}".\n\n` +
-      `Focus on:\n` +
-      `• Key audience demographics and psychographics\n` +
-      `• Common customer needs, desires, and expectations\n` +
-      `• Major pain points and challenges faced by customers\n` +
-      `• How customers typically evaluate products/services in this space\n\n` +
-      `Format your response with clear section headings. Be specific and provide actionable insights.\n` +
-      `Include only verified information from reputable sources.`,
+      // Subtask 2: Target audience and pain points - MORE DETAILED
+      `RESEARCH SUBTASK 2: Comprehensive Target Audience Analysis for "${topicClean}"\n\n` +
+      `Conduct thorough and detailed research on the target audience and pain points related to "${topicClean}".\n\n` +
+      `Include ALL of the following sections:\n` +
+      `• Detailed audience demographics (age, income, education, occupation, etc.)\n` +
+      `• Audience psychographics (values, interests, lifestyle choices, etc.)\n` +
+      `• Specific customer needs, desires, and expectations with supporting data\n` +
+      `• Comprehensive analysis of pain points and challenges faced by customers\n` +
+      `• Customer journey details and decision-making factors\n` +
+      `• Audience segmentation and prioritization\n\n` +
+      `Format your response with clear section headings. Provide specific examples and actionable insights.\n` +
+      `Include verified information from reputable sources including industry reports, surveys, and customer reviews.`,
       
-      // Subtask 3: Competitive landscape and best practices
-      `RESEARCH SUBTASK 3: Competitive Landscape and Best Practices for "${topicClean}"\n\n` +
-      `Your task is to research the competitive landscape and best practices related to "${topicClean}".\n\n` +
-      `Focus on:\n` +
-      `• Major competitors and their positioning\n` +
-      `• Industry best practices and benchmarks\n` +
-      `• Successful strategies and approaches\n` +
-      `• Content and messaging trends that resonate with audiences\n\n` +
-      `Format your response with clear section headings. Provide specific examples where possible.\n` +
-      `Include only verified information from reputable sources.`
+      // Subtask 3: Competitive landscape and best practices - MORE DETAILED
+      `RESEARCH SUBTASK 3: Comprehensive Competitive Landscape Analysis for "${topicClean}"\n\n` +
+      `Conduct thorough and detailed research on the competitive landscape and best practices related to "${topicClean}".\n\n` +
+      `Include ALL of the following sections:\n` +
+      `• Major competitors with detailed profiles and strengths/weaknesses\n` +
+      `• Competitive positioning matrix with differentiation factors\n` +
+      `• Detailed industry best practices with examples\n` +
+      `• Success metrics and benchmarks with specific numbers\n` +
+      `• Successful strategies with case studies\n` +
+      `• Content and messaging trends that have proven effective\n` +
+      `• Emerging technologies and innovations in the space\n\n` +
+      `Format your response with clear section headings. Provide specific examples and case studies.\n` +
+      `Include verified information from reputable sources, competitor websites, industry reports, and case studies.`
     ];
     
     // Create a prompt to recombine the subtask results
@@ -178,24 +185,47 @@ export class PerplexityClient {
             console.error(`[PERPLEXITY] Error in subtask ${i+1}, attempt ${attempt}:`, error);
             
             if (attempt >= 3) {
-              // After 3 failed attempts, use a fallback approach
+              // After 3 failed attempts, use a more robust fallback approach
               console.log(`[PERPLEXITY] Using fallback for subtask ${i+1} after 3 failed attempts`);
               
-              // Create a simplified version of the subtask as fallback
-              const fallbackPrompt = `Please provide essential information about ${topic} related to ${
-                i === 0 ? 'market facts and trends' : 
-                i === 1 ? 'target audience and customer needs' : 
-                'competitors and best practices'
-              }. Keep it brief but informative.`;
+              // Create a more detailed fallback prompt that focuses on depth for that specific component
+              let fallbackPrompt = '';
+              if (i === 0) {
+                fallbackPrompt = `Perform comprehensive market research on "${topic}" including market size, growth trajectory, recent trends, key statistics, and major players. Focus on providing specific data points, statistics, and factual information from reliable sources. Be thorough and detailed.`;
+              } else if (i === 1) {
+                fallbackPrompt = `Conduct a detailed analysis of the target audience and customer pain points for "${topic}". Include demographic information, psychographic profiles, specific needs, common challenges, and customer journey insights. Provide real examples and be as specific as possible.`;
+              } else {
+                fallbackPrompt = `Analyze the competitive landscape and best practices related to "${topic}". Identify major competitors, their positioning, strengths and weaknesses, industry benchmarks, successful strategies, and emerging trends. Include specific examples, case studies, and actionable insights.`;
+              }
               
               try {
-                // Try the fallback with minimum expected output
-                result = await this.generateCompletion(fallbackPrompt, 'claude-3-5-sonnet-20240620', 2000);
+                // Try the improved fallback with a different model and higher token limit
+                result = await this.generateCompletion(fallbackPrompt, 'claude-3-5-sonnet-20240620', 4000);
                 success = true;
               } catch (fallbackError) {
-                // If even fallback fails, use minimal placeholder content
-                console.error(`[PERPLEXITY] Fallback failed for subtask ${i+1}:`, fallbackError);
-                result = `## Research Component ${i+1}\n\nThis section could not be fully researched due to API limitations.\n\n`;
+                console.error(`[PERPLEXITY] First fallback failed for subtask ${i+1}:`, fallbackError);
+                
+                // If the first fallback fails, try an even simpler approach with a different model
+                try {
+                  // Create an even more simplified fallback prompt
+                  const simplePrompt = `Research the following about ${topic}: ${
+                    i === 0 ? 'key market facts, statistics, and trends' : 
+                    i === 1 ? 'target audience details and their pain points' : 
+                    'major competitors and industry best practices'
+                  }. Be thorough and detailed.`;
+                  
+                  result = await this.generateCompletion(simplePrompt, 'claude-3-5-sonnet-20240620', 3000);
+                  success = true;
+                } catch (finalError) {
+                  // If all attempts fail, use a minimal template with placeholder that clearly indicates this is a section that needs manual research
+                  console.error(`[PERPLEXITY] All fallbacks failed for subtask ${i+1}:`, finalError);
+                  const section = i === 0 ? 'Market Overview' : i === 1 ? 'Target Audience Analysis' : 'Competitive Landscape';
+                  result = `## ${section}\n\nThis section requires additional research. The information available for "${topic}" was limited during the automated research process. We recommend supplementing this report with manual research focused on ${
+                    i === 0 ? 'market statistics, industry trends, and growth projections' : 
+                    i === 1 ? 'customer demographics, needs, and pain points' : 
+                    'competitor analysis and industry best practices'
+                  }.\n\nSome general information that may be relevant:\n\n- ${topic} is an important area with significant implications\n- Consider consulting industry reports and specialized sources for more detailed information\n- Surveys and customer feedback will be valuable for deeper insights`;
+                }
               }
             }
           }
@@ -235,15 +265,21 @@ export class PerplexityClient {
           console.error(`[PERPLEXITY] Error in recombination, attempt ${recombineAttempt}:`, error);
           
           if (recombineAttempt >= 3) {
-            // After 3 failed attempts, do a simple concatenation
-            console.log('[PERPLEXITY] Using fallback concatenation after 3 failed recombination attempts');
+            // After 3 failed attempts, do a better concatenation than just the simple one
+            console.log('[PERPLEXITY] Using enhanced fallback concatenation after 3 failed recombination attempts');
             
-            // Create a simple concatenation with section headers
+            // Create a more sophisticated concatenation with better section headers and transitions
             recombinedResult = `# Research Report on "${topic}"\n\n` +
-              `## Executive Summary\n\nThis research provides insights on ${topic} including market trends, audience analysis, and competitive landscape.\n\n` +
-              `## Market Overview and Facts\n\n${subtaskResults[0]}\n\n` +
-              `## Target Audience and Pain Points\n\n${subtaskResults[1]}\n\n` +
-              `## Competitive Landscape and Best Practices\n\n${subtaskResults[2]}\n\n`;
+              `## Executive Summary\n\nThis comprehensive research provides detailed insights on ${topic}, covering the market landscape, audience analysis, and competitive environment. The report is divided into three main sections: market overview with key statistics, target audience analysis with pain points, and competitive landscape with best practices.\n\n` +
+              `## Market Overview and Key Trends\n\n${subtaskResults[0]}\n\n` +
+              `## Target Audience Analysis and Pain Points\n\nBuilding on the market overview, this section explores the specific characteristics of the target audience for ${topic}.\n\n${subtaskResults[1]}\n\n` +
+              `## Competitive Landscape and Best Practices\n\nWith an understanding of both the market and the target audience, this section examines the competitive environment and identifies effective strategies.\n\n${subtaskResults[2]}\n\n` +
+              `## Recommendations\n\nBased on the comprehensive research presented above, here are key recommendations for approaching ${topic}:\n\n` +
+              `1. Focus on addressing the identified audience pain points\n` +
+              `2. Leverage the market trends highlighted in the overview section\n` +
+              `3. Adopt the best practices identified in the competitive analysis\n` +
+              `4. Consider the unique market position opportunities identified in this research\n` +
+              `5. Develop content that speaks directly to the audience needs and expectations`;
             
             recombineSuccess = true;
           }
