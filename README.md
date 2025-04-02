@@ -11,6 +11,7 @@ DeepContent AI is a powerful content creation platform powered by Claude 3.7 Son
 - **YouTube Transcript Analysis**: Extract insights from YouTube videos for content creation
 - **Platform-Specific Optimization**: Tailored content formats for various platforms
 - **Multi-language Support**: English and Spanish interfaces
+- **Caching System**: Research caching with Vercel KV storage to improve performance and reliability
 - **Image Editor & Text-to-Image**: (Coming Soon) Create and edit images using AI
 
 ## Tech Stack
@@ -18,7 +19,7 @@ DeepContent AI is a powerful content creation platform powered by Claude 3.7 Son
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **AI Integration**: Claude 3.7 Sonnet, Perplexity API, Google Gemini
 - **Authentication**: Firebase Authentication
-- **Storage**: Firebase Firestore
+- **Storage**: Firebase Firestore, Vercel KV (for caching)
 - **Deployment**: Vercel
 
 ## Deployment
@@ -48,6 +49,11 @@ DeepContent AI is designed for easy deployment on Vercel. For detailed deploymen
 
 5. **Deploy to Vercel**
    Connect your GitHub repository to Vercel and deploy
+   
+6. **Enable Vercel KV Storage** (recommended)
+   - From your Vercel dashboard, go to Storage
+   - Create a new KV database
+   - Add the provided environment variables to your project
 
 ## API Keys
 
@@ -78,6 +84,10 @@ Create content optimized for:
 
 Adjust content style, length, calls-to-action, and more to match your brand voice.
 
+### Research Caching and Reliability
+
+The system uses Vercel KV storage to cache research results, improving performance and providing better reliability when API services experience timeouts or connection issues.
+
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
@@ -88,3 +98,4 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - Tailwind CSS for styling
 - Claude 3.7 Sonnet for content generation
 - Perplexity for research capabilities
+- Vercel KV storage for caching

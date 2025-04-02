@@ -112,4 +112,45 @@ The application is designed to function in a limited capacity when certain API k
 - Without Perplexity API: Research will use sample/mock data
 - Without Claude API: Content generation will use simulated responses
 - Without Twitter API: Trending topics will use simulated data
-- Without image-related APIs: Image editing features will be disabled 
+- Without image-related APIs: Image editing features will be disabled
+
+## Optional API Services
+
+### Vercel KV Storage (Recommended)
+
+Vercel KV storage is used for caching research results, which improves performance and reliability.
+
+1. **Create a KV database** from your Vercel dashboard under Storage
+2. **Copy the environment variables** provided by Vercel
+3. **Add to your project environment variables**:
+   - `KV_URL`
+   - `KV_REST_API_URL`
+   - `KV_REST_API_TOKEN`
+   - `KV_REST_API_READ_ONLY_TOKEN`
+
+Without KV storage, caching will be disabled and the application may experience issues with long-running research requests.
+
+### Google Gemini Pro (Optional)
+
+Google Gemini API is used for some specific content generation tasks.
+
+1. **Sign up** for Google AI Studio at [https://ai.google.dev/](https://ai.google.dev/)
+2. **Create an API key**
+3. **Add to environment variables** as `GOOGLE_GEMINI_API_KEY`
+
+## API Usage and Limits
+
+- **Anthropic Claude**: Check your usage limits in the Anthropic Console
+- **Perplexity API**: Check your usage limits in your Perplexity account
+- **Vercel KV Storage**: Free tier includes 50MB storage and 100K operations/month
+
+## Troubleshooting
+
+If you encounter API-related issues:
+
+1. Verify your API keys are correct
+2. Check your API usage limits
+3. Ensure the environment variables are properly set
+4. For KV-related issues, verify your Vercel KV instance is properly configured
+
+For more help, refer to the official documentation for each service. 

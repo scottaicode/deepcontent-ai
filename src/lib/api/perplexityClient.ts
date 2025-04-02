@@ -5,6 +5,9 @@
  * including generating research on specific topics.
  */
 
+// Add a backoff timeout utility
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export class PerplexityClient {
   private apiKey: string;
   private baseUrl: string = 'https://api.perplexity.ai/chat/completions';
@@ -27,161 +30,230 @@ export class PerplexityClient {
   }
   
   /**
-   * Generate research on a specific topic using Perplexity API
+   * Generate a completion using the Perplexity Claude API
    */
-  async generateResearch(prompt: string, options: any = {}): Promise<string> {
-    // Get configuration options with defaults - reduce default timeout to work with serverless function constraints
-    const maxTokens = options.maxTokens || 4000;
-    const temperature = options.temperature || 0.2;
-    const timeoutMs = options.timeoutMs || 45000; // 45 seconds timeout (default reduced from 4 minutes)
-    const language = options.language || 'en';
-    
-    // Create current date formatting for citations
-    const currentDate = new Date();
-    const formattedDate = `${currentDate.toLocaleString('default', { month: 'long' })} ${currentDate.getDate()}, ${currentDate.getFullYear()}`;
-    
-    // Extract company name from prompt for system prompt enhancement
-    let companyName = '';
-    const companyMatch = prompt.match(/company-specific information about "(.*?)"/i);
-    if (companyMatch && companyMatch[1]) {
-      companyName = companyMatch[1];
-      console.log('[DIAGNOSTIC] Detected company name from prompt:', companyName);
-    }
-    
-    // Create language-specific instructions
-    const languageSpecificInstructions = language === 'es' 
-      ? `Proporcione una investigación detallada y bien estructurada en español. Incluya citas y fuentes actuales.`
-      : `Provide detailed, well-structured research in English. Include citations and current sources.`;
-    
-    // Create an enhanced system prompt
-    const systemPrompt = 
-      `You are a research assistant that provides comprehensive, accurate, and detailed responses based on the latest available information. 
-      
-      ${languageSpecificInstructions}
-      
-      ${companyName ? `When researching the company ${companyName}, prioritize information from their official website, LinkedIn page, and social media accounts.` : ''}
-      
-      Your research should be well-organized with clear headings and include specific, actionable insights.`;
-    
-    console.log('[DIAGNOSTIC] Perplexity API request configuration:', {
-      model: this.model,
-      maxTokens,
-      temperature,
-      language
-    });
-    
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    
+  async generateCompletion(prompt: string, model: string = 'claude-3-5-sonnet-20240620', maxTokens: number = 1000): Promise<string> {
     try {
-      // Configure request body for sonar-deep-research model
-      const requestBody = {
-        model: this.model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: maxTokens,
-        temperature: temperature
-      };
-      
-      // Call API
-      console.log(`[DIAGNOSTIC] Calling Perplexity API with ${prompt.length} character prompt...`);
-      console.log(`[DIAGNOSTIC] API key being used (first 8 chars): ${this.apiKey.substring(0, 8)}...`);
-      
-      const startTime = Date.now();
-      const response = await fetch(this.baseUrl, {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`
         },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: maxTokens
+        })
       });
       
-      const requestDuration = Date.now() - startTime;
-      console.log(`[DIAGNOSTIC] Perplexity API response received in ${requestDuration}ms, status: ${response.status}`);
-      
-      // Clear timeout
-      clearTimeout(timeoutId);
-      
-      // Check response
       if (!response.ok) {
-        // Try to get error details from response
-        let errorText = '';
-        try {
-          const errorData = await response.json();
-          errorText = JSON.stringify(errorData);
-          console.error('[DIAGNOSTIC] API error response body:', errorData);
-        } catch (e) {
-          errorText = await response.text();
-          console.error('[DIAGNOSTIC] API error response text:', errorText);
-        }
-        
-        // Create appropriate error based on status code
-        if (response.status === 401) {
-          console.error('[DIAGNOSTIC] Perplexity API authentication failed with 401 status');
-          throw new Error(`Authentication error: API key may be invalid or expired (${response.status})`);
-        } else if (response.status === 429) {
-          console.error('[DIAGNOSTIC] Perplexity API rate limit exceeded with 429 status');
-          throw new Error(`Rate limit exceeded: Too many requests (${response.status})`);
-        } else if (response.status >= 500) {
-          console.error(`[DIAGNOSTIC] Perplexity API server error (${response.status})`);
-          throw new Error(`Perplexity API server error (${response.status}): ${errorText}`);
-        } else {
-          console.error(`[DIAGNOSTIC] Perplexity API error: ${response.status} ${response.statusText}`);
-          throw new Error(`Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`);
-        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Perplexity API error (${response.status}): ${JSON.stringify(errorData)}`);
       }
       
-      // Parse response
       const data = await response.json();
-      console.log('[DIAGNOSTIC] Perplexity API response received successfully and parsed as JSON');
       
-      // Extract research content
-      const research = data.choices && data.choices[0] && data.choices[0].message
-        ? data.choices[0].message.content
-        : '';
-        
-      if (!research) {
-        console.error('[DIAGNOSTIC] No research content found in API response');
-        throw new Error('No research content found in API response');
+      if (!data.choices || data.choices.length === 0) {
+        throw new Error('No response from Perplexity API');
       }
       
-      // Log success
-      console.log(`[DIAGNOSTIC] Successfully extracted research content, length: ${research.length} characters`);
-      
-      return research;
+      return data.choices[0].message.content;
     } catch (error: any) {
-      // Clear timeout if it exists
-      clearTimeout(timeoutId);
+      console.error('Error in Perplexity generateCompletion:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Break a large research task into subtasks that can be processed within time limits
+   */
+  private splitResearchIntoSubtasks(topic: string, promptText: string): { subtaskPrompts: string[], recombinationPrompt: string } {
+    // Extract key components of the research task
+    const topicClean = topic.trim();
+    
+    // Create 3 subtasks focused on different aspects
+    const subtaskPrompts = [
+      // Subtask 1: Recent facts, data points, and market overview
+      `RESEARCH SUBTASK 1: Recent Facts, Data, and Market Overview for "${topicClean}"\n\n` +
+      `Your task is to research only the most recent facts, statistics, data points, and market overview information about "${topicClean}".\n\n` +
+      `Focus on:\n` +
+      `• Current market size, growth trajectory, and forecasts\n` +
+      `• Latest statistics and data points\n` +
+      `• Recent trends (last 6-12 months)\n` +
+      `• Key market segments and demographics\n\n` +
+      `Format your response with clear section headings. Be concise but thorough with factual information.\n` +
+      `Include only verified information from reputable sources. Cite specific metrics and statistics where available.`,
       
-      // Enhanced error handling
-      console.error('[DIAGNOSTIC] Error in Perplexity API request:', error);
-      console.error('[DIAGNOSTIC] Error details:', error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : 'Unknown error type');
+      // Subtask 2: Target audience and pain points
+      `RESEARCH SUBTASK 2: Target Audience Analysis and Pain Points for "${topicClean}"\n\n` +
+      `Your task is to research the target audience, customer needs, and pain points related to "${topicClean}".\n\n` +
+      `Focus on:\n` +
+      `• Key audience demographics and psychographics\n` +
+      `• Common customer needs, desires, and expectations\n` +
+      `• Major pain points and challenges faced by customers\n` +
+      `• How customers typically evaluate products/services in this space\n\n` +
+      `Format your response with clear section headings. Be specific and provide actionable insights.\n` +
+      `Include only verified information from reputable sources.`,
       
-      if (error.name === 'AbortError') {
-        throw new Error(`Research generation timed out. Please try again with a more specific topic or try later when the service is less busy.`);
+      // Subtask 3: Competitive landscape and best practices
+      `RESEARCH SUBTASK 3: Competitive Landscape and Best Practices for "${topicClean}"\n\n` +
+      `Your task is to research the competitive landscape and best practices related to "${topicClean}".\n\n` +
+      `Focus on:\n` +
+      `• Major competitors and their positioning\n` +
+      `• Industry best practices and benchmarks\n` +
+      `• Successful strategies and approaches\n` +
+      `• Content and messaging trends that resonate with audiences\n\n` +
+      `Format your response with clear section headings. Provide specific examples where possible.\n` +
+      `Include only verified information from reputable sources.`
+    ];
+    
+    // Create a prompt to recombine the subtask results
+    const recombinationPrompt = 
+      `I will provide you with three research documents about "${topicClean}" that cover different aspects:\n` +
+      `1. Recent facts, data points, and market overview\n` +
+      `2. Target audience and pain points\n` +
+      `3. Competitive landscape and best practices\n\n` +
+      `Your task is to synthesize these into a cohesive, comprehensive research document about "${topicClean}".\n\n` +
+      `Create a well-formatted research document with clear sections including:\n` +
+      `• Executive Summary\n` +
+      `• Market Overview and Trends\n` +
+      `• Target Audience Analysis\n` +
+      `• Pain Points and Customer Needs\n` +
+      `• Competitive Landscape\n` +
+      `• Best Practices and Recommendations\n\n` +
+      `Ensure the content flows naturally between sections. Eliminate redundancies and format with Markdown headings. Add relevant context based on the original prompt details:\n\n` +
+      `Original prompt: ${promptText.substring(0, 500)}...\n\n` +
+      `Here are the three research components to synthesize:`;
+    
+    return { subtaskPrompts, recombinationPrompt };
+  }
+  
+  /**
+   * Generate deep research on a topic using Perplexity API
+   * 
+   * This method implements a chunking strategy to avoid timeouts:
+   * 1. Break the research into subtasks
+   * 2. Process each subtask with retries and backoff
+   * 3. Combine the results into a comprehensive research document
+   */
+  async generateResearch(promptText: string): Promise<string> {
+    try {
+      console.log('[PERPLEXITY] Starting chunked research generation');
+      
+      // Extract topic from prompt (basic extraction - can be improved)
+      const topicMatch = promptText.match(/Topic:\s*"([^"]+)"/i);
+      const topic = topicMatch ? topicMatch[1] : 'the requested topic';
+      
+      // Split the research into manageable subtasks
+      const { subtaskPrompts, recombinationPrompt } = this.splitResearchIntoSubtasks(topic, promptText);
+      
+      // Process each subtask with retries
+      const subtaskResults: string[] = [];
+      
+      for (let i = 0; i < subtaskPrompts.length; i++) {
+        console.log(`[PERPLEXITY] Processing subtask ${i+1}/${subtaskPrompts.length}`);
+        
+        // Try up to 3 times with exponential backoff
+        let attempt = 0;
+        let result = '';
+        let success = false;
+        
+        while (attempt < 3 && !success) {
+          try {
+            if (attempt > 0) {
+              // Wait with exponential backoff before retrying
+              const backoffMs = Math.pow(2, attempt) * 1000;
+              console.log(`[PERPLEXITY] Retrying subtask ${i+1} after ${backoffMs}ms (attempt ${attempt+1}/3)`);
+              await wait(backoffMs);
+            }
+            
+            // Generate research for this subtask
+            result = await this.generateCompletion(subtaskPrompts[i], 'claude-3-5-sonnet-20240620', 4000);
+            success = true;
+          } catch (error) {
+            attempt++;
+            console.error(`[PERPLEXITY] Error in subtask ${i+1}, attempt ${attempt}:`, error);
+            
+            if (attempt >= 3) {
+              // After 3 failed attempts, use a fallback approach
+              console.log(`[PERPLEXITY] Using fallback for subtask ${i+1} after 3 failed attempts`);
+              
+              // Create a simplified version of the subtask as fallback
+              const fallbackPrompt = `Please provide essential information about ${topic} related to ${
+                i === 0 ? 'market facts and trends' : 
+                i === 1 ? 'target audience and customer needs' : 
+                'competitors and best practices'
+              }. Keep it brief but informative.`;
+              
+              try {
+                // Try the fallback with minimum expected output
+                result = await this.generateCompletion(fallbackPrompt, 'claude-3-5-sonnet-20240620', 2000);
+                success = true;
+              } catch (fallbackError) {
+                // If even fallback fails, use minimal placeholder content
+                console.error(`[PERPLEXITY] Fallback failed for subtask ${i+1}:`, fallbackError);
+                result = `## Research Component ${i+1}\n\nThis section could not be fully researched due to API limitations.\n\n`;
+              }
+            }
+          }
+        }
+        
+        subtaskResults.push(result);
       }
       
-      // Network errors
-      if (error.message.includes('fetch failed') || error.message.includes('network')) {
-        throw new Error(`Network error: Could not connect to Perplexity API - ${error.message}`);
+      // Now recombine the subtask results
+      console.log('[PERPLEXITY] Recombining subtask results');
+      
+      // Construct the full recombination prompt
+      const fullRecombinationPrompt = `${recombinationPrompt}\n\n` +
+        `RESEARCH COMPONENT 1:\n${subtaskResults[0]}\n\n` +
+        `RESEARCH COMPONENT 2:\n${subtaskResults[1]}\n\n` +
+        `RESEARCH COMPONENT 3:\n${subtaskResults[2]}`;
+      
+      // Try to recombine with retries
+      let recombinedResult = '';
+      let recombineSuccess = false;
+      let recombineAttempt = 0;
+      
+      while (recombineAttempt < 3 && !recombineSuccess) {
+        try {
+          if (recombineAttempt > 0) {
+            // Wait with exponential backoff before retrying
+            const backoffMs = Math.pow(2, recombineAttempt) * 1000;
+            console.log(`[PERPLEXITY] Retrying recombination after ${backoffMs}ms (attempt ${recombineAttempt+1}/3)`);
+            await wait(backoffMs);
+          }
+          
+          // Recombine the research components
+          recombinedResult = await this.generateCompletion(fullRecombinationPrompt, 'claude-3-5-sonnet-20240620', 5000);
+          recombineSuccess = true;
+        } catch (error) {
+          recombineAttempt++;
+          console.error(`[PERPLEXITY] Error in recombination, attempt ${recombineAttempt}:`, error);
+          
+          if (recombineAttempt >= 3) {
+            // After 3 failed attempts, do a simple concatenation
+            console.log('[PERPLEXITY] Using fallback concatenation after 3 failed recombination attempts');
+            
+            // Create a simple concatenation with section headers
+            recombinedResult = `# Research Report on "${topic}"\n\n` +
+              `## Executive Summary\n\nThis research provides insights on ${topic} including market trends, audience analysis, and competitive landscape.\n\n` +
+              `## Market Overview and Facts\n\n${subtaskResults[0]}\n\n` +
+              `## Target Audience and Pain Points\n\n${subtaskResults[1]}\n\n` +
+              `## Competitive Landscape and Best Practices\n\n${subtaskResults[2]}\n\n`;
+            
+            recombineSuccess = true;
+          }
+        }
       }
       
-      // Re-throw the error with its original message
+      console.log('[PERPLEXITY] Research generation complete');
+      return recombinedResult;
+    } catch (error: any) {
+      console.error('Error in Perplexity generateResearch:', error);
       throw error;
     }
   }
