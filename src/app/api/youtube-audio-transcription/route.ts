@@ -103,7 +103,13 @@ export async function GET(request: NextRequest) {
       });
       
     } catch (videoError: any) {
-      console.error('[DEBUG-AUDIO] Error fetching video info:', videoError.message);
+      // Log the detailed error from ytdl
+      console.error('[DEBUG-AUDIO] Error fetching video info using ytdl:', {
+        videoId: videoId, 
+        errorMessage: videoError.message,
+        errorStack: videoError.stack, // Include stack trace for more context
+        errorDetails: videoError // Log the full error object if available
+      });
       
       // Fallback content for when we can't get video info
       const fallbackContent = `# YouTube Video Analysis
