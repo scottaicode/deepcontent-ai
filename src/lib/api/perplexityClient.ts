@@ -8,7 +8,7 @@
 export class PerplexityClient {
   private apiKey: string;
   private baseUrl: string = 'https://api.perplexity.ai/chat/completions';
-  private model: string = 'sonar-medium-online';  // Use Sonar model as per working backup
+  private model: string = 'sonar-deep-research';  // Using sonar-deep-research for Perplexity Deep Research
   
   constructor(apiKey: string) {
     // Validate API key
@@ -75,7 +75,7 @@ export class PerplexityClient {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
-      // Configure request body for Sonar model - updated based on successful backup
+      // Configure request body for Sonar Deep Research model
       const requestBody = {
         model: this.model,
         messages: [

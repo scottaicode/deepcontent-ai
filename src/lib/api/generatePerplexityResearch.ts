@@ -46,6 +46,7 @@ export async function generatePerplexityResearch(
     }
     
     // Create a research job
+    console.log('Making POST request to /api/perplexity/research');
     const jobResponse = await fetch('/api/perplexity/research', {
       method: 'POST',
       headers: {
@@ -61,13 +62,25 @@ export async function generatePerplexityResearch(
     });
     
     if (!jobResponse.ok) {
-      const errorData = await jobResponse.json().catch(() => ({}));
+      let errorData = {};
+      try {
+        errorData = await jobResponse.json();
+      } catch (e) {
+        console.error('Error parsing job response:', e);
+      }
+      console.error('API error creating research job:', jobResponse.status, errorData);
       throw new Error(`API error: ${jobResponse.status} - ${JSON.stringify(errorData)}`);
     }
     
     const jobData = await jobResponse.json();
     
     console.log('Research job created:', jobData);
+    
+    // Direct response with research (no job ID)
+    if (jobData.research) {
+      console.log('Direct research response received, length:', jobData.research.length);
+      return jobData.research;
+    }
     
     if (!jobData.jobId) {
       throw new Error('No job ID returned from research API');
@@ -140,7 +153,12 @@ export async function generatePerplexityResearch(
         });
         
         if (!statusResponse.ok) {
-          const errorData = await statusResponse.json().catch(() => ({}));
+          let errorData = {};
+          try {
+            errorData = await statusResponse.json();
+          } catch (e) {
+            console.error('Error parsing status response:', e);
+          }
           
           // Count consecutive errors
           consecutiveErrors++;
@@ -223,14 +241,21 @@ export async function generatePerplexityResearch(
       }
     };
     
-    // Start polling
-    const research = await pollJobStatus();
-    
-    if (!research) {
-      throw new Error('No research content returned from Perplexity API');
+    // Start polling only if we have a job ID
+    if (jobData.jobId) {
+      const research = await pollJobStatus();
+      
+      if (!research) {
+        throw new Error('No research content returned from Perplexity API');
+      }
+      
+      return research;
+    } else if (jobData.research) {
+      // If direct research was provided, return it
+      return jobData.research;
+    } else {
+      throw new Error('No research content or job ID returned from API');
     }
-    
-    return research;
   } catch (error: any) {
     console.error('Error generating Perplexity research:', error);
     throw error;

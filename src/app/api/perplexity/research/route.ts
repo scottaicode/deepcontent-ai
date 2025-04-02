@@ -167,6 +167,8 @@ export async function POST(request: NextRequest) {
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
+  
+  logSection(requestId, 'API_KEY', `API key validation: ${apiKey.startsWith('pplx-') ? 'VALID FORMAT' : 'INVALID FORMAT'}`);
 
   // Create a cache key for this research request
   const cacheKey = createCacheKey(topic, extractedContentType, extractedPlatform, language);
@@ -245,6 +247,9 @@ export async function POST(request: NextRequest) {
   
   // Return the research data directly - no job ID or polling mechanism
   try {
+    // Log that we're calling the Perplexity API for Deep Research
+    logSection(requestId, 'API_CALL', `Calling Perplexity API for Deep Research using sonar-deep-research model`);
+    
     // Make the direct API call - not using jobs
     const research = await perplexity.generateResearch(promptText, options);
     
@@ -270,6 +275,10 @@ export async function POST(request: NextRequest) {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
+    // Log detailed error information
+    logSection(requestId, 'ERROR', `Error generating research: ${error.message}`);
+    console.error(`[DIAG] [${requestId}] Error details:`, error);
+    
     // Handle errors with fallback
     console.error(`Error generating research: ${error.message}`);
     

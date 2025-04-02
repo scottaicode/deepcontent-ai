@@ -1,223 +1,124 @@
 /**
- * Diagnostic Test for Perplexity API Connection
- * This endpoint tests API key validity and service availability
+ * Perplexity API Test Connection Route
+ * 
+ * This route is used to test the connection to the Perplexity API
+ * and validate the API key configuration.
  */
-import { NextRequest, NextResponse } from 'next/server';
 
-// Disable caching to ensure fresh test data
+import { NextRequest } from 'next/server';
+import { PerplexityClient } from '@/lib/api/perplexityClient';
+
+// Make route fully dynamic
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
+  console.log('[TEST] Testing Perplexity API connection');
+  
+  // Get API key from environment variables
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  
+  if (!apiKey) {
+    console.error('[TEST] Perplexity API key not configured');
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'API key not configured',
+        message: 'The PERPLEXITY_API_KEY environment variable is not set.'
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Verify key format
+  if (!apiKey.startsWith('pplx-')) {
+    console.error('[TEST] Perplexity API key has invalid format');
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Invalid API key format',
+        message: 'The API key does not start with "pplx-" as required by Perplexity.'
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  
   try {
-    // Get API key from environment
-    const apiKey = process.env.PERPLEXITY_API_KEY;
+    // Create Perplexity client
+    const perplexity = new PerplexityClient(apiKey);
     
-    if (!apiKey) {
-      return NextResponse.json({
-        success: false,
-        message: 'API key not found in environment variables'
-      }, { status: 400 });
-    }
+    // Make a simple test request
+    const testPrompt = "What is the current date? Keep your answer very short.";
+    const options = {
+      maxTokens: 100,
+      temperature: 0.1
+    };
     
-    console.log(`Testing Perplexity API key: ${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 3)}`);
+    console.log('[TEST] Making test request to Perplexity API');
+    const startTime = Date.now();
     
-    // Check if key starts with the expected prefix
-    if (!apiKey.startsWith('pplx-')) {
-      return NextResponse.json({
-        success: false,
-        message: 'API key has invalid format (should start with "pplx-")',
-        keyPrefix: apiKey.substring(0, 5)
-      }, { status: 400 });
-    }
+    // Set a timeout for the request
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Request timed out after 15 seconds')), 15000);
+    });
     
-    // Make THREE different API calls to diagnose different aspects:
+    // Make the request with a timeout
+    const response = await Promise.race<string>([
+      perplexity.generateResearch(testPrompt, options),
+      timeoutPromise
+    ]);
     
-    // TEST 1: Basic connection test with minimal prompt
-    console.log("TEST 1: Basic API connectivity test");
-    try {
-      const basicResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'sonar-small-chat',  // Using smallest model
-          messages: [
-            { role: 'user', content: 'Say "test" and nothing else.' }
-          ],
-          max_tokens: 10,
-          temperature: 0
-        })
-      });
-      
-      const basicStatus = basicResponse.status;
-      const basicHeaders = Object.fromEntries(basicResponse.headers.entries());
-      let basicData;
-      
-      try {
-        basicData = await basicResponse.json();
-      } catch (e) {
-        basicData = { error: "Could not parse JSON response" };
-      }
-      
-      const test1Result = {
-        status: basicStatus,
-        headers: basicHeaders,
-        data: basicData,
-        ok: basicResponse.ok
-      };
-      
-      console.log("TEST 1 Result:", test1Result);
-      
-      // If test 1 failed, no need to continue
-      if (!basicResponse.ok) {
-        return NextResponse.json({
-          success: false,
-          message: 'Basic API connectivity test failed',
-          diagnostics: {
-            test1: test1Result,
-            errorCode: basicStatus,
-            errorDetails: basicData
-          }
-        }, { status: 500 });
-      }
+    const duration = Date.now() - startTime;
     
-      // TEST 2: Test with the actual research model
-      console.log("TEST 2: Testing with research model");
-      const researchResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'sonar-medium-chat', // Try a mid-sized model
-          messages: [
-            { role: 'system', content: 'You are a helpful research assistant.' },
-            { role: 'user', content: 'What is the capital of France? Answer in one word.' }
-          ],
-          max_tokens: 50,
-          temperature: 0
-        })
-      });
-      
-      const researchStatus = researchResponse.status;
-      const researchHeaders = Object.fromEntries(researchResponse.headers.entries());
-      let researchData;
-      
-      try {
-        researchData = await researchResponse.json();
-      } catch (e) {
-        researchData = { error: "Could not parse JSON response" };
-      }
-      
-      const test2Result = {
-        status: researchStatus,
-        headers: researchHeaders,
-        data: researchData,
-        ok: researchResponse.ok
-      };
-      
-      console.log("TEST 2 Result:", test2Result);
-      
-      // TEST 3: Check for rate limiting or quota issues
-      console.log("TEST 3: Testing sonar-deep-research model");
-      const deepResearchResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'sonar-medium-online', // Try online model which might have different permissions
-          messages: [
-            { role: 'system', content: 'You provide factual information.' },
-            { role: 'user', content: 'What year is it currently?' }
-          ],
-          max_tokens: 50,
-          temperature: 0
-        })
-      });
-      
-      const deepStatus = deepResearchResponse.status;
-      const deepHeaders = Object.fromEntries(deepResearchResponse.headers.entries());
-      let deepData;
-      
-      try {
-        deepData = await deepResearchResponse.json();
-      } catch (e) {
-        deepData = { error: "Could not parse JSON response" };
-      }
-      
-      const test3Result = {
-        status: deepStatus,
-        headers: deepHeaders,
-        data: deepData,
-        ok: deepResearchResponse.ok
-      };
-      
-      console.log("TEST 3 Result:", test3Result);
-      
-      // Return combined test results
-      return NextResponse.json({
-        success: test1Result.ok && test2Result.ok && test3Result.ok,
-        message: 'API diagnostics completed',
-        apiKeyFormat: 'Valid (starts with pplx-)',
-        diagnostics: {
-          test1: test1Result,
-          test2: test2Result,
-          test3: test3Result,
-          recommendedAction: determineRecommendedAction(test1Result, test2Result, test3Result)
+    console.log(`[TEST] Perplexity API test successful in ${duration}ms`);
+    console.log(`[TEST] Response: ${response}`);
+    
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Perplexity API connection successful',
+        details: {
+          apiKeyValid: true,
+          responseTime: `${duration}ms`,
+          sampleResponse: response.substring(0, 100) + (response.length > 100 ? '...' : ''),
+          model: 'sonar-deep-research'
         }
-      });
-    } catch (fetchError: any) {
-      console.error("Error during API test:", fetchError);
-      return NextResponse.json({
-        success: false,
-        message: 'Network error during API test',
-        error: fetchError.message || String(fetchError),
-        timestamp: new Date().toISOString()
-      }, { status: 500 });
-    }
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (error: any) {
-    console.error('Error testing Perplexity API:', error);
+    console.error('[TEST] Perplexity API test failed:', error);
     
-    return NextResponse.json({
-      success: false,
-      message: 'Error running diagnostics',
-      error: error.message || String(error),
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
+    // Try to extract useful error information
+    const errorMessage = error.message || 'Unknown error';
+    let errorType = 'unknown';
+    
+    if (errorMessage.includes('401')) {
+      errorType = 'authentication';
+    } else if (errorMessage.includes('429')) {
+      errorType = 'rate_limit';
+    } else if (errorMessage.includes('timeout')) {
+      errorType = 'timeout';
+    } else if (errorMessage.includes('network')) {
+      errorType = 'network';
+    }
+    
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: errorType,
+        message: errorMessage,
+        details: {
+          stack: error.stack ? error.stack.split('\n').slice(0, 3).join('\n') : null
+        }
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
-// Helper function to determine recommended action based on test results
-function determineRecommendedAction(test1: any, test2: any, test3: any): string {
-  if (!test1.ok) {
-    if (test1.status === 401) {
-      return "Your API key is invalid or has been revoked. Please check your Perplexity account and generate a new key.";
-    }
-    if (test1.status === 403) {
-      return "Your API key doesn't have permission to access this service. Please check your Perplexity subscription level.";
-    }
-    if (test1.status === 429) {
-      return "You've hit rate limits. Consider reducing request frequency or upgrading your subscription.";
-    }
-    return `Basic API connectivity issue. Status code: ${test1.status}. Check your network connection and Perplexity service status.`;
-  }
-  
-  if (!test2.ok && test1.ok) {
-    return "Your API key works with basic models but not with the research model. Check your subscription tier or model permissions.";
-  }
-  
-  if (!test3.ok && test2.ok) {
-    return "Your API key has limited model access. The online research model requires specific permissions or a higher tier subscription.";
-  }
-  
-  if (test1.ok && test2.ok && test3.ok) {
-    return "All API tests passed. If you're still having issues, check the prompt formatting or explore more complex query patterns.";
-  }
-  
-  return "Inconsistent API behavior. Contact Perplexity support for assistance.";
+// Also handle POST requests for cross-origin compatibility
+export async function POST(request: NextRequest) {
+  return GET(request);
 } 
