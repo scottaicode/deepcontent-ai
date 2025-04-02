@@ -33,7 +33,7 @@ export class PerplexityClient {
     // Get configuration options with defaults
     const maxTokens = options.maxTokens || 4000;
     const temperature = options.temperature || 0.2;
-    const timeoutMs = options.timeoutMs || 240000; // 4 minutes timeout
+    const timeoutMs = options.timeoutMs || 270000; // 4.5 minutes timeout (increased from 4 min)
     const language = options.language || 'en';
     
     // Create current date formatting for citations
@@ -67,7 +67,8 @@ export class PerplexityClient {
       model: this.model,
       maxTokens,
       temperature,
-      language
+      language,
+      timeoutMs
     });
     
     // Create AbortController for timeout
