@@ -15,7 +15,7 @@ import { decode } from 'html-entities';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  console.log('YouTube Video Analysis: Request received', new Date().toISOString());
+  console.log('[DEBUG-AUDIO] YouTube Video Analysis: Request received', new Date().toISOString());
   
   try {
     // Get the video ID from the query parameters
@@ -24,22 +24,26 @@ export async function GET(request: NextRequest) {
     
     // Validate the video ID
     if (!videoId) {
+      console.log('[DEBUG-AUDIO] Missing videoId parameter');
       return NextResponse.json({ error: 'Missing videoId parameter' }, { status: 400 });
     }
 
-    console.log(`Processing YouTube video analysis for ID: ${videoId}`);
+    console.log(`[DEBUG-AUDIO] Processing YouTube video analysis for ID: ${videoId}`);
     
     // Check if the video exists and is valid
     try {
       const videoInfo = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`);
-      console.log('Video info retrieved:', {
+      console.log('[DEBUG-AUDIO] Video info retrieved:', {
         title: videoInfo.videoDetails.title,
         lengthSeconds: videoInfo.videoDetails.lengthSeconds,
-        author: videoInfo.videoDetails.author.name
+        author: videoInfo.videoDetails.author.name,
+        hasDescription: !!videoInfo.videoDetails.description,
+        descriptionLength: videoInfo.videoDetails.description?.length || 0
       });
       
       // Limit videos to a reasonable length (10 minutes max)
       if (parseInt(videoInfo.videoDetails.lengthSeconds) > 600) {
+        console.log('[DEBUG-AUDIO] Video exceeds maximum length');
         return NextResponse.json({ 
           error: 'Video is too long for analysis (maximum 10 minutes)',
           videoDetails: {
@@ -54,9 +58,11 @@ export async function GET(request: NextRequest) {
         format.hasAudio
       );
       
+      console.log('[DEBUG-AUDIO] Audio formats found:', formats.length);
+      
       if (formats.length === 0) {
         // Instead of returning a detailed fallback message, return a clear error with a rejection status
-        console.log('No audio formats available for this video, returning rejection status');
+        console.log('[DEBUG-AUDIO] No audio formats available for this video, returning rejection status');
         
         return NextResponse.json({
           error: 'No audio formats available',
@@ -75,9 +81,13 @@ export async function GET(request: NextRequest) {
       // Generate a detailed analysis of the video
       const transcript = generateFormattedTranscript(videoInfo);
       
-      console.log('Generated video analysis information', {
+      console.log('[DEBUG-AUDIO] Generated video analysis information', {
         transcriptLength: transcript.length,
-        transcriptPreview: transcript.substring(0, 100) + '...'
+        transcriptPreview: transcript.substring(0, 100) + '...',
+        isGenericContent: transcript.includes('Unable to Retrieve Video Details') || 
+                           transcript.includes('What You Can Do Instead') || 
+                           transcript.includes('This could happen because'),
+        contentType: 'video-analysis'
       });
       
       return NextResponse.json({
@@ -93,7 +103,7 @@ export async function GET(request: NextRequest) {
       });
       
     } catch (videoError: any) {
-      console.error('Error fetching video info:', videoError.message);
+      console.error('[DEBUG-AUDIO] Error fetching video info:', videoError.message);
       
       // Fallback content for when we can't get video info
       const fallbackContent = `# YouTube Video Analysis
@@ -114,11 +124,19 @@ This could happen because:
 ---
 *Note: This is a computer-generated message due to limited access to video information.*`;
 
+      console.log('[DEBUG-AUDIO] Returning fallback content due to error', {
+        errorMessage: videoError.message,
+        fallbackContentLength: fallbackContent.length,
+        fallbackContentPreview: fallbackContent.substring(0, 100) + '...',
+        source: 'fallback-analysis'
+      });
+
       return NextResponse.json({
         transcript: fallbackContent,
         videoId,
         source: 'fallback-analysis',
         error: videoError.message,
+        isFallback: true,
         metadata: {
           limited: true,
           errorType: 'VIDEO_INFO_UNAVAILABLE'
@@ -126,7 +144,7 @@ This could happen because:
       }, { status: 200 }); // Return 200 with fallback content
     }
   } catch (error: any) {
-    console.error('Error in YouTube video analysis:', error);
+    console.error('[DEBUG-AUDIO] Error in YouTube video analysis:', error);
     return NextResponse.json({ 
       error: `Error: ${error.message || 'Unknown error'}`,
       timestamp: new Date().toISOString()

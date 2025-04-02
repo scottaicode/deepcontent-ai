@@ -705,7 +705,7 @@ For your research, consider watching the video with captions enabled and taking 
     setError(null);
     
     try {
-      console.log('Attempting to extract research content for:', { youtubeId, url });
+      console.log('[DEBUG-FRONTEND] Attempting to extract research content for:', { youtubeId, url });
       
       // Show initial toast to indicate process has started
       toast({
@@ -714,6 +714,7 @@ For your research, consider watching the video with captions enabled and taking 
       });
       
       // Call our research extraction endpoint
+      console.log('[DEBUG-FRONTEND] Sending POST request to /api/youtube/transcript');
       const response = await fetch('/api/youtube/transcript', {
         method: 'POST',
         headers: {
@@ -725,32 +726,53 @@ For your research, consider watching the video with captions enabled and taking 
         }),
       });
       
-      // Get the response as text first to ensure proper parsing
-      const responseText = await response.text();
-      console.log('Research extraction response text:', {
+      console.log('[DEBUG-FRONTEND] Response received:', {
         status: response.status,
         ok: response.ok,
-        text: responseText.substring(0, 200) + '...'
+        contentType: response.headers.get('Content-Type')
       });
+      
+      // Get the response as text first to ensure proper parsing
+      const responseText = await response.text();
+      console.log('[DEBUG-FRONTEND] Research extraction response text length:', responseText.length);
+      console.log('[DEBUG-FRONTEND] Response text preview:', responseText.substring(0, 200));
       
       // Try to parse the JSON
       let data;
       try {
         data = JSON.parse(responseText);
+        console.log('[DEBUG-FRONTEND] Successfully parsed response JSON with keys:', Object.keys(data));
       } catch (parseError) {
-        console.error('Failed to parse research extraction response', parseError);
+        console.error('[DEBUG-FRONTEND] Failed to parse research extraction response', parseError);
         throw new Error('Invalid response from research extraction service');
       }
       
       // Handle rejected content
       if (data.rejected || data.source === 'rejection' || response.status === 400) {
-        console.log('Content was rejected as not useful for research:', data.message || data.error);
+        console.log('[DEBUG-FRONTEND] Content was rejected as not useful for research:', data.message || data.error);
         throw new Error(data.message || data.error || 'Content not suitable for research purposes');
+      }
+      
+      // Log quality assessment from backend
+      if (data.quality) {
+        console.log('[DEBUG-FRONTEND] Backend quality assessment:', data.quality);
       }
       
       // Success case - we have transcript data
       if (data.transcript) {
-        console.log('Research extraction succeeded, transcript length:', data.transcript.length);
+        console.log('[DEBUG-FRONTEND] Research extraction succeeded, transcript length:', data.transcript.length);
+        
+        // Analyze content quality
+        const contentPreview = data.transcript.substring(0, 200);
+        const isFallback = data.isFallback || 
+                           contentPreview.includes('Unable to Retrieve Video Details') || 
+                           contentPreview.includes('What You Can Do Instead') || 
+                           contentPreview.includes('This could happen because:');
+                           
+        console.log('[DEBUG-FRONTEND] Content quality assessment:', { 
+          isFallback, 
+          contentPreview 
+        });
         
         // Clean any HTML entities that might still be in the transcript
         let cleanTranscript = data.transcript;
@@ -766,6 +788,8 @@ For your research, consider watching the video with captions enabled and taking 
             .replace(/\r\n/g, '\n');
         }
         
+        console.log('[DEBUG-FRONTEND] Forwarding transcript to research process');
+        
         // Call the callback with the clean transcript and URL
         onTranscriptFetched(cleanTranscript, url);
         
@@ -780,10 +804,11 @@ For your research, consider watching the video with captions enabled and taking 
       }
       
       // If no transcript is available, treat as an error
+      console.log('[DEBUG-FRONTEND] No transcript data in response');
       throw new Error('No usable content available for research');
       
     } catch (err: any) {
-      console.error('Research extraction error:', err);
+      console.error('[DEBUG-FRONTEND] Research extraction error:', err);
       
       // Special case for no audio formats error
       if (err.message && err.message.includes('No audio formats available')) {

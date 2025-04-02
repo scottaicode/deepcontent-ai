@@ -75,38 +75,61 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const { youtubeUrl, videoId } = body;
     
+    console.log('[DEBUG-YOUTUBE] Received research extraction request:', { 
+      youtubeUrl, 
+      videoId, 
+      timestamp: new Date().toISOString() 
+    });
+    
     // Validate input
     const actualVideoId = videoId || extractVideoId(youtubeUrl);
     
     if (!actualVideoId) {
+      console.log('[DEBUG-YOUTUBE] Missing video ID or URL in request');
       return NextResponse.json({ 
         error: 'Missing video ID or YouTube URL' 
       }, { status: 400 });
     }
     
-    console.log(`Extracting research content for video ID: ${actualVideoId}`);
+    console.log(`[DEBUG-YOUTUBE] Extracting research content for video ID: ${actualVideoId}`);
     
     // Call the youtube-audio-transcription endpoint to get video analysis
     try {
-      const response = await fetch(`${getBaseUrl(request)}/api/youtube-audio-transcription?videoId=${actualVideoId}`, {
+      const audioTranscriptionUrl = `${getBaseUrl(request)}/api/youtube-audio-transcription?videoId=${actualVideoId}`;
+      console.log('[DEBUG-YOUTUBE] Calling audio transcription endpoint:', audioTranscriptionUrl);
+      
+      const response = await fetch(audioTranscriptionUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
       
+      console.log('[DEBUG-YOUTUBE] Audio transcription response received:', {
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get('Content-Type')
+      });
+      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error from audio transcription service:', errorText);
+        console.error('[DEBUG-YOUTUBE] Error from audio transcription service:', errorText);
         
         try {
           const errorData = JSON.parse(errorText);
+          console.log('[DEBUG-YOUTUBE] Parsed error response:', {
+            error: errorData.error,
+            source: errorData.source,
+            rejected: errorData.rejected
+          });
+          
           return NextResponse.json({ 
             error: errorData.error || 'Failed to extract research content',
             source: 'research-extraction',
             details: errorData
           }, { status: response.status });
         } catch (e) {
+          console.error('[DEBUG-YOUTUBE] Failed to parse error response as JSON:', e);
           return NextResponse.json({ 
             error: 'Failed to extract research content', 
             details: errorText
@@ -115,24 +138,65 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
       
       // Get the successful response
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log('[DEBUG-YOUTUBE] Response text length:', responseText.length);
+      console.log('[DEBUG-YOUTUBE] Response text preview:', responseText.substring(0, 200));
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('[DEBUG-YOUTUBE] Failed to parse audio transcription response as JSON:', parseError);
+        return NextResponse.json({
+          error: 'Invalid response format from audio transcription service',
+          details: responseText.substring(0, 500) // Include part of the response for debugging
+        }, { status: 500 });
+      }
+      
+      // Detailed logging of the response structure
+      console.log('[DEBUG-YOUTUBE] Parsed audio transcription data:', {
+        hasTranscript: !!data.transcript,
+        transcriptLength: data.transcript ? data.transcript.length : 0,
+        source: data.source,
+        isFallback: !!data.isFallback,
+        error: data.error,
+        metadataKeys: Object.keys(data.metadata || {})
+      });
+      
+      // Check content quality - is this just error/fallback content?
+      if (data.transcript) {
+        const contentPreview = data.transcript.substring(0, 200);
+        console.log('[DEBUG-YOUTUBE] Transcript content preview:', contentPreview);
+        
+        // Check if content seems like generic fallback or error content
+        const isGenericContent = 
+          contentPreview.includes('Unable to Retrieve Video Details') || 
+          contentPreview.includes('This is a sample transcript generated as a fallback') ||
+          contentPreview.includes('This could happen because:') ||
+          contentPreview.includes('We couldn\'t access complete information');
+        
+        if (isGenericContent) {
+          console.log('[DEBUG-YOUTUBE] Detected generic fallback content that may not be research-quality');
+        }
+      }
       
       // Return the research content
       return NextResponse.json({
         transcript: data.transcript,
         source: 'research-extraction',
-        metadata: data.metadata || {}
+        metadata: data.metadata || {},
+        quality: data.isFallback ? 'fallback' : 'research'
       }, { status: 200 });
       
     } catch (error: any) {
-      console.error('Error extracting research content:', error);
+      console.error('[DEBUG-YOUTUBE] Error extracting research content:', error);
       return NextResponse.json({ 
         error: `Error extracting research content: ${error.message}`,
         source: 'research-extraction'
       }, { status: 500 });
     }
   } catch (error: any) {
-    console.error('Error in YouTube research extraction API route:', error);
+    console.error('[DEBUG-YOUTUBE] Error in YouTube research extraction API route:', error);
     return NextResponse.json(
       { error: `Error: ${error.message || 'Unknown error'}` },
       { status: 500 }
