@@ -6,6 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 
+// Add at the top of the file with other imports/constants
+const PERPLEXITY_TIMEOUT = 45000; // Increase to 45 seconds for Perplexity API calls
+
 // Force this route to be dynamic
 export const dynamic = 'force-dynamic';
 
@@ -165,24 +168,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       // Check content quality - is this just error/fallback content?
       let isLowQualityContent = false;
-      if (data.transcript) {
-        const contentPreview = data.transcript.substring(0, 200);
-        console.log('[DEBUG-YOUTUBE] Transcript content preview:', contentPreview);
-        
-        // Check if content seems like generic fallback or error content
-        isLowQualityContent = 
-          data.isFallback || 
-          contentPreview.includes('Unable to Retrieve Video Details') || 
-          contentPreview.includes('This is a sample transcript generated as a fallback') ||
-          contentPreview.includes('This could happen because:') ||
-          contentPreview.includes('We couldn\'t access complete information');
-        
-        if (isLowQualityContent) {
-          console.log('[DEBUG-YOUTUBE] Detected low-quality fallback content - will enhance with Perplexity');
-        }
+      
+      // Check for various indicators of low-quality content
+      if (!data.transcript || data.transcript.length < 200) {
+        console.log('[DEBUG-YOUTUBE] Content too short - flagging as low quality');
+        isLowQualityContent = true;
+      } else if (
+        data.transcript.includes('Unable to retrieve video details') || 
+        data.transcript.includes('Unable to Retrieve') || 
+        data.transcript.includes('What You Can Do Instead') ||
+        data.transcript.includes('This could happen because:') ||
+        data.transcript.includes('No transcripts available') ||
+        data.transcript.includes('Error occurred') ||
+        data.transcript.length < 500 // Very short transcripts are suspicious
+      ) {
+        console.log('[DEBUG-YOUTUBE] Content contains error indicators - flagging as low quality');
+        isLowQualityContent = true;
       }
       
-      // If we have low-quality or fallback content, enhance it with Perplexity
+      // Log the quality assessment
+      console.log(`[DEBUG-YOUTUBE] Content quality assessment:`, { 
+        isLowQualityContent, 
+        contentLength: data.transcript?.length,
+        contentSnippet: data.transcript?.substring(0, 100)
+      });
+      
+      // If content is low quality and we have Perplexity API key, try to enhance it
       if (isLowQualityContent && data.metadata) {
         console.log('[DEBUG-YOUTUBE] Enhancing content with Perplexity research');
         
@@ -205,49 +216,139 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           
           console.log('[DEBUG-YOUTUBE] Calling Perplexity research with context:', context);
           
-          // Call Perplexity API for enhanced research
-          const perplexityResponse = await fetch(`${getBaseUrl(request)}/api/perplexity/research`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              topic: topic,
-              context: context,
-              sources: ['recent', 'scholar'],
-            }),
-          });
-          
-          if (!perplexityResponse.ok) {
-            throw new Error(`Perplexity API returned ${perplexityResponse.status}`);
-          }
-          
-          const perplexityData = await perplexityResponse.json();
-          
-          if (perplexityData && perplexityData.research) {
-            console.log('[DEBUG-YOUTUBE] Successfully enhanced content with Perplexity', {
-              researchLength: perplexityData.research.length,
-              preview: perplexityData.research.substring(0, 100) + '...'
+          // Add perplexity API call, if configured
+          if (process.env.PERPLEXITY_API_KEY && isLowQualityContent) {
+            console.log(`[DEBUG-API] Attempting Perplexity enhancement for video ${actualVideoId}`);
+            
+            // Performance timing
+            const perplexityStartTime = Date.now();
+            
+            // Log request details
+            console.log(`[DEBUG-API] Perplexity request params:`, {
+              videoId,
+              videoUrl: `https://www.youtube.com/watch?v=${actualVideoId}`,
+              title: topic || 'Unknown',
+              requestTimestamp: new Date().toISOString()
             });
             
-            // Format the enhanced research content to include video information
-            const enhancedContent = formatEnhancedResearch(
-              perplexityData.research,
-              topic,
-              actualVideoId,
-              videoMetadata
-            );
-            
-            // Return the enhanced content
-            return NextResponse.json({
-              transcript: enhancedContent,
-              source: 'perplexity-enhanced',
-              metadata: data.metadata,
-              quality: 'research',
-              videoId: actualVideoId
-            }, { status: 200 });
-          } else {
-            console.error('[DEBUG-YOUTUBE] Perplexity API returned no research content');
+            try {
+              console.log(`[DEBUG-API] Sending request to Perplexity API`);
+              
+              // Track the exact request being sent
+              const perplexityRequestBody = {
+                model: process.env.PERPLEXITY_MODEL || "llama-3-sonar-large-32k-online",
+                query: `Please provide a detailed research summary of this YouTube video including its key points, topics covered, and main conclusions. Format this as a readable transcript that captures the essence of the content. Video Title: "${topic || 'Unknown YouTube Video'}" Video URL: https://www.youtube.com/watch?v=${actualVideoId}`,
+                max_tokens: 4000,
+              };
+              
+              console.log(`[DEBUG-API] Perplexity request config:`, {
+                model: perplexityRequestBody.model,
+                queryLength: perplexityRequestBody.query.length,
+                maxTokens: perplexityRequestBody.max_tokens
+              });
+              
+              // Create a timeout promise for the Perplexity API call
+              const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Perplexity API timeout after ${PERPLEXITY_TIMEOUT}ms`)), PERPLEXITY_TIMEOUT);
+              });
+              
+              // Make the API call with timeout
+              const perplexityResponse = await Promise.race([
+                fetch("https://api.perplexity.ai/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+                  },
+                  body: JSON.stringify(perplexityRequestBody),
+                }),
+                timeoutPromise
+              ]) as Response; // Cast to Response type
+              
+              // Log response information
+              const perplexityEndTime = Date.now();
+              console.log(`[DEBUG-API] Perplexity API response received in ${perplexityEndTime - perplexityStartTime}ms:`, {
+                status: perplexityResponse.status,
+                statusText: perplexityResponse.statusText,
+                headers: Object.fromEntries(Array.from(perplexityResponse.headers.entries())),
+                type: perplexityResponse.type,
+                responseTime: perplexityEndTime - perplexityStartTime
+              });
+              
+              // Check if response is OK
+              if (!perplexityResponse.ok) {
+                const errorText = await perplexityResponse.text();
+                console.error(`[DEBUG-API] Perplexity API error: ${perplexityResponse.status} ${perplexityResponse.statusText}`, {
+                  errorText: errorText.substring(0, 1000), // Log first 1000 chars of error
+                  headers: Object.fromEntries(Array.from(perplexityResponse.headers.entries()))
+                });
+                throw new Error(`Perplexity API returned error ${perplexityResponse.status}: ${errorText.substring(0, 200)}`);
+              }
+              
+              // First get response as text for logging
+              const responseText = await perplexityResponse.text();
+              console.log(`[DEBUG-API] Perplexity API response text (first 100 chars): ${responseText.substring(0, 100)}`);
+              
+              // Parse JSON from text
+              let perplexityData;
+              try {
+                perplexityData = JSON.parse(responseText);
+                console.log(`[DEBUG-API] Perplexity API response successfully parsed. Contains choices:`, {
+                  hasChoices: !!perplexityData.choices,
+                  choicesLength: perplexityData.choices?.length || 0
+                });
+              } catch (jsonError) {
+                console.error(`[DEBUG-API] Perplexity API JSON parse error:`, jsonError);
+                console.error(`[DEBUG-API] Failed to parse response (first 200 chars): ${responseText.substring(0, 200)}`);
+                throw new Error(`Failed to parse Perplexity API response: ${(jsonError as Error).message}`);
+              }
+              
+              // Extract content from response
+              const contentFromPerplexity = perplexityData.choices[0]?.message?.content;
+              
+              if (!contentFromPerplexity) {
+                console.error(`[DEBUG-API] Perplexity API returned empty or invalid content`);
+                throw new Error("Perplexity API returned empty or invalid content");
+              }
+              
+              console.log(`[DEBUG-API] Successfully extracted content from Perplexity, length: ${contentFromPerplexity.length}`);
+              
+              // Format as transcript
+              const enhancedContent = formatEnhancedResearch(
+                contentFromPerplexity,
+                topic,
+                actualVideoId,
+                videoMetadata
+              );
+              
+              // Return the enhanced content
+              return NextResponse.json({
+                transcript: enhancedContent,
+                source: 'perplexity-enhanced',
+                metadata: data.metadata,
+                quality: 'enhanced',
+                videoId: actualVideoId
+              }, { status: 200 });
+            } catch (perplexityError: any) {
+              console.error(`[DEBUG-API] Perplexity enhancement failed:`, {
+                error: perplexityError.message,
+                stack: perplexityError.stack,
+                videoId,
+                errorTime: new Date().toISOString(),
+                totalTime: Date.now() - perplexityStartTime
+              });
+              
+              // Check if this is a timeout error
+              if (perplexityError.message.includes('timeout') || 
+                  perplexityError.name === 'AbortError' || 
+                  perplexityError.message.includes('timed out')) {
+                console.log(`[DEBUG-API] Perplexity API call failed due to timeout`);
+                throw new Error("Research extraction service timed out. The server might be busy. Please try again later.");
+              }
+              
+              // For other errors
+              throw new Error(`Perplexity API error: ${perplexityError.message}`);
+            }
           }
         } catch (perplexityError) {
           console.error('[DEBUG-YOUTUBE] Error enhancing content with Perplexity:', perplexityError);
