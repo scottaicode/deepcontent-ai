@@ -22,9 +22,8 @@ try {
 // Add wait utility
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Set the maximum duration for this route to avoid timeouts
-// Use the absolute maximum allowed on Pro plan (300s/5min)
-export const maxDuration = 300; // 5 minutes max
+// Set the maximum duration for this route
+export const maxDuration = 60; // Reduced to 60 seconds for initial request handling
 
 // Set the maximum size for request/response to handle large research results
 export const fetchCache = "force-no-store";
@@ -48,53 +47,38 @@ const createCacheKey = (topic: string, contentType: string, platform: string, la
   return `research:${normalizedTopic}:${normalizedType}:${normalizedPlatform}:${language}`;
 };
 
+// Function to create a job ID for tracking research requests
+const createJobId = (topic: string): string => {
+  const normalizedTopic = topic.trim().toLowerCase().replace(/[^a-z0-9]/gi, '-').substring(0, 50);
+  const timestamp = Date.now();
+  const randomPart = Math.random().toString(36).substring(2, 8);
+  return `job:${normalizedTopic}:${timestamp}:${randomPart}`;
+};
+
 // Utility function to create a simplified topic key for fallback lookup
 const createSimplifiedTopicKey = (topic: string): string => {
   return `research:${topic.trim().toLowerCase().replace(/[^a-z0-9]/gi, '-').substring(0, 50)}`;
 };
 
-// Add improved logging for the chunked approach
-const enforceProcessingTime = async (startTime: number, maxDuration: number, requestId: string) => {
-  const currentTime = Date.now();
-  const elapsedTime = currentTime - startTime;
-  if (elapsedTime < maxDuration) {
-    const remainingTime = maxDuration - elapsedTime;
-    logSection(requestId, 'TIMING', `Enforcing minimum 5-minute processing time. Waiting ${Math.ceil(remainingTime/1000)} more seconds.`);
-    
-    // Set up a heartbeat during the wait to avoid timeout issues
-    const heartbeatInterval = setInterval(() => {
-      const newCurrentTime = Date.now();
-      const newRemainingTime = maxDuration - (newCurrentTime - startTime);
-      logSection(requestId, 'TIMING', `Still processing - ${Math.ceil(newRemainingTime/1000)}s remaining`);
-    }, 30000); // Log every 30 seconds
-    
-    // Wait for the remaining time
-    await wait(remainingTime);
-    
-    // Clear the heartbeat interval
-    clearInterval(heartbeatInterval);
-    
-    logSection(requestId, 'TIMING', `Minimum processing time requirement met (${Math.ceil((Date.now() - startTime)/1000)}s total)`);
-  } else {
-    logSection(requestId, 'TIMING', `Processing already took ${Math.ceil(elapsedTime/1000)}s, exceeding minimum time requirement`);
+// Check if a job is complete
+async function checkJobStatus(jobId: string) {
+  if (!kv) return null;
+  
+  try {
+    const job = await kv.hgetall(jobId);
+    return job;
+  } catch (err) {
+    console.error(`Error checking job status for ${jobId}:`, err);
+    return null;
   }
-};
+}
 
 // POST handler for direct research requests
 export async function POST(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || `req_${Date.now()}`;
   logSection(requestId, 'INIT', `Received research request at ${new Date().toISOString()}`);
-  
-  // Initialize interval reference variable
-  let diagInterval: NodeJS.Timeout | null = null;
-  
-  // Strict time enforcement - record start time
-  const strictStartTime = Date.now();
-  // THIS IS THE KEY - we're enforcing a FIXED 5 minute processing time
-  // This guarantees the response takes exactly 5 minutes regardless of what happens
-  const FIXED_PROCESSING_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
-  
+
   try {
     // Parse the request body
     let body;
@@ -104,8 +88,6 @@ export async function POST(request: NextRequest) {
       logSection(requestId, 'TOPIC', `Research topic: "${body.topic}"`);
     } catch (err) {
       console.error(`[DIAG] [${requestId}] Error parsing request body:`, err);
-      // Even with an error, wait for the minimum time
-      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
       return new Response(
         JSON.stringify({ error: 'Invalid request format. Please check your request body.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -125,8 +107,6 @@ export async function POST(request: NextRequest) {
     
     if (!topic) {
       console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
-      // Even with an error, wait for the minimum time
-      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
       return new Response(
         JSON.stringify({ error: 'Topic is required' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -170,8 +150,6 @@ export async function POST(request: NextRequest) {
     
     if (!apiKey) {
       console.error(`[DIAG] [${requestId}] Perplexity API key not configured`);
-      // Even with an error, wait for the minimum time
-      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
       return new Response(
         JSON.stringify({ error: 'Perplexity API key not configured. Please contact support.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -213,8 +191,6 @@ export async function POST(request: NextRequest) {
         // Return cached result if found
         if (cachedResult) {
           logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
-          // Even for cached results, enforce the minimum processing time
-          await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
           return new Response(
             JSON.stringify({ 
               research: cachedResult,
@@ -224,11 +200,11 @@ export async function POST(request: NextRequest) {
             { status: 200, headers: { 'Content-Type': 'application/json' } }
           );
         } else {
-          logSection(requestId, 'CACHE', `No cached research found, proceeding with live generation`);
+          logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
         }
       }
     } catch (err) {
-      console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with live research:`, err);
+      console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
     }
     
     // Build the prompt
@@ -244,231 +220,183 @@ export async function POST(request: NextRequest) {
     
     logSection(requestId, 'PROMPT', `Prompt built, length: ${promptText.length} characters`);
     
-    try {
-      // Create Perplexity client
-      const perplexity = new PerplexityClient(apiKey);
-      logSection(requestId, 'CLIENT', `Perplexity client initialized successfully`);
+    // Create a job ID for this research request
+    const jobId = createJobId(topic);
+    
+    // Initialize job in KV storage
+    if (kv) {
+      await kv.hset(jobId, {
+        status: 'pending',
+        topic,
+        createdAt: Date.now(),
+        progress: 0
+      });
       
-      // Track time for research generation
-      const startTime = Date.now();
-      logSection(requestId, 'EXECUTE', `Starting research generation at ${new Date().toISOString()}`);
-      
-      // Track periodic updates for long-running calls
-      diagInterval = setInterval(() => {
-        const currentTime = Date.now();
-        const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
-        logSection(requestId, 'PROGRESS', `Still processing at ${elapsedSeconds}s elapsed`);
-      }, 30000); // Log every 30 seconds
-      
-      // Call Perplexity API with timeout protection
-      let research: string;
-      
+      // Set expiration for job records (24 hours)
+      await kv.expire(jobId, 86400);
+    }
+    
+    // Start the research process in background (outside the request/response cycle)
+    // This is done by wrapping the process in an immediately invoked async function
+    (async () => {
       try {
+        // Create Perplexity client
+        const perplexity = new PerplexityClient(apiKey);
+        
+        // Update job status to 'processing'
+        if (kv) {
+          await kv.hset(jobId, {
+            status: 'processing',
+            progress: 10,
+            startedAt: Date.now()
+          });
+        }
+        
+        // Track time for research generation
+        const startTime = Date.now();
+        
         // Set options for the API call
         const options = {
           maxTokens: 4000,
           temperature: 0.2,
-          timeoutMs: 270000, // 4.5 minutes timeout (increase from 4 minutes)
+          timeoutMs: 270000, // 4.5 minutes timeout
           language
         };
         
         // Regular API call with options
-        research = await perplexity.generateResearch(promptText, options);
-        
-        // If we get here, the API call succeeded
-        logSection(requestId, 'SUCCESS', `Research generated successfully, length: ${research?.length || 0} characters`);
-      } catch (apiError: any) {
-        // Clear diagnostic interval if it's running
-        if (diagInterval) {
-          clearInterval(diagInterval);
-          diagInterval = null;
-        }
-        
-        // Log the error
-        console.error(`[DIAG] [${requestId}] Error generating research:`, apiError);
-        
-        // Try to get simple fallback content
-        logSection(requestId, 'FALLBACK', 'Generating simplified fallback content due to timeout');
-        
-        // Create more generalized fallback content that doesn't rely on API
-        let fallbackResult = `# Research on ${topic}\n\n`;
-        
-        // Add topic-specific content to the fallback
-        if (topic.toLowerCase().includes('softcom') || 
-            topic.toLowerCase().includes('internet') || 
-            extractedPlatform.toLowerCase().includes('social')) {
-          fallbackResult += `## Overview of ${topic}\n\n`;
-          fallbackResult += `Internet service providers play a crucial role in rural and residential areas. For companies like Softcom, understanding the specific needs and pain points of rural internet users is essential.\n\n`;
-          fallbackResult += `## Key Market Insights\n\n`;
-          fallbackResult += `* Rural internet users often face challenges with reliability and speed\n`;
-          fallbackResult += `* Business customers in rural areas require dedicated support and specialized solutions\n`;
-          fallbackResult += `* Social media is an important channel for internet service providers to engage with their community\n`;
-          fallbackResult += `* Content on Facebook should focus on service updates, customer testimonials, and community involvement\n\n`;
-          fallbackResult += `## Content Strategy Recommendations\n\n`;
-          fallbackResult += `1. Share customer success stories highlighting how reliable internet improves rural businesses and homes\n`;
-          fallbackResult += `2. Create educational content about maximizing internet performance\n`;
-          fallbackResult += `3. Post about community involvement and local events\n`;
-          fallbackResult += `4. Provide transparent updates about service improvements and coverage expansions\n`;
-        } else {
-          fallbackResult += `## Overview\n\nThis topic requires in-depth research. Due to technical limitations, we could only generate a basic outline of the important areas to research.\n\n`;
-          fallbackResult += `## Key Areas to Research\n\n`;
-          fallbackResult += `1. Market trends and current statistics\n`;
-          fallbackResult += `2. Target audience demographics and preferences\n`;
-          fallbackResult += `3. Competitive landscape and differentiation opportunities\n`;
-          fallbackResult += `4. Content strategy best practices for ${extractedPlatform}\n`;
-          fallbackResult += `5. Success metrics and benchmarks\n\n`;
-        }
-        
-        fallbackResult += `## Next Steps\n\n`;
-        fallbackResult += `Consider researching these topics individually for more detailed insights. You may want to try again with a more specific research topic to get better results.`;
-        
-        research = fallbackResult;
-        logSection(requestId, 'FALLBACK', `Generated fallback content with length: ${research.length} characters`);
-      }
-      
-      // Clear diagnostic interval
-      if (diagInterval) {
-        clearInterval(diagInterval);
-        diagInterval = null;
-      }
-      
-      // Enforce strict minimum processing time of 5 minutes
-      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
-      
-      // Cache the successful result if possible
-      try {
-        if (kv && research) {
-          await kv.set(cacheKey, research, { ex: 86400 }); // Cache for 24 hours
-          logSection(requestId, 'CACHE', `Cached research result with key ${cacheKey}`);
-          
-          // Also create a simplified key entry pointing to the same research
-          const simplifiedKey = createSimplifiedTopicKey(topic);
-          if (simplifiedKey !== cacheKey) {
-            await kv.set(`${simplifiedKey}:${Date.now()}`, research, { ex: 86400 });
-            logSection(requestId, 'CACHE', `Also cached with simplified key ${simplifiedKey}`);
-          }
-        }
-      } catch (err) {
-        console.warn(`[DIAG] [${requestId}] Failed to cache research:`, err);
-      }
-      
-      // Return the research data
-      return new Response(
-        JSON.stringify({ research }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    } catch (error: any) {
-      // Clean up interval if still running
-      if (diagInterval) {
-        clearInterval(diagInterval);
-        diagInterval = null;
-      }
-      
-      console.error(`[DIAG] [${requestId}] Error calling Perplexity API:`, error);
-      
-      // Check if a previous attempt was cached but with a different key
-      let fallbackResult = null;
-      try {
-        if (kv) {
-          // Try to find a partial match in cache with various approaches
-          
-          // Approach 1: Try the simplified key
-          const simplifiedKey = createSimplifiedTopicKey(topic);
-          logSection(requestId, 'FALLBACK', `Trying fallback cache lookup with simplified key pattern: ${simplifiedKey}`);
-          
-          // Try to get any keys that start with the simplified pattern
-          const keys = await kv.keys(`${simplifiedKey}*`);
-          if (keys && keys.length > 0) {
-            logSection(requestId, 'FALLBACK', `Found ${keys.length} potential fallback matches`);
-            // Get the first match
-            fallbackResult = await kv.get(keys[0]);
-            if (fallbackResult) {
-              logSection(requestId, 'FALLBACK', `Found fallback match with key: ${keys[0]}`);
-              // Even for fallback results, enforce minimum processing time
-              await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
-              return new Response(
-                JSON.stringify({ 
-                  research: fallbackResult, 
-                  isFallback: true,
-                  fallbackKey: keys[0]
-                }),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
-              );
-            }
-          }
-          
-          // Approach 2: Try keywords from the topic
-          if (!fallbackResult) {
-            const keywords: string[] = topic.toLowerCase().split(' ').filter((word: string) => word.length > 4);
-            for (const keyword of keywords) {
-              const keywordPattern = `research:*${keyword}*`;
-              logSection(requestId, 'FALLBACK', `Trying keyword pattern: ${keywordPattern}`);
-              try {
-                const keywordKeys = await kv.keys(keywordPattern);
-                if (keywordKeys && keywordKeys.length > 0) {
-                  logSection(requestId, 'FALLBACK', `Found ${keywordKeys.length} keyword matches`);
-                  fallbackResult = await kv.get(keywordKeys[0]);
-                  if (fallbackResult) {
-                    logSection(requestId, 'FALLBACK', `Found keyword fallback with key: ${keywordKeys[0]}`);
-                    // Even for keyword fallback results, enforce minimum processing time
-                    await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
-                    return new Response(
-                      JSON.stringify({ 
-                        research: fallbackResult, 
-                        isFallback: true,
-                        fallbackKey: keywordKeys[0],
-                        fallbackType: 'keyword'
-                      }),
-                      { status: 200, headers: { 'Content-Type': 'application/json' } }
-                    );
-                  }
-                }
-              } catch (err) {
-                console.warn(`[DIAG] [${requestId}] Keyword fallback lookup failed for ${keyword}:`, err);
+        try {
+          // Periodically update progress
+          const progressInterval = setInterval(async () => {
+            if (kv) {
+              const job = await kv.hgetall(jobId);
+              if (job && job.status === 'processing') {
+                // Increment progress gradually up to 90%
+                const currentProgress = Math.min(90, (parseInt(job.progress) || 10) + Math.floor(Math.random() * 5 + 2));
+                await kv.hset(jobId, { progress: currentProgress });
+              } else {
+                clearInterval(progressInterval);
               }
             }
+          }, 10000); // Update progress every 10 seconds
+          
+          const research = await perplexity.generateResearch(promptText, options);
+          
+          // Clear progress interval
+          clearInterval(progressInterval);
+          
+          // If research was successful, cache it and update job status
+          if (research) {
+            logSection(requestId, 'JOB', `Research generated successfully, length: ${research.length} characters`);
+            
+            // Cache the successful result
+            if (kv) {
+              await kv.set(cacheKey, research, { ex: 86400 }); // Cache for 24 hours
+              await kv.hset(jobId, {
+                status: 'completed',
+                progress: 100,
+                completedAt: Date.now(),
+                resultKey: cacheKey
+              });
+            }
+          } else {
+            // Handle case where research is empty
+            logSection(requestId, 'JOB', 'Research generation failed: empty result');
+            if (kv) {
+              await kv.hset(jobId, {
+                status: 'failed',
+                error: 'Empty research result',
+                completedAt: Date.now()
+              });
+            }
+          }
+        } catch (error: any) {
+          // Handle API error
+          logSection(requestId, 'JOB', `Research generation failed: ${error.message}`);
+          if (kv) {
+            await kv.hset(jobId, {
+              status: 'failed',
+              error: error.message || 'Unknown error',
+              completedAt: Date.now()
+            });
+          }
+          
+          // If it's a timeout error, generate fallback content
+          if (error.message.includes('timeout') || error.message.includes('exceeded')) {
+            logSection(requestId, 'FALLBACK', 'Generating fallback content for timed out job');
+            
+            // Create more generalized fallback content
+            let fallbackResult = `# Research on ${topic}\n\n`;
+            
+            // Add topic-specific content to the fallback
+            if (topic.toLowerCase().includes('softcom') || 
+                topic.toLowerCase().includes('internet') || 
+                extractedPlatform.toLowerCase().includes('social')) {
+              fallbackResult += `## Overview of ${topic}\n\n`;
+              fallbackResult += `Internet service providers play a crucial role in rural and residential areas. For companies like Softcom, understanding the specific needs and pain points of rural internet users is essential.\n\n`;
+              fallbackResult += `## Key Market Insights\n\n`;
+              fallbackResult += `* Rural internet users often face challenges with reliability and speed\n`;
+              fallbackResult += `* Business customers in rural areas require dedicated support and specialized solutions\n`;
+              fallbackResult += `* Social media is an important channel for internet service providers to engage with their community\n`;
+              fallbackResult += `* Content on Facebook should focus on service updates, customer testimonials, and community involvement\n\n`;
+              fallbackResult += `## Content Strategy Recommendations\n\n`;
+              fallbackResult += `1. Share customer success stories highlighting how reliable internet improves rural businesses and homes\n`;
+              fallbackResult += `2. Create educational content about maximizing internet performance\n`;
+              fallbackResult += `3. Post about community involvement and local events\n`;
+              fallbackResult += `4. Provide transparent updates about service improvements and coverage expansions\n`;
+            } else {
+              fallbackResult += `## Overview\n\nThis topic requires in-depth research. Due to technical limitations, we could only generate a basic outline of the important areas to research.\n\n`;
+              fallbackResult += `## Key Areas to Research\n\n`;
+              fallbackResult += `1. Market trends and current statistics\n`;
+              fallbackResult += `2. Target audience demographics and preferences\n`;
+              fallbackResult += `3. Competitive landscape and differentiation opportunities\n`;
+              fallbackResult += `4. Content strategy best practices for ${extractedPlatform}\n`;
+              fallbackResult += `5. Success metrics and benchmarks\n\n`;
+            }
+            
+            fallbackResult += `## Next Steps\n\n`;
+            fallbackResult += `Consider researching these topics individually for more detailed insights. You may want to try again with a more specific research topic to get better results.`;
+            
+            // Cache the fallback result
+            if (kv) {
+              const fallbackKey = `${cacheKey}:fallback`;
+              await kv.set(fallbackKey, fallbackResult, { ex: 86400 }); // Cache for 24 hours
+              await kv.hset(jobId, {
+                status: 'completed',
+                progress: 100,
+                completedAt: Date.now(),
+                resultKey: fallbackKey,
+                isFallback: true
+              });
+            }
           }
         }
-      } catch (err) {
-        console.warn(`[DIAG] [${requestId}] Fallback cache lookup failed:`, err);
-      }
-      
-      // Handle specific error types for better user experience
-      let statusCode = 500;
-      let errorMessage = error.message || 'Unknown error occurred while generating research';
-      
-      if (error.name === 'AbortError' || errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-        statusCode = 504; // Gateway Timeout
-        errorMessage = 'Research generation timed out. Please try again with a more specific topic or try later when the service is less busy.';
-      } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-        statusCode = 429; // Too Many Requests
-        errorMessage = 'Rate limit exceeded. Please try again later.';
-      } else if (errorMessage.includes('authentication') || errorMessage.includes('401')) {
-        statusCode = 401; // Unauthorized
-        errorMessage = 'Authentication error with research service. Please check your API key.';
-      }
-      
-      // Even on errors, enforce minimum processing time
-      await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
-      
-      return new Response(
-        JSON.stringify({ error: errorMessage }),
-        { 
-          status: statusCode, 
-          headers: { 'Content-Type': 'application/json' } 
+      } catch (error: any) {
+        // Handle any other errors in the background process
+        console.error(`Background job processing error for ${jobId}:`, error);
+        if (kv) {
+          await kv.hset(jobId, {
+            status: 'failed',
+            error: error.message || 'Unknown background process error',
+            completedAt: Date.now()
+          });
         }
-      );
-    }
+      }
+    })().catch(error => {
+      console.error(`Failed to start background job ${jobId}:`, error);
+    });
+    
+    // Return immediately with the job ID
+    return new Response(
+      JSON.stringify({ 
+        jobId,
+        message: 'Research job started successfully',
+        status: 'pending'
+      }),
+      { status: 202, headers: { 'Content-Type': 'application/json' } }
+    );
+    
   } catch (error: any) {
-    // Clean up interval if still running
-    if (diagInterval) {
-      clearInterval(diagInterval);
-    }
-    
     console.error(`[DIAG] [${requestId}] Unhandled error in research API:`, error);
-    
-    // Even on unhandled errors, enforce minimum processing time
-    await enforceProcessingTime(strictStartTime, FIXED_PROCESSING_TIME, requestId);
     
     return new Response(
       JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
@@ -477,9 +405,57 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handler for GET requests to check if research is already available
+// Handler for GET requests to check job status
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
+  const jobId = url.searchParams.get('jobId');
+  
+  // If jobId is provided, check specific job status
+  if (jobId) {
+    try {
+      const job = await checkJobStatus(jobId);
+      
+      if (!job) {
+        return new Response(
+          JSON.stringify({ error: 'Job not found' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // If job is completed, also return the research content
+      if (job.status === 'completed' && job.resultKey) {
+        try {
+          const research = await kv.get(job.resultKey);
+          if (research) {
+            return new Response(
+              JSON.stringify({ 
+                ...job,
+                research,
+                isFallback: job.isFallback === 'true'
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+        } catch (err) {
+          console.warn(`Error retrieving research for completed job ${jobId}:`, err);
+        }
+      }
+      
+      // Return job status without research content
+      return new Response(
+        JSON.stringify(job),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    } catch (error: any) {
+      console.error(`Error checking job status for ${jobId}:`, error);
+      return new Response(
+        JSON.stringify({ error: error.message || 'An error occurred checking job status' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+  
+  // If no jobId, check for cached research by topic
   const topic = url.searchParams.get('topic');
   const contentType = url.searchParams.get('contentType') || 'article';
   const platform = url.searchParams.get('platform') || 'general';
@@ -487,7 +463,7 @@ export async function GET(request: NextRequest) {
   
   if (!topic) {
     return new Response(
-      JSON.stringify({ error: 'Topic parameter is required' }),
+      JSON.stringify({ error: 'Either jobId or topic parameter is required' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   }
@@ -511,14 +487,26 @@ export async function GET(request: NextRequest) {
         );
       }
       
+      // Try fallback key
+      const fallbackResult = await kv.get(`${cacheKey}:fallback`);
+      if (fallbackResult) {
+        return new Response(
+          JSON.stringify({ 
+            research: fallbackResult, 
+            fromCache: true,
+            matchType: 'fallback',
+            isFallback: true
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      
       // Try simplified key pattern
       const simplifiedKey = createSimplifiedTopicKey(topic);
-      console.log(`[CHECK] Checking for simplified key matches: ${simplifiedKey}`);
       
       try {
         const keys = await kv.keys(`${simplifiedKey}*`);
         if (keys && keys.length > 0) {
-          console.log(`[CHECK] Found ${keys.length} keys matching simplified pattern`);
           const partialMatch = await kv.get(keys[0]);
           if (partialMatch) {
             return new Response(
@@ -533,34 +521,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (err) {
-        console.warn('[CHECK] Error searching for simplified matches:', err);
-      }
-      
-      // Try keyword-based matching as a last resort
-      const keywords: string[] = topic.toLowerCase().split(' ').filter((word: string) => word.length > 4);
-      for (const keyword of keywords) {
-        try {
-          const keyPattern = `research:*${keyword}*`;
-          console.log(`[CHECK] Checking keyword pattern: ${keyPattern}`);
-          const keywordKeys = await kv.keys(keyPattern);
-          if (keywordKeys && keywordKeys.length > 0) {
-            console.log(`[CHECK] Found ${keywordKeys.length} keyword matches for ${keyword}`);
-            const keywordMatch = await kv.get(keywordKeys[0]);
-            if (keywordMatch) {
-              return new Response(
-                JSON.stringify({ 
-                  research: keywordMatch, 
-                  fromCache: true,
-                  matchType: 'keyword',
-                  cacheKey: keywordKeys[0]
-                }),
-                { status: 200, headers: { 'Content-Type': 'application/json' } }
-              );
-            }
-          }
-        } catch (err) {
-          console.warn(`[CHECK] Error searching for keyword ${keyword}:`, err);
-        }
+        console.warn('Error searching for simplified matches:', err);
       }
     }
     
