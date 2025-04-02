@@ -24,7 +24,11 @@ export async function GET(request: NextRequest) {
 
     // Validate the video ID
     if (!videoId) {
-      return NextResponse.json({ error: 'Missing videoId parameter' }, { status: 400 });
+      console.log(`[DEBUG-TRANSCRIPT] Missing videoId parameter in request`);
+      return NextResponse.json({ 
+        error: 'Missing videoId parameter',
+        errorType: 'INVALID_REQUEST'
+      }, { status: 400 });
     }
 
     console.log(`[DEBUG-TRANSCRIPT] Processing transcript request for video ID: ${videoId}`);
@@ -33,12 +37,12 @@ export async function GET(request: NextRequest) {
       // Extract transcript using the youtube-transcript package
       console.log(`[DEBUG-TRANSCRIPT] Fetching transcript with youtube-transcript for ID: ${videoId}`);
       
-      // Set a timeout for the transcript fetch operation
-      const fetchTranscriptWithTimeout = async (timeout = 15000) => {
+      // Set a timeout for the transcript fetch operation (20 seconds)
+      const fetchTranscriptWithTimeout = async (timeout = 20000) => {
         return Promise.race([
           YoutubeTranscript.fetchTranscript(videoId),
           new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Transcript fetch timed out')), timeout)
+            setTimeout(() => reject(new Error('Transcript fetch timed out after 20 seconds')), timeout)
           )
         ]);
       };
@@ -50,7 +54,8 @@ export async function GET(request: NextRequest) {
         console.log(`[DEBUG-TRANSCRIPT] No transcript items returned for video: ${videoId}`);
         return NextResponse.json({ 
           error: 'No transcript available for this video',
-          errorType: 'NO_TRANSCRIPT'
+          errorType: 'NO_TRANSCRIPT',
+          videoId
         }, { status: 404 });
       }
       
@@ -67,39 +72,55 @@ export async function GET(request: NextRequest) {
       
       // Return the transcript data with metadata
       return NextResponse.json({
+        success: true,
         transcript,
         detectedLanguage: 'auto', // We don't know the actual language from the package typings
-        items: transcriptItems,
-        source: 'youtube-transcript-package'
+        items: transcriptItems.length,
+        source: 'youtube-transcript-package',
+        videoId
       }, { status: 200 });
       
     } catch (error: any) {
-      console.error(`[DEBUG-TRANSCRIPT] Error fetching transcript:`, error);
+      console.error(`[DEBUG-TRANSCRIPT] Error fetching transcript for ${videoId}:`, error);
       
       // Check for specific error messages and provide helpful responses
       if (error.message?.includes('Could not retrieve') || 
-          error.message?.includes('TranscriptsDisabled')) {
+          error.message?.includes('TranscriptsDisabled') ||
+          error.message?.includes('disabled')) {
+        console.log(`[DEBUG-TRANSCRIPT] Transcript is disabled on video ${videoId}`);
         return NextResponse.json({ 
-          error: 'This video has captions disabled by the uploader',
-          errorType: 'CAPTIONS_DISABLED'
+          error: 'Transcript is disabled on this video',
+          errorType: 'CAPTIONS_DISABLED',
+          videoId,
+          originalError: error.message
         }, { status: 404 });
       }
       
       if (error.message?.includes('timed out')) {
+        console.log(`[DEBUG-TRANSCRIPT] Request timed out for video ${videoId}`);
         return NextResponse.json({ 
           error: 'Transcript fetch timed out. The video might be too long or there might be connection issues.',
-          errorType: 'TIMEOUT'
+          errorType: 'TIMEOUT',
+          videoId
         }, { status: 408 });
       }
       
+      // Generic error - provide as much info as possible for debugging
       return NextResponse.json({ 
-        error: `Failed to fetch transcript: ${error.message || 'Unknown error'}`
+        error: `Failed to fetch transcript: ${error.message || 'Unknown error'}`,
+        errorType: 'FETCH_ERROR',
+        videoId,
+        stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
       }, { status: 500 });
     }
   } catch (error: any) {
-    console.error('[DEBUG-TRANSCRIPT] Error in transcript route:', error);
+    console.error('[DEBUG-TRANSCRIPT] Unexpected error in transcript route:', error);
     return NextResponse.json(
-      { error: `Error: ${error.message || 'Unknown error'}` },
+      { 
+        error: `Error: ${error.message || 'Unknown error'}`,
+        errorType: 'SERVER_ERROR',
+        stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
@@ -113,24 +134,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Parse the request body
     const body = await request.json();
-    const { youtubeUrl } = body;
+    const { youtubeUrl, videoId: directVideoId } = body;
     
-    console.log(`[DEBUG-TRANSCRIPT] POST request received with youtubeUrl: ${youtubeUrl}`);
+    console.log(`[DEBUG-TRANSCRIPT] POST request received:`, { 
+      hasUrl: !!youtubeUrl, 
+      hasDirectId: !!directVideoId 
+    });
     
-    if (!youtubeUrl) {
-      return NextResponse.json({ 
-        error: 'YouTube URL is required' 
-      }, { status: 400 });
+    // Allow videoId to be passed directly or extracted from youtubeUrl
+    let videoId = directVideoId;
+    
+    if (!videoId && youtubeUrl) {
+      videoId = extractYouTubeVideoId(youtubeUrl);
     }
-    
-    // Extract the video ID from the URL
-    const videoId = extractYouTubeVideoId(youtubeUrl);
     
     if (!videoId) {
+      console.log('[DEBUG-TRANSCRIPT] No valid video ID in POST request');
       return NextResponse.json({ 
-        error: 'Invalid YouTube URL format' 
+        error: 'No valid YouTube video ID provided',
+        errorType: 'INVALID_REQUEST'
       }, { status: 400 });
     }
+    
+    console.log(`[DEBUG-TRANSCRIPT] Extracted video ID: ${videoId}`);
     
     // Create a mock GET request to reuse the GET handler
     const searchParams = new URLSearchParams({ videoId });
@@ -146,7 +172,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error: any) {
     console.error('[DEBUG-TRANSCRIPT] Error in POST handler:', error);
     return NextResponse.json({ 
-      error: `Error processing request: ${error.message || 'Unknown error'}` 
+      error: `Error processing request: ${error.message || 'Unknown error'}`,
+      errorType: 'POST_HANDLER_ERROR'
     }, { status: 500 });
   }
 }

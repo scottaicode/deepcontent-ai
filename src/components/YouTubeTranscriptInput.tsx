@@ -705,131 +705,195 @@ For your research, consider watching the video with captions enabled and taking 
         description: 'Extracting research-relevant content from the video',
       });
       
-      // Call our research extraction endpoint
+      // Call our research extraction endpoint with a reasonable timeout
       console.log('[DEBUG-FRONTEND] Sending POST request to /api/youtube/transcript');
-      const response = await fetch('/api/youtube/transcript', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          videoId: youtubeId,
-          youtubeUrl: url
-        }),
-      });
       
-      console.log('[DEBUG-FRONTEND] Response received:', {
-        status: response.status,
-        ok: response.ok,
-        contentType: response.headers.get('Content-Type')
-      });
+      // Create an AbortController for timeout management
+      const controller = new AbortController();
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, 30000); // 30 second timeout
       
-      // Get the response as text first to ensure proper parsing
-      const responseText = await response.text();
-      console.log('[DEBUG-FRONTEND] Research extraction response text length:', responseText.length);
-      console.log('[DEBUG-FRONTEND] Response text preview:', responseText.substring(0, 200));
-      
-      // Try to parse the JSON
-      let data;
       try {
-        data = JSON.parse(responseText);
-        console.log('[DEBUG-FRONTEND] Successfully parsed response JSON with keys:', Object.keys(data));
-      } catch (parseError) {
-        console.error('[DEBUG-FRONTEND] Failed to parse research extraction response', parseError);
-        throw new Error('Invalid response from research extraction service');
-      }
-      
-      // Handle rejected content
-      if (data.rejected || data.source === 'rejection' || response.status === 400) {
-        console.log('[DEBUG-FRONTEND] Content was rejected as not useful for research:', data.message || data.error);
-        throw new Error(data.message || data.error || 'Content not suitable for research purposes');
-      }
-      
-      // Log quality assessment from backend
-      if (data.quality) {
-        console.log('[DEBUG-FRONTEND] Backend quality assessment:', data.quality);
-      }
-      
-      // Check if this is Perplexity-enhanced content
-      const isPerplexityEnhanced = data.source === 'perplexity-enhanced';
-      if (isPerplexityEnhanced) {
-        console.log('[DEBUG-FRONTEND] Received Perplexity-enhanced research content');
-      }
-      
-      // Success case - we have transcript data
-      if (data.transcript) {
-        console.log('[DEBUG-FRONTEND] Research extraction succeeded, transcript length:', data.transcript.length);
-        
-        // Analyze content quality
-        const contentPreview = data.transcript.substring(0, 200);
-        const isFallback = data.quality === 'fallback' || 
-                           (!isPerplexityEnhanced && 
-                           (contentPreview.includes('Unable to Retrieve Video Details') || 
-                           contentPreview.includes('What You Can Do Instead') || 
-                           contentPreview.includes('This could happen because:')));
-                           
-        console.log('[DEBUG-FRONTEND] Content quality assessment:', { 
-          isFallback, 
-          isPerplexityEnhanced,
-          contentPreview 
+        const response = await fetch('/api/youtube/transcript', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            videoId: youtubeId,
+            youtubeUrl: url
+          }),
+          signal: controller.signal
         });
         
-        // For fallback content that isn't Perplexity-enhanced, warn the user
-        if (isFallback && !isPerplexityEnhanced) {
-          console.log('[DEBUG-FRONTEND] Warning user about fallback content quality');
-          toast({
-            title: 'Limited Content Available',
-            description: 'Only basic information about this video could be extracted. For better results, try a different video.',
-            variant: 'default',
-          });
+        clearTimeout(timeout); // Clear the timeout if response is received
+        
+        console.log('[DEBUG-FRONTEND] Response received:', {
+          status: response.status,
+          ok: response.ok,
+          contentType: response.headers.get('Content-Type')
+        });
+        
+        // Handle non-200 status codes explicitly
+        if (!response.ok) {
+          if (response.status === 504 || response.status === 502) {
+            throw new Error('Research extraction service timed out. Please try again later.');
+          }
+          
+          const errorText = await response.text();
+          console.log('[DEBUG-FRONTEND] Error response:', errorText);
+          
+          // Try to parse as JSON if possible
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error || errorJson.message || `Server error (${response.status})`);
+          } catch (parseError) {
+            // If can't parse as JSON, use the text or status code
+            throw new Error(errorText || `Server error (${response.status})`);
+          }
         }
         
-        // Clean any HTML entities that might still be in the transcript
-        let cleanTranscript = data.transcript;
+        // Get the response as text first to ensure proper parsing
+        const responseText = await response.text();
+        console.log('[DEBUG-FRONTEND] Research extraction response text length:', responseText.length);
         
-        // Use a more thorough cleaning approach
-        if (typeof cleanTranscript === 'string') {
-          cleanTranscript = cleanTranscript
-            .replace(/&#39;/g, "'")
-            .replace(/&quot;/g, '"')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/\r\n/g, '\n');
+        if (!responseText || responseText.trim() === '') {
+          throw new Error('Research extraction service returned an empty response');
         }
         
-        console.log('[DEBUG-FRONTEND] Forwarding transcript to research process');
+        // Preview for debugging, but safely handle long responses
+        const previewLength = Math.min(responseText.length, 200);
+        console.log('[DEBUG-FRONTEND] Response text preview:', responseText.substring(0, previewLength));
         
-        // Call the callback with the clean transcript and URL
-        onTranscriptFetched(cleanTranscript, url);
+        // Try to parse the JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          console.log('[DEBUG-FRONTEND] Successfully parsed response JSON with keys:', Object.keys(data));
+        } catch (parseError) {
+          console.error('[DEBUG-FRONTEND] Failed to parse research extraction response', parseError);
+          
+          // If response looks like HTML or contains error messages, handle it gracefully
+          if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
+            throw new Error('Research extraction service returned an HTML error page instead of JSON');
+          } else if (responseText.includes('error') || responseText.includes('exception')) {
+            throw new Error('Research extraction service error: ' + responseText.substring(0, 100));
+          } else {
+            throw new Error('Invalid response from research extraction service');
+          }
+        }
+      
+        // Handle rejected content
+        if (data.rejected || data.source === 'rejection' || response.status === 400) {
+          console.log('[DEBUG-FRONTEND] Content was rejected as not useful for research:', data.message || data.error);
+          throw new Error(data.message || data.error || 'Content not suitable for research purposes');
+        }
         
-        // Use different toast message based on content type
+        // Log quality assessment from backend
+        if (data.quality) {
+          console.log('[DEBUG-FRONTEND] Backend quality assessment:', data.quality);
+        }
+        
+        // Check if this is Perplexity-enhanced content
+        const isPerplexityEnhanced = data.source === 'perplexity-enhanced';
         if (isPerplexityEnhanced) {
-          toast({
-            title: 'AI-Enhanced Research Generated',
-            description: 'Successfully generated AI-enhanced research content based on video information',
-          });
-        } else {
-          toast({
-            title: 'Research Content Extracted',
-            description: 'Successfully extracted research-relevant content from this video',
-          });
+          console.log('[DEBUG-FRONTEND] Received Perplexity-enhanced research content');
         }
         
-        // Clear URL after successful transcription
-        onUrlChange('');
-        return;
+        // Success case - we have transcript data
+        if (data.transcript) {
+          console.log('[DEBUG-FRONTEND] Research extraction succeeded, transcript length:', data.transcript.length);
+          
+          // Analyze content quality
+          const contentPreview = data.transcript.substring(0, 200);
+          const isFallback = data.quality === 'fallback' || 
+                            (!isPerplexityEnhanced && 
+                            (contentPreview.includes('Unable to Retrieve Video Details') || 
+                            contentPreview.includes('What You Can Do Instead') || 
+                            contentPreview.includes('This could happen because:')));
+                            
+          console.log('[DEBUG-FRONTEND] Content quality assessment:', { 
+            isFallback, 
+            isPerplexityEnhanced,
+            contentPreview 
+          });
+          
+          // For fallback content that isn't Perplexity-enhanced, warn the user
+          if (isFallback && !isPerplexityEnhanced) {
+            console.log('[DEBUG-FRONTEND] Warning user about fallback content quality');
+            toast({
+              title: 'Limited Content Available',
+              description: 'Only basic information about this video could be extracted. For better results, try a different video.',
+              variant: 'default',
+            });
+          }
+          
+          // Clean any HTML entities that might still be in the transcript
+          let cleanTranscript = data.transcript;
+          
+          // Use a more thorough cleaning approach
+          if (typeof cleanTranscript === 'string') {
+            cleanTranscript = cleanTranscript
+              .replace(/&#39;/g, "'")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/\r\n/g, '\n');
+          }
+          
+          console.log('[DEBUG-FRONTEND] Forwarding transcript to research process');
+          
+          // Call the callback with the clean transcript and URL
+          onTranscriptFetched(cleanTranscript, url);
+          
+          // Use different toast message based on content type
+          if (isPerplexityEnhanced) {
+            toast({
+              title: 'AI-Enhanced Research Generated',
+              description: 'Successfully generated AI-enhanced research content based on video information',
+            });
+          } else {
+            toast({
+              title: 'Research Content Extracted',
+              description: 'Successfully extracted research-relevant content from this video',
+            });
+          }
+          
+          // Clear URL after successful transcription
+          onUrlChange('');
+          return;
+        }
+        
+        // If no transcript is available, treat as an error
+        console.log('[DEBUG-FRONTEND] No transcript data in response');
+        throw new Error('No usable content available for research');
+      } catch (fetchError: any) {
+        // Catch errors specific to the fetch operation
+        clearTimeout(timeout);
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Research extraction request timed out. Please try again later.');
+        }
+        
+        throw fetchError; // Re-throw to be caught by the outer catch
       }
-      
-      // If no transcript is available, treat as an error
-      console.log('[DEBUG-FRONTEND] No transcript data in response');
-      throw new Error('No usable content available for research');
-      
     } catch (err: any) {
       console.error('[DEBUG-FRONTEND] Research extraction error:', err);
       
+      // Special case for aborted/timeout requests
+      if (err.name === 'AbortError' || err.message.includes('timed out')) {
+        setError('Research extraction service timed out. Please try again later.');
+        
+        toast({
+          title: 'Extraction Timed Out',
+          description: 'The research extraction process took too long. Please try again or use a different video.',
+          variant: 'destructive',
+        });
+      }
       // Special case for no audio formats error
-      if (err.message && err.message.includes('No audio formats available')) {
+      else if (err.message && err.message.includes('No audio formats available')) {
         setError('This video cannot be analyzed or used for research');
         
         toast({
