@@ -697,6 +697,8 @@ export default function ContentGenerator() {
       // Check if we're in Spanish mode and fix common English elements that might appear
       let cleanedContent = data.content;
       if (language === 'es') {
+        console.log('[DIAGNOSTIC] Applying Spanish language fixes');
+        
         // Common English phrases that might appear and their Spanish translations
         const commonEnglishPhrases = [
           { english: "That feeling when you think you're the only one struggling? Not true.", spanish: "¿Esa sensación cuando piensas que eres el único que lucha? No es cierto." },
@@ -730,6 +732,44 @@ export default function ContentGenerator() {
           cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
         });
 
+        // Fix common section headings
+        cleanedContent = cleanedContent
+          .replace(/# (.*)/g, (match: string, heading: string) => {
+            // Check if the heading is in English and translate common headings
+            if (/^Introduction$/i.test(heading)) return '# Introducción';
+            if (/^Main Content$/i.test(heading)) return '# Contenido Principal';
+            if (/^Conclusion$/i.test(heading)) return '# Conclusión';
+            if (/^Key Points$/i.test(heading)) return '# Puntos Clave';
+            if (/^Trending Topics$/i.test(heading)) return '# Temas Tendencia';
+            if (/^Benefits$/i.test(heading)) return '# Beneficios';
+            if (/^Features$/i.test(heading)) return '# Características';
+            if (/^Video Script$/i.test(heading)) return '# Guión de Video';
+            if (/^Call to Action$/i.test(heading)) return '# Llamada a la Acción';
+            return match; // Keep original if no match
+          })
+          .replace(/## (.*)/g, (match: string, heading: string) => {
+            // Check if the heading is in English and translate common headings
+            if (/^Introduction$/i.test(heading)) return '## Introducción';
+            if (/^Main Content$/i.test(heading)) return '## Contenido Principal';
+            if (/^Conclusion$/i.test(heading)) return '## Conclusión';
+            if (/^Key Points$/i.test(heading)) return '## Puntos Clave';
+            if (/^Trending Topics$/i.test(heading)) return '## Temas Tendencia';
+            if (/^Benefits$/i.test(heading)) return '## Beneficios';
+            if (/^Features$/i.test(heading)) return '## Características';
+            if (/^Video Script$/i.test(heading)) return '## Guión de Video';
+            if (/^Call to Action$/i.test(heading)) return '## Llamada a la Acción';
+            return match; // Keep original if no match
+          });
+          
+        // Fix common video script elements
+        cleanedContent = cleanedContent
+          .replace(/\[OPENING SCENE.*?\]/gi, '[ESCENA DE APERTURA]')
+          .replace(/\[MAIN CONTENT.*?\]/gi, '[CONTENIDO PRINCIPAL]')
+          .replace(/\[CLOSING.*?\]/gi, '[CIERRE]')
+          .replace(/Thanks for watching/gi, 'Gracias por ver')
+          .replace(/welcome to/gi, 'bienvenidos a')
+          .replace(/like and subscribe/gi, 'dale me gusta y suscríbete');
+        
         console.log('[DIAGNOSTIC] Applied Spanish content fixes');
       }
 
@@ -744,7 +784,7 @@ export default function ContentGenerator() {
       };
       setContentVersions(prev => [...prev, versionEntry]);
       
-      setStatusMessage('Content successfully generated!');
+      setStatusMessage(language === 'es' ? 'Contenido generado exitosamente!' : 'Content successfully generated!');
       
       // Pre-render the content with error boundary
       try {
@@ -875,6 +915,8 @@ export default function ContentGenerator() {
       // Check if we're in Spanish mode and fix common English elements that might appear
       let cleanedContent = data.content;
       if (language === 'es') {
+        console.log('[DIAGNOSTIC] Applying Spanish language fixes');
+        
         // Common English phrases that might appear and their Spanish translations
         const commonEnglishPhrases = [
           { english: "That feeling when you think you're the only one struggling? Not true.", spanish: "¿Esa sensación cuando piensas que eres el único que lucha? No es cierto." },
@@ -908,6 +950,44 @@ export default function ContentGenerator() {
           cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
         });
 
+        // Fix common section headings
+        cleanedContent = cleanedContent
+          .replace(/# (.*)/g, (match: string, heading: string) => {
+            // Check if the heading is in English and translate common headings
+            if (/^Introduction$/i.test(heading)) return '# Introducción';
+            if (/^Main Content$/i.test(heading)) return '# Contenido Principal';
+            if (/^Conclusion$/i.test(heading)) return '# Conclusión';
+            if (/^Key Points$/i.test(heading)) return '# Puntos Clave';
+            if (/^Trending Topics$/i.test(heading)) return '# Temas Tendencia';
+            if (/^Benefits$/i.test(heading)) return '# Beneficios';
+            if (/^Features$/i.test(heading)) return '# Características';
+            if (/^Video Script$/i.test(heading)) return '# Guión de Video';
+            if (/^Call to Action$/i.test(heading)) return '# Llamada a la Acción';
+            return match; // Keep original if no match
+          })
+          .replace(/## (.*)/g, (match: string, heading: string) => {
+            // Check if the heading is in English and translate common headings
+            if (/^Introduction$/i.test(heading)) return '## Introducción';
+            if (/^Main Content$/i.test(heading)) return '## Contenido Principal';
+            if (/^Conclusion$/i.test(heading)) return '## Conclusión';
+            if (/^Key Points$/i.test(heading)) return '## Puntos Clave';
+            if (/^Trending Topics$/i.test(heading)) return '## Temas Tendencia';
+            if (/^Benefits$/i.test(heading)) return '## Beneficios';
+            if (/^Features$/i.test(heading)) return '## Características';
+            if (/^Video Script$/i.test(heading)) return '## Guión de Video';
+            if (/^Call to Action$/i.test(heading)) return '## Llamada a la Acción';
+            return match; // Keep original if no match
+          });
+          
+        // Fix common video script elements
+        cleanedContent = cleanedContent
+          .replace(/\[OPENING SCENE.*?\]/gi, '[ESCENA DE APERTURA]')
+          .replace(/\[MAIN CONTENT.*?\]/gi, '[CONTENIDO PRINCIPAL]')
+          .replace(/\[CLOSING.*?\]/gi, '[CIERRE]')
+          .replace(/Thanks for watching/gi, 'Gracias por ver')
+          .replace(/welcome to/gi, 'bienvenidos a')
+          .replace(/like and subscribe/gi, 'dale me gusta y suscríbete');
+        
         console.log('[DIAGNOSTIC] Applied Spanish content fixes to persona change content');
       }
       
