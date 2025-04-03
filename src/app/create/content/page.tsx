@@ -71,6 +71,17 @@ const renderSimpleMarkdown = (text: string) => {
   );
 };
 
+// Loading state component for content generation
+const ContentGenerationLoading = () => {
+  return (
+    <div className="flex flex-col items-center justify-center py-10">
+      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4"></div>
+      <h2 className="text-xl font-semibold text-gray-800 mb-2">Creating your content...</h2>
+      <p className="text-gray-600">Please wait while we refine your content</p>
+    </div>
+  );
+};
+
 export default function ContentGenerator() {
   const router = useRouter();
   const { t, language } = useTranslation();
@@ -1203,6 +1214,11 @@ export default function ContentGenerator() {
                       {t('contentGeneration.backToResearch', { defaultValue: 'Back to Research' })}
                     </Link>
                   </div>
+                </div>
+              ) : (researchResults && !generatedContent && !isGenerating) ? (
+                // This will catch the placeholder scenario if research data is present but no content or loading state
+                <div className="w-full flex justify-center py-6">
+                  <ContentGenerationLoading />
                 </div>
               ) : (
                 <div className="space-y-6">
