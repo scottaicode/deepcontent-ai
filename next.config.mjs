@@ -3,7 +3,12 @@ const nextConfig = {
   output: 'standalone',
   productionBrowserSourceMaps: false,
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse']
+    serverComponentsExternalPackages: ['pdf-parse'],
+    // Force include chromium-min bin files for the scraping API route
+    outputFileTracing: true, 
+    outputFileTracingIncludes: {
+      '/api/scrape-website': ['./node_modules/@sparticuz/chromium-min/bin/**'],
+    },
   },
   images: {
     remotePatterns: [
