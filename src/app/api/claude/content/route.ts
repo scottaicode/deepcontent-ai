@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
 
 // Set increased route config for timeout - extending to 5 minutes max
-export const maxDuration = 600; // Increased to 10 minutes (600 seconds)
+export const maxDuration = 300; // 5 minutes maximum (limit for Vercel Pro plan)
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0; // No revalidation
