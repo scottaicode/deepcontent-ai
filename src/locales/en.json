@@ -81,6 +81,9 @@
     "createAccount": "Create Account"
   },
   "homePage": {
+    "languageSelector": {
+      "chooseLanguage": "Choose Language"
+    },
     "hero": {
       "titleHighlight": "AI-Powered",
       "title": "Create trend-informed content with AI",
