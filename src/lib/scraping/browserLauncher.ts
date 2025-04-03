@@ -47,6 +47,11 @@ export async function launchBrowser(): Promise<Browser> {
   try {
     if (isVercel) {
       console.log('[DIAG] Vercel environment detected. Preparing sparticuz/chromium...');
+      
+      // Explicitly set HOME to /tmp for serverless environment
+      console.log('[DIAG] Setting process.env.HOME to /tmp');
+      process.env.HOME = '/tmp';
+      
       let executablePath: string | null = null;
       try {
         console.log('[DIAG] Attempting to get executablePath from chromium...');
