@@ -99,3 +99,10 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - Claude 3.7 Sonnet for content generation
 - Perplexity for research capabilities
 - Vercel KV storage for caching
+
+## Technical Notes
+
+*   **Internationalization (i18n):** This project uses Next.js App Router's built-in i18n features with locale-prefixed routing (e.g., `/en/...`, `/es/...`). 
+    *   **Language Switching:** When implementing language switching components (like the one in the header), it's crucial to use `useRouter` from `next/navigation` and navigate to the full locale-prefixed path (e.g., `router.push('/es/current-path')`). 
+    *   **Avoid:** Do not use direct DOM manipulation (`window.location.href`, `localStorage` for active locale state) to change languages, as this conflicts with Next.js routing and can cause inconsistent state or unnecessary reloads.
+    *   **Persistence:** Use cookies (`language`, `preferred_language`) to store the user's language preference across sessions.
