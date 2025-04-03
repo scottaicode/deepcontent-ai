@@ -48,8 +48,16 @@ export const maxDuration = 300; // 5 minutes max - keep the full duration
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
-// Ensure dynamic behavior
+// Add additional caching prevention settings
 export const dynamic = 'force-dynamic';
+
+// Set response headers to prevent caching
+const noCacheHeaders = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0'
+};
 
 // Add improved logging for the chunked approach
 const logSection = (requestId: string, section: string, message: string) => {
@@ -199,10 +207,11 @@ export async function POST(request: NextRequest) {
   let cachedResult = null;
   try {
     if (kv) {
-      // Try to get the exact cache match
-      cachedResult = await kv.get(cacheKey);
+      // Commented out cache lookup to always generate fresh research
+      // const cachedResult = await kv.get(cacheKey);
       
       // If exact match not found, try a simplified key lookup
+      /*
       if (!cachedResult) {
         const simplifiedKey = createSimplifiedTopicKey(topic);
         logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
@@ -222,7 +231,13 @@ export async function POST(request: NextRequest) {
           console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
         }
       }
+      */
       
+      // Disable cache return by setting cachedResult to null
+      cachedResult = null;
+      logSection(requestId, 'CACHE', `Cache disabled, always generating fresh research`);
+      
+      /*
       // Return cached result if found
       if (cachedResult) {
         logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
@@ -237,6 +252,7 @@ export async function POST(request: NextRequest) {
       } else {
         logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
       }
+      */
     }
   } catch (err) {
     console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
@@ -266,6 +282,15 @@ export async function POST(request: NextRequest) {
     language
   };
   
+  // Log clearly that we're generating fresh research
+  console.log(`=== GENERATING FRESH RESEARCH ===`);
+  console.log(`Topic: ${topic}`);
+  console.log(`Content Type: ${extractedContentType}`);
+  console.log(`Platform: ${extractedPlatform}`);
+  console.log(`Request ID: ${requestId}`);
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`==============================`);
+
   // Return the research data directly - no job ID or polling mechanism
   try {
     // Log that we're calling the Perplexity API for Deep Research
@@ -274,8 +299,15 @@ export async function POST(request: NextRequest) {
     // Make the direct API call - not using jobs
     const research = await perplexity.generateResearch(promptText, options);
     
+    // Log success clearly
+    console.log(`=== FRESH RESEARCH GENERATED SUCCESSFULLY ===`);
+    console.log(`Research length: ${research.length} characters`);
+    console.log(`Response time: ${Date.now() - new Date(requestUrl.searchParams.get('timestamp') || Date.now()).getTime()}ms`);
+    console.log(`=========================================`);
+    
     // Cache the successful result if possible
     try {
+      /*
       if (kv && research) {
         await kv.set(cacheKey, research, { ex: 86400 }); // Cache for 24 hours
         logSection(requestId, 'CACHE', `Cached research result with key ${cacheKey}`);
@@ -287,13 +319,15 @@ export async function POST(request: NextRequest) {
           logSection(requestId, 'CACHE', `Also cached with simplified key ${simplifiedKey}`);
         }
       }
+      */
+      logSection(requestId, 'CACHE', `Caching disabled to ensure fresh research is generated each time`);
     } catch (err) {
       console.warn(`[DIAG] [${requestId}] Failed to cache research:`, err);
     }
     
     return new Response(
       JSON.stringify({ research }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: noCacheHeaders }
     );
   } catch (error: any) {
     // Log detailed error information
@@ -335,7 +369,7 @@ export async function POST(request: NextRequest) {
     // Return the fallback content directly
     return new Response(
       JSON.stringify({ research: fallbackResult, isFallback: true }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: noCacheHeaders }
     );
   }
 }
@@ -353,7 +387,7 @@ export async function GET(request: NextRequest) {
       if (!job) {
         return new Response(
           JSON.stringify({ error: 'Job not found' }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } }
+          { status: 404, headers: noCacheHeaders }
         );
       }
       
@@ -368,7 +402,7 @@ export async function GET(request: NextRequest) {
                 research,
                 isFallback: job.isFallback === 'true'
               }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
+              { status: 200, headers: noCacheHeaders }
             );
           }
         } catch (err) {
@@ -380,13 +414,13 @@ export async function GET(request: NextRequest) {
       const responseBody = JSON.stringify(job || {}); // Stringify first, ensuring not null
       return new Response(
         responseBody, // Pass the pre-stringified body
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        { status: 200, headers: noCacheHeaders }
       );
     } catch (error: any) {
       console.error(`Error checking job status for ${jobId}:`, error);
       return new Response(
         JSON.stringify({ error: error.message || 'An error occurred checking job status' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: noCacheHeaders }
       );
     }
   }
@@ -400,78 +434,23 @@ export async function GET(request: NextRequest) {
   if (!topic) {
     return new Response(
       JSON.stringify({ error: 'Either jobId or topic parameter is required' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      { status: 400, headers: noCacheHeaders }
     );
   }
   
   try {
-    // Create a cache key for this research request
-    const cacheKey = createCacheKey(topic, contentType, platform, language);
-    
-    // Check if research is already cached
-    if (kv) {
-      // Try exact match first
-      const cachedResult = await kv.get(cacheKey);
-      if (cachedResult) {
-        return new Response(
-          JSON.stringify({ 
-            research: cachedResult, 
-            fromCache: true,
-            matchType: 'exact' 
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Try fallback key
-      const fallbackResult = await kv.get(`${cacheKey}:fallback`);
-      if (fallbackResult) {
-        return new Response(
-          JSON.stringify({ 
-            research: fallbackResult, 
-            fromCache: true,
-            matchType: 'fallback',
-            isFallback: true
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Try simplified key pattern
-      const simplifiedKey = createSimplifiedTopicKey(topic);
-      
-      try {
-        const keys = await kv.keys(`${simplifiedKey}*`);
-        if (keys && keys.length > 0) {
-          const partialMatch = await kv.get(keys[0]);
-          if (partialMatch) {
-            return new Response(
-              JSON.stringify({ 
-                research: partialMatch, 
-                fromCache: true,
-                matchType: 'simplified',
-                cacheKey: keys[0]
-              }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
-            );
-          }
-        }
-      } catch (err) {
-        console.warn('Error searching for simplified matches:', err);
-      }
-    }
-    
-    // If not cached, return appropriate response
+    // Always return "not found" response to force fresh research generation
+    console.log(`Cache lookup disabled for topic: ${topic}`);
     return new Response(
       JSON.stringify({ available: false }),
-      { status: 404, headers: { 'Content-Type': 'application/json' } }
+      { status: 404, headers: noCacheHeaders }
     );
   } catch (error: any) {
     console.error(`Error checking research availability:`, error);
     
     return new Response(
       JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }

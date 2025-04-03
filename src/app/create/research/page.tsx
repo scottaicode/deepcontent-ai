@@ -262,10 +262,16 @@ export default function ResearchPage() {
     // Add timestamp for tracking request duration
     const startTime = Date.now();
     
-    const response = await fetch('/api/perplexity/research', {
+    // Add cache busting timestamp parameter to the URL
+    const timestamp = Date.now();
+    const url = `/api/perplexity/research?timestamp=${timestamp}`;
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache'
       },
       body: JSON.stringify({
         topic: topic.trim(),
