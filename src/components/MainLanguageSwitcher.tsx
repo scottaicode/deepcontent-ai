@@ -1,95 +1,99 @@
 'use client';
 
-// import { useRouter, usePathname } from 'next/navigation';
-// import { useEffect, useState } from 'react';
-import { useTranslation } from '@/lib/hooks/useTranslation';
-import { useTranslationManager } from '@/app/components/TranslationManager';
-
-// Language switcher using TranslationManager for client-side updates
+/**
+ * MainLanguageSwitcher - Direct language switching implementation
+ * Uses the same approach as the middle-page language switcher
+ */
 export default function MainLanguageSwitcher() {
-  // const router = useRouter();
-  // const pathname = usePathname(); // Keep pathname to know the current page
-  // const [currentLang, setCurrentLang] = useState('en');
-  const { language, supportedLanguages } = useTranslation();
-  const { setApplicationLanguage } = useTranslationManager();
-
-  // Determine current language preference on client-side mount
-  // Reads persisted cookie preference or falls back to document lang / default
-  // useEffect(() => {
-  //   const getLanguagePreference = () => {
-  //     if (typeof document === 'undefined') return 'en';
-  //     
-  //     // Prioritize cookie over document lang for consistency
-  //     const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
-  //     const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
-  //     const htmlLang = document.documentElement.lang;
-  //     
-  //     console.log('[Header LanguageDebug] Sources on mount:', {
-  //       html: htmlLang,
-  //       cookieLang,
-  //       cookiePrefLang
-  //     });
-  //     
-  //     // Set the state based on the determined preference
-  //     return cookieLang || cookiePrefLang || htmlLang || 'en';
-  //   };
-  //   setCurrentLang(getLanguagePreference());
-  // }, [pathname]); // Re-check if pathname changes (e.g., after navigation)
-
-  // console.log('[Header LanguageDebug] Current language state:', currentLang);
-
-  // Use the centralized language management function
-  const handleLanguageChange = (lang: string) => {
-    if (lang === language) return; // Avoid unnecessary changes
-    console.log('[MainLanguageSwitcher] Changing language to:', lang);
-    setApplicationLanguage(lang);
+  // Detect current language from document or default to English
+  const getCurrentLanguage = () => {
+    if (typeof document === 'undefined') return 'en';
+    
+    // Check multiple sources with fallbacks
+    const htmlLang = document.documentElement.lang;
+    const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
+    const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
+    const localStorageLang = localStorage.getItem('language');
+    const localStoragePrefLang = localStorage.getItem('preferred_language');
+    
+    // Debug language sources
+    console.log('[LanguageDebug] Language sources:', {
+      html: htmlLang,
+      cookieLang,
+      cookiePrefLang,
+      localStorageLang,
+      localStoragePrefLang,
+      allCookies: document.cookie
+    });
+    
+    return htmlLang || 
+           cookieLang ||
+           cookiePrefLang ||
+           localStorageLang ||
+           localStoragePrefLang ||
+           'en';
+  };
+  
+  // Get language code
+  const currentLang = getCurrentLanguage();
+  console.log('[LanguageDebug] Current language detected as:', currentLang);
+  
+  // Direct language change with hard redirect
+  const switchToLanguage = (lang: string) => {
+    if (lang === currentLang) {
+      console.log(`[LanguageDebug] Language already set to ${lang}, no change needed`);
+      return;
+    }
+    
+    // Check for redirect loop by looking at URL
+    const url = new URL(window.location.href);
+    const redirectCount = parseInt(url.searchParams.get('redirect_count') || '0');
+    
+    // Prevent redirect loops by limiting redirect count
+    if (redirectCount > 2) {
+      console.error(`[LanguageDebug] Too many redirects detected (${redirectCount}). Stopping redirect chain.`);
+      alert('Error: Too many language redirects. Please refresh the page and try again.');
+      return;
+    }
+    
+    console.log(`[LanguageDebug] Switching language from ${currentLang} to: ${lang} (redirect #${redirectCount + 1})`);
+    
+    try {
+      // Set all possible storage locations
+      localStorage.setItem('language', lang);
+      localStorage.setItem('preferred_language', lang);
+      console.log('[LanguageDebug] Updated localStorage values');
+      
+      // Set cookies with maximum reliability
+      document.cookie = `language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
+      document.cookie = `preferred_language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
+      console.log('[LanguageDebug] Set cookies:', document.cookie);
+      
+      // Set HTML lang
+      document.documentElement.lang = lang;
+      console.log('[LanguageDebug] Set HTML lang attribute to:', document.documentElement.lang);
+      
+      // Force hard reload with URL parameters to bypass caching
+      // Clear any existing redirect-related params
+      url.searchParams.delete('t');
+      url.searchParams.delete('lang');
+      
+      // Set language and redirect counter parameters
+      url.searchParams.set('lang', lang);
+      url.searchParams.set('redirect_count', (redirectCount + 1).toString());
+      url.searchParams.set('t', Date.now().toString());
+      
+      const redirectUrl = url.toString();
+      console.log('[LanguageDebug] Redirecting to URL with lang parameter:', redirectUrl);
+      window.location.href = redirectUrl;
+    } catch (error) {
+      console.error('[LanguageDebug] Error switching language:', error);
+    }
   };
 
-  // Switch language by setting cookie and forcing a page reload - REMOVED
-  // const switchToLanguage = (lang: string) => {
-  //   if (lang === currentLang) return;
-  //   
-  //   console.log(`[CookieReloadSwitcher] Attempting to switch language to: ${lang}`);
-  //   
-  //   try {
-  //     // 1. Set cookies to persist preference
-  //     document.cookie = `language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
-  //     document.cookie = `preferred_language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
-  //     console.log('[LanguageDebug] Set cookies for preference:', document.cookie);
-  //
-  //     // 2. Update state immediately for UI feedback (optional, as page will reload)
-  //     // setCurrentLang(lang);
-  //
-  //     // 3. Force a full page reload. The browser will send the new cookie value
-  //     // on the next request, allowing middleware and hooks to use the correct language.
-  //     window.location.reload(); 
-  //     
-  //     console.log(`[CookieReloadSwitcher] Cookies set to ${lang} and window.location.reload() called.`);
-  //
-  //   } catch (err) {
-  //     console.error('Error in language switch using cookie/reload:', err);
-  //   }
-  // };
-
   return (
-    // UI driven by language from useTranslation hook
     <div className="flex space-x-2">
-      {supportedLanguages.map((lang) => (
-        <button
-          key={lang}
-          onClick={() => handleLanguageChange(lang)}
-          className={`px-2 py-1 rounded-md text-sm font-medium transition-colors ${
-            language === lang 
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' 
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-          aria-label={`Switch language to ${lang === 'en' ? 'English' : 'Spanish'}`}
-          aria-pressed={language === lang}
-        >
-          {lang === 'en' ? '🇺🇸 EN' : '🇪🇸 ES'}
-        </button>
-      ))}
-      {/* <button
+      <button
         onClick={() => switchToLanguage('en')} 
         className={`px-2 py-1 rounded-md text-sm font-medium transition-colors ${
           currentLang === 'en' 
@@ -98,9 +102,11 @@ export default function MainLanguageSwitcher() {
         }`}
         aria-label="Switch language to English"
         aria-pressed={currentLang === 'en'}
+        data-testid="en-lang-button"
       >
         🇺🇸 EN
       </button>
+      
       <button
         onClick={() => switchToLanguage('es')}
         className={`px-2 py-1 rounded-md text-sm font-medium transition-colors ${
@@ -110,9 +116,10 @@ export default function MainLanguageSwitcher() {
         }`}
         aria-label="Switch language to Spanish"
         aria-pressed={currentLang === 'es'}
+        data-testid="es-lang-button"
       >
         🇪🇸 ES
-      </button> */}
+      </button>
     </div>
   );
 } 
