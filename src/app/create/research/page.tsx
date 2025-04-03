@@ -2090,10 +2090,10 @@ If you'd like complete research, please try again later when our research servic
       <div className="p-6">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {t('researchPage.step4.title', { defaultValue: 'Your Research Results' })}
+            {safeTranslate('researchPage.step4.title', 'Your Research Results')}
           </h2>
           <p className="text-gray-600">
-            {t('researchPage.step4.subtitle', { defaultValue: 'Review your deep research analysis below' })}
+            {safeTranslate('researchPage.step4.subtitle', 'Review your deep research analysis below')}
           </p>
         </div>
 
@@ -2101,7 +2101,7 @@ If you'd like complete research, please try again later when our research servic
         <div className="bg-white shadow sm:rounded-lg mb-8">
           <div className="border-b border-gray-200 px-4 py-4 sm:px-6 flex justify-between items-center">
             <h3 className="text-lg font-medium leading-6 text-gray-900">
-              {t('researchPage.perplexityTitle', { defaultValue: 'Comprehensive Research' })}
+              {safeTranslate('researchPage.perplexityTitle', 'Comprehensive Research')}
             </h3>
             <div className="flex space-x-2">
               <button 
@@ -2109,8 +2109,8 @@ If you'd like complete research, please try again later when our research servic
                 onClick={toggleResearchExpansion}
               >
                 {isResearchExpanded 
-                  ? t('common.showLess', { defaultValue: 'Show Less' })
-                  : t('common.showMore', { defaultValue: 'Show More' })
+                  ? safeTranslate('common.showLess', 'Show Less')
+                  : safeTranslate('common.showMore', 'Show More')
                 }
               </button>
               {/* Add Refresh button */}
@@ -2125,14 +2125,14 @@ If you'd like complete research, please try again later when our research servic
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    {t('common.refreshing', { defaultValue: 'Refreshing...' })}
+                    {safeTranslate('common.refreshing', 'Refreshing...')}
                   </>
                 ) : (
                   <>
                     <svg className="-ml-1 mr-2 h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    {t('common.refresh', { defaultValue: 'Refresh Research' })}
+                    {safeTranslate('common.refresh', 'Refresh Research')}
                   </>
                 )}
               </button>
@@ -2172,7 +2172,7 @@ If you'd like complete research, please try again later when our research servic
                 </ReactMarkdown>
               ) : (
                 <div className="text-center py-12">
-                  <p className="text-gray-500">{t('common.noData', { defaultValue: 'No research data available' })}</p>
+                  <p className="text-gray-500">{safeTranslate('common.noData', 'No research data available')}</p>
                 </div>
               )}
             </div>
@@ -2188,14 +2188,14 @@ If you'd like complete research, please try again later when our research servic
             <svg className="-ml-1 mr-2 h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            {t('common.back', { defaultValue: 'Back' })}
+            {safeTranslate('common.back', 'Back')}
           </button>
           
           <button
             onClick={proceedToContentCreation}
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
-            {t('researchPage.createContent', { defaultValue: 'Create Content' })}
+            {safeTranslate('researchPage.createContent', 'Create Content')}
             <svg className="ml-2 -mr-1 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
