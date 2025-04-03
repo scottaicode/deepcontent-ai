@@ -41,6 +41,8 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
       } else if (firstContent && typeof firstContent === 'object') {
         if ('text' in firstContent && typeof firstContent.text === 'string') {
           responseText = firstContent.text;
+        } else if ('type' in firstContent && firstContent.type === 'text' && 'text' in firstContent && typeof firstContent.text === 'string') {
+          responseText = firstContent.text;
         }
       }
     }

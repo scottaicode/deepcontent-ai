@@ -860,8 +860,8 @@ export default function ContentGenerator() {
       setStatusMessage('Finalizing your content...');
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || `API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API error: ${response.status}`);
       }
       
       // Get the raw response text first
@@ -1067,10 +1067,7 @@ export default function ContentGenerator() {
   // Handle content refinement submission
   const handleRefinementSubmit = async () => {
     if (!refinementPrompt.trim()) {
-      toast.toast({
-        title: t('contentGeneration.emptyFeedbackError', { defaultValue: 'Please provide feedback for refinement' }),
-        variant: "destructive"
-      });
+      toast.error(t('contentGeneration.emptyFeedbackError', { defaultValue: 'Please provide feedback for refinement' }));
       return;
     }
     
@@ -1094,7 +1091,8 @@ export default function ContentGenerator() {
       });
       
       if (!response.ok) {
-        throw new Error(t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
       }
       
       const data = await response.json();
@@ -1114,16 +1112,10 @@ export default function ContentGenerator() {
       setGeneratedContent(data.content);
       setPrerenderedContent(renderSimpleMarkdown(data.content));
       setRefinementPrompt('');
-      toast.toast({
-        title: t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }),
-        variant: "default"
-      });
+      toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {
       console.error('Refinement error:', error);
-      toast.toast({
-        title: t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }),
-        variant: "destructive"
-      });
+      toast.error(t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }));
     } finally {
       setIsRefinementLoading(false);
     }
