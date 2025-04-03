@@ -1,11 +1,11 @@
 /**
  * Browser launcher utility for web scraping
  * Supports both Vercel serverless environment and local development
- * Uses Puppeteer-Core with @sparticuz/chromium-min on Vercel
+ * Uses chrome-aws-lambda on Vercel
  */
 
 import puppeteer, { Browser as PuppeteerBrowser, Page as PuppeteerPage } from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
+import chromium from 'chrome-aws-lambda';
 
 // Detect if we're running on Vercel
 const isVercel = process.env.VERCEL === '1';
@@ -29,60 +29,67 @@ export interface Browser {
 
 export async function launchBrowser(): Promise<Browser> {
   // Log environment details immediately
-  console.log('[DIAG] launchBrowser called (using Puppeteer-Core).');
+  console.log('[DIAG] launchBrowser called (using chrome-aws-lambda).');
   console.log('[DIAG] isVercel:', isVercel);
   console.log('[DIAG] CWD:', process.cwd());
-  console.log('[DIAG] Env HOME:', process.env.HOME); // Should be /tmp if set previously
+  console.log('[DIAG] Env HOME:', process.env.HOME);
   console.log('[DIAG] Env PWD:', process.env.PWD);
   console.log('[DIAG] Env LAMBDA_TASK_ROOT:', process.env.LAMBDA_TASK_ROOT);
-  console.log('[DIAG] Env TMPDIR:', process.env.TMPDIR); // Should be /tmp if set previously
+  console.log('[DIAG] Env TMPDIR:', process.env.TMPDIR);
+  // XDG vars might not be relevant but log anyway
   console.log('[DIAG] Env XDG_CACHE_HOME:', process.env.XDG_CACHE_HOME);
   console.log('[DIAG] Env XDG_CONFIG_HOME:', process.env.XDG_CONFIG_HOME);
   console.log('[DIAG] Env XDG_DATA_HOME:', process.env.XDG_DATA_HOME);
 
   let browser: PuppeteerBrowser;
-  
+  let executablePath: string | null = null;
+
   try {
     if (isVercel) {
-      console.log('[DIAG] Vercel environment detected. Preparing sparticuz/chromium for Puppeteer...');
+      console.log('[DIAG] Vercel environment detected. Preparing chrome-aws-lambda...');
       
-      // HOME and TMPDIR are set earlier
+      // HOME/TMPDIR should be set to /tmp if needed by the library internally
 
-      // REMOVED executablePath logic - let Puppeteer try to find it
-      // try {
-      //   console.log('[DIAG] Attempting to get executablePath from chromium...');
-      //   executablePath = await chromium.executablePath();
-      //   console.log(`[DIAG] Chromium executablePath obtained: ${executablePath}`);
-      // } catch (execPathError) { ... }
-      // if (!executablePath) { ... }
+      try {
+        console.log('[DIAG] Attempting to get executablePath from chrome-aws-lambda...');
+        executablePath = await chromium.executablePath;
+        console.log(`[DIAG] chrome-aws-lambda executablePath obtained: ${executablePath}`);
+      } catch (execPathError) {
+        console.error('[DIAG] Error getting executablePath from chrome-aws-lambda:', execPathError);
+        throw new Error(`Failed to get chromium executable path: ${execPathError instanceof Error ? execPathError.message : execPathError}`);
+      }
       
-      // Use args from chromium library
+      if (!executablePath) {
+        // Fallback for safety, though executablePath should always be provided by chrome-aws-lambda
+         console.warn('[DIAG] chrome-aws-lambda did not provide an executable path directly, trying default lookup (might fail)...');
+         // Let puppeteer try default search path - likely won't work on Vercel but provides a fallback attempt
+         executablePath = null;
+      }
+      
       const launchArgs = chromium.args;
-      console.log(`[DIAG] Using args from chromium: ${launchArgs.join(' ')}`);
+      console.log(`[DIAG] Using args from chromium-aws-lambda: ${launchArgs.join(' ')}`);
       
       try {
-          console.log('[DIAG] Attempting puppeteer.launch (without explicit executablePath)...');
-          browser = await puppeteer.launch({
+          console.log('[DIAG] Attempting chromium.puppeteer.launch...');
+          browser = await chromium.puppeteer.launch({
             args: launchArgs, 
-            // executablePath: executablePath, // REMOVED
-            headless: true, 
+            executablePath: executablePath || undefined, // Use path if found, else let puppeteer try default
+            headless: chromium.headless, // Use headless from chrome-aws-lambda
           });
-          console.log('[DIAG] puppeteer.launch successful.');
+          console.log('[DIAG] chrome-aws-lambda puppeteer.launch successful.');
       } catch(launchError) {
-          console.error('[DIAG] Error during puppeteer.launch:', launchError);
+          console.error('[DIAG] Error during chrome-aws-lambda puppeteer.launch:', launchError);
           throw new Error(`Puppeteer launch failed within Vercel block: ${launchError instanceof Error ? launchError.message : launchError}`);
       }
 
     } else {
-      // Local development launch - Attempt standard Puppeteer launch
-      // Note: Assumes puppeteer (full) or chrome is available locally
+      // Local development launch - use puppeteer-core, needs local Chrome/Chromium
       console.log('[DIAG] Local environment detected. Attempting local Puppeteer/Chrome launch');
       try {
-          // Use puppeteer-core which requires a local chrome install usually
-          // Or specify playwright's chrome if needed
           browser = await puppeteer.launch({
              headless: true,
-             // executablePath: require('playwright').chromium.executablePath() // Optional: Force playwright's local chrome
+             // You might need to provide executablePath to your local Chrome/Chromium here
+             // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' // Example for MacOS
           });
           console.log('[DIAG] Local puppeteer.launch successful.');
       } catch (localLaunchError) {
