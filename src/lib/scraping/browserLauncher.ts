@@ -44,7 +44,7 @@ export async function launchBrowser(): Promise<Browser> {
       }
       
       console.log(`Chromium executable path: ${executablePath}`);
-      console.log(`Chromium args: ${chromium.args.join(' ')}`);
+      // console.log(`Chromium args: ${chromium.args.join(' ')}`); // Redundant now
       
       // Combine args from library with the user-data-dir arg for Vercel
       const launchArgs = [
@@ -54,7 +54,18 @@ export async function launchBrowser(): Promise<Browser> {
         '--disk-cache-dir=/tmp/chromium-cache-dir'  // Use /tmp for cache
       ];
       
-      console.log(`Combined launch args: ${launchArgs.join(' ')}`);
+      console.log(`Final launch args: ${launchArgs.join(' ')}`);
+
+      // Log environment details before launch
+      console.log('Current Working Directory:', process.cwd());
+      console.log('Env HOME:', process.env.HOME);
+      console.log('Env PWD:', process.env.PWD);
+      console.log('Env LAMBDA_TASK_ROOT:', process.env.LAMBDA_TASK_ROOT);
+      console.log('Env TMPDIR:', process.env.TMPDIR);
+      console.log('Env XDG_CACHE_HOME:', process.env.XDG_CACHE_HOME);
+      console.log('Env XDG_CONFIG_HOME:', process.env.XDG_CONFIG_HOME);
+      console.log('Env XDG_DATA_HOME:', process.env.XDG_DATA_HOME);
+      console.log('Attempting browser launch...');
 
       browser = await playwright.chromium.launch({
         args: launchArgs, // Use combined args
