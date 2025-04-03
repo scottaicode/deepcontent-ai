@@ -10,6 +10,7 @@ import { testFirestoreConnection } from '@/lib/firebase/firebase';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
+import { sendEmailVerification } from "firebase/auth";
 
 export default function DashboardPage() {
   const { contentList, isLoading, error, deleteContent, archiveContent, restoreContent, refreshContent } = useContent();
@@ -166,6 +167,27 @@ export default function DashboardPage() {
     
     checkFirestore();
   }, [toast, t]);
+  
+  // Add handler for resending verification email
+  const handleResendVerification = async () => {
+    if (user) {
+      try {
+        await sendEmailVerification(user);
+        toast({
+          title: t('auth.verificationSentTitle', { defaultValue: 'Verification Email Sent' }),
+          description: t('auth.verificationSentDesc', { defaultValue: 'A new verification email has been sent. Please check your inbox.' }),
+          variant: 'success',
+        });
+      } catch (err) {
+        console.error("Error resending verification email:", err);
+        toast({
+          title: t('common.error'),
+          description: t('auth.verificationSendError', { defaultValue: 'Failed to send verification email. Please try again later.' }),
+          variant: 'destructive',
+        });
+      }
+    }
+  };
   
   const formatDate = (date: string | number | Timestamp | undefined) => {
     if (!date) return 'N/A';
@@ -582,6 +604,15 @@ export default function DashboardPage() {
               {error}
             </p>
             <div className="mt-4 space-x-3">
+              {/* Conditionally show resend button if user exists, isn't verified, and error indicates permission issue */}
+              {user && !user.emailVerified && error?.includes('permission-denied') && (
+                <button
+                  onClick={handleResendVerification}
+                  className="px-4 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-md transition-colors"
+                >
+                  {t('auth.resendVerification', { defaultValue: 'Resend Verification Email' })}
+                </button>
+              )}
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors"
