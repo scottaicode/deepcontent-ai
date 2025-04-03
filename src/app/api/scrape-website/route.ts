@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 // Disable caching to ensure fresh data
 export const dynamic = 'force-dynamic';
@@ -179,10 +179,10 @@ async function extractWithScrapingBee(url: string, context?: ScrapingRequest['co
     const extractedData: ExtractedData = {
       title,
       metaDescription,
-      headings: headings.length > 0 ? [...new Set(headings)] : undefined, // Deduplicate
-      paragraphs: paragraphs.length > 0 ? [...new Set(paragraphs)] : undefined, // Deduplicate
-      fullText: fullText.length > 100 ? fullText.substring(0, 10000) : undefined, // Increase limit
-      subpagesScraped: scrapedPages // Include list of scraped pages
+      headings: headings.length > 0 ? headings.filter((h, i, self) => self.indexOf(h) === i) : undefined,
+      paragraphs: paragraphs.length > 0 ? paragraphs.filter((p, i, self) => self.indexOf(p) === i) : undefined,
+      fullText: fullText.length > 100 ? fullText.substring(0, 10000) : undefined,
+      subpagesScraped: scrapedPages
     };
 
     return {
