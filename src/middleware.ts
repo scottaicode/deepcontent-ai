@@ -1,96 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const PUBLIC_FILE = /\.(.*)$/;
+const SUPPORTED_LOCALES = ['en', 'es'];
+const DEFAULT_LOCALE = 'en';
+
 /**
  * Enhanced middleware to handle language detection and cookie setting
  */
 export function middleware(request: NextRequest) {
-  // Skip handling for static assets
+  const { pathname } = request.nextUrl;
+
+  // Skip static assets and API routes
   if (
-    request.nextUrl.pathname.startsWith('/_next') ||
-    request.nextUrl.pathname.startsWith('/api') ||
-    request.nextUrl.pathname.includes('.')
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/') ||
+    PUBLIC_FILE.test(pathname)
   ) {
     return NextResponse.next();
   }
 
-  // Extract language from URL query params first (highest priority)
+  // Check if pathname already has a supported locale prefix
+  const pathnameHasLocale = SUPPORTED_LOCALES.some(
+    (locale) => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
+  );
+
+  if (pathnameHasLocale) {
+    // If locale is already in path, just set cookies/headers and continue
+    const currentLocale = pathname.split('/')[1];
+    const response = NextResponse.next();
+    // Set cookies if necessary (using the locale from the path)
+    if (request.cookies.get('language')?.value !== currentLocale) {
+      response.cookies.set('language', currentLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
+    }
+    if (request.cookies.get('preferred_language')?.value !== currentLocale) {
+      response.cookies.set('preferred_language', currentLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
+    }
+    response.headers.set('x-language', currentLocale);
+    console.log(`[MiddlewareDebug] Path already has locale (${currentLocale}). Proceeding.`);
+    return response;
+  }
+
+  // --- Locale detection if prefix is missing --- 
   const url = new URL(request.url);
   const langParam = url.searchParams.get('lang');
-  
-  // Get redirect count to prevent loops - completely skip language handling if we see a redirect_count
-  const hasRedirectCount = url.searchParams.has('redirect_count');
-  const redirectCount = parseInt(url.searchParams.get('redirect_count') || '0');
-  
-  // Completely skip language handling for any requests with redirect counts
-  // This stops the middleware from potentially creating redirect chains
-  if (hasRedirectCount || redirectCount > 0) {
-    console.log('[MiddlewareDebug] Request has redirect_count parameter, skipping language handling');
-    return NextResponse.next();
-  }
-  
-  // Get language from cookies next
-  const cookieLang = 
-    request.cookies.get('preferred_language')?.value || 
-    request.cookies.get('language')?.value;
-  
-  // Fallback to browser language
+  const cookieLang = request.cookies.get('preferred_language')?.value || request.cookies.get('language')?.value;
   const browserLang = request.headers.get('accept-language')?.split(',')[0]?.split('-')[0];
   
-  // Determine language with this priority: URL param > cookie > browser > default
-  let language = langParam || cookieLang || browserLang || 'en';
-  
-  // Only allow our supported languages
-  const supportedLanguage = ['en', 'es'].includes(language) ? language : 'en';
-  
-  console.log('[MiddlewareDebug] Language detection:', { 
-    langParam, 
-    cookieLang, 
-    browserLang, 
-    finalLanguage: supportedLanguage,
-    url: request.url
-  });
-  
-  const response = NextResponse.next();
+  let detectedLocale = langParam || cookieLang || browserLang || DEFAULT_LOCALE;
+  if (!SUPPORTED_LOCALES.includes(detectedLocale)) {
+    detectedLocale = DEFAULT_LOCALE;
+  }
 
-  // Only set cookies if they differ from current or don't exist
-  // This helps prevent endless loops due to cookie inconsistencies
-  if (!request.cookies.has('preferred_language') || request.cookies.get('preferred_language')?.value !== supportedLanguage) {
-    response.cookies.set('preferred_language', supportedLanguage, { 
-      path: '/',
-      sameSite: 'lax', 
-      maxAge: 60 * 60 * 24 * 365 // 1 year
-    });
+  console.log('[MiddlewareDebug] Detected locale for rewrite:', detectedLocale);
+
+  // --- Rewrite the path to include the detected locale --- 
+  // Construct the new URL: /<locale>/<original_path>
+  const newUrl = request.nextUrl.clone();
+  newUrl.pathname = `/${detectedLocale}${pathname}`; // Prepend locale
+  
+  const response = NextResponse.rewrite(newUrl);
+
+  // Set cookies for future requests
+  if (cookieLang !== detectedLocale) {
+      response.cookies.set('language', detectedLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
+      response.cookies.set('preferred_language', detectedLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
   }
+  response.headers.set('x-language', detectedLocale);
   
-  if (!request.cookies.has('language') || request.cookies.get('language')?.value !== supportedLanguage) {
-    response.cookies.set('language', supportedLanguage, { 
-      path: '/',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 365 // 1 year
-    });
-  }
-  
-  // Set language header for client-side access
-  response.headers.set('x-language', supportedLanguage);
-  
-  console.log('[MiddlewareDebug] Set cookies and headers:', {
-    language: supportedLanguage,
-    cookies: {
-      preferred_language: response.cookies.get('preferred_language')?.value,
-      language: response.cookies.get('language')?.value
-    },
-    headers: {
-      'x-language': response.headers.get('x-language')
-    }
-  });
-  
+  console.log(`[MiddlewareDebug] Rewriting path from "${pathname}" to "${newUrl.pathname}"`);
+
   return response;
 }
 
 // Configure which routes the middleware applies to
 export const config = {
   matcher: [
-    // Match all routes except static files
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // Match all routes except static files and API
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }; 
