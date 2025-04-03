@@ -137,10 +137,10 @@ export async function POST(request: NextRequest) {
   
   const { 
     topic, 
-    context, 
+    context = '',
     sources = ['recent', 'scholar'], 
     language = 'en',
-    companyName,
+    companyName = '',
     websiteContent,
     contentType = 'article',
     platform = 'general'
@@ -154,26 +154,28 @@ export async function POST(request: NextRequest) {
     );
   }
   
-  // Extract audience, content type, and platform from context
-  let audience = 'general audience';
-  let extractedContentType = contentType || 'article';
-  let extractedPlatform = platform || 'general';
+  // Extract follow-up answers from context if present
+  let followUpAnswers = '';
+  if (context.includes('Follow-up Answers:')) {
+    const followUpSection = context.split('Follow-up Answers:')[1].trim();
+    followUpAnswers = followUpSection;
+    console.log(`[DIAG] [${requestId}] Follow-up answers detected in context`);
+  }
   
-  if (context) {
-    const audienceMatch = context.match(/Target Audience: ([^,]+)/i);
-    if (audienceMatch && audienceMatch[1]) {
-      audience = audienceMatch[1].trim();
-    }
-    
-    const contentTypeMatch = context.match(/Content Type: ([^,]+)/i);
-    if (contentTypeMatch && contentTypeMatch[1]) {
-      extractedContentType = contentTypeMatch[1].trim();
-    }
-    
-    const platformMatch = context.match(/Platform: ([^,]+)/i);
-    if (platformMatch && platformMatch[1]) {
-      extractedPlatform = platformMatch[1].trim();
-    }
+  // Extract additional information from context
+  let extractedContentType = 'article';
+  let extractedPlatform = 'general';
+  let audience = 'general';
+  
+  // Extract content type, platform and audience from context
+  if (context.includes('Content Type:')) {
+    extractedContentType = context.split('Content Type:')[1].split(',')[0].trim();
+  }
+  if (context.includes('Platform:')) {
+    extractedPlatform = context.split('Platform:')[1].split(',')[0].trim();
+  }
+  if (context.includes('Target Audience:')) {
+    audience = context.split('Target Audience:')[1].split('\n')[0].trim();
   }
   
   logSection(requestId, 'PARAMS', JSON.stringify({
@@ -266,7 +268,8 @@ export async function POST(request: NextRequest) {
     sources,
     language,
     companyName,
-    websiteContent
+    websiteContent,
+    additionalContext: followUpAnswers // Add follow-up answers as additional context
   });
   
   logSection(requestId, 'PROMPT', `Prompt built, length: ${promptText.length} characters`);

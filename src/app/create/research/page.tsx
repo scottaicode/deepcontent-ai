@@ -95,6 +95,10 @@ interface ContentDetails {
       phones?: string[];
     };
   };
+  followUp?: {
+    questions: string[];
+    answers: string[];
+  };
 }
 
 // Replace the existing platformToContentType mapping with an expanded version
@@ -518,6 +522,7 @@ export default function ResearchPage() {
             youtubeUrl: parsedContentDetails.youtubeUrl || '',
             businessName: parsedContentDetails.businessName || '', // Add businessName field
             websiteContent: parsedContentDetails.websiteContent || null, // Add websiteContent field
+            followUp: parsedContentDetails.followUp || { questions: [], answers: [] },
           };
           
           // Update state with validated content details
@@ -3197,35 +3202,45 @@ ${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best p
         }
       }, 180000); // 3 minutes
       
+      // Extract follow-up answers if they exist
+      let followUpSection = '';
+      if (safeContentDetails?.followUp?.questions && safeContentDetails?.followUp?.answers) {
+        const { questions, answers } = safeContentDetails.followUp;
+        
+        // Format only questions with actual answers
+        const answeredQuestions = questions
+          .map((q: string, i: number) => answers[i] && answers[i].trim() ? `Q: ${q}\nA: ${answers[i]}` : null)
+          .filter(Boolean);
+        
+        if (answeredQuestions.length > 0) {
+          followUpSection = "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
+          console.log('[ROBUST] Including follow-up answers in research context');
+        }
+      }
+      
       // Build context
       const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
 Platform: ${safeContentDetails?.platform || 'facebook'}, 
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
-Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
+Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}`;
+
+      // Log the context being sent (truncated for clarity)
+      console.log('[ROBUST] Research context (first 200 chars):', contextString.substring(0, 200));
+      if (followUpSection) {
+        console.log('[ROBUST] Follow-up answers included in context');
+      }
       
-      // Start progress simulation
-      let progressIntervalId = setInterval(() => {
+      // Set up progress tracking
+      const progressIntervalId = setInterval(() => {
         setGenerationProgress(prev => {
+          // More gradual progress simulation up to 85%
           if (prev < 85) {
-            return prev + (Math.random() * 0.8 + 0.2); // Slower, more consistent progress
+            const increment = Math.random() * 3 + 1; // Random increment between 1-4%
+            return Math.min(85, prev + increment);
           }
           return prev;
         });
-        
-        // Update status message based on progress
-        const progress = generationProgress;
-        if (progress < 20) {
-          setStatusMessage('Starting research process...');
-        } else if (progress < 40) {
-          setStatusMessage('Analyzing information sources...');
-        } else if (progress < 60) {
-          setStatusMessage('Synthesizing research findings...');
-        } else if (progress < 80) {
-          setStatusMessage('Organizing research insights...');
-        } else {
-          setStatusMessage('Finalizing research document...');
-        }
-      }, 2000);
+      }, 10000); // Every 10 seconds
       
       // Add failsafe timeout - if we reach 85% progress, start emergency fallback
       const emergencyFallbackId = setTimeout(() => {
