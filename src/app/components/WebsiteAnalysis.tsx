@@ -17,6 +17,13 @@ import { useToast } from '@/lib/hooks/useToast';
 
 interface WebsiteAnalysisProps {
   onScrapedContent?: (content: any) => void;
+  contentContext?: {
+    topic?: string;
+    platform?: string;
+    subPlatform?: string;
+    targetAudience?: string;
+    audienceNeeds?: string;
+  };
 }
 
 // Define the type for optimized research data
