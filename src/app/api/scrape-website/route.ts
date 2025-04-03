@@ -48,9 +48,15 @@ const CONTEXT_KEYWORDS: Record<string, string[]> = {
 // Function to get context keywords based on request context
 function getPriorityKeywords(context?: ScrapingRequest['context']): string[] {
   const keywords = new Set<string>();
-  // Always include basic priorities with lower initial weight
-  for (const k of CONTEXT_KEYWORDS.about) { keywords.add(k); }
-  for (const k of CONTEXT_KEYWORDS.contact) { keywords.add(k); }
+  // Always include basic priorities using a standard for loop
+  const aboutKeywords = CONTEXT_KEYWORDS.about;
+  for (let i = 0; i < aboutKeywords.length; i++) {
+    keywords.add(aboutKeywords[i]);
+  }
+  const contactKeywords = CONTEXT_KEYWORDS.contact;
+  for (let i = 0; i < contactKeywords.length; i++) {
+    keywords.add(contactKeywords[i]);
+  }
 
   if (!context) return Array.from(keywords);
 
