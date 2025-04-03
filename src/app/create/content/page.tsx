@@ -106,7 +106,7 @@ export default function ContentGenerator() {
   const [showContentRefinement, setShowContentRefinement] = useState(true);
   
   // State for personas
-  const [currentPersona, setCurrentPersona] = useState<string>('ariastar');
+  const [currentPersona, setCurrentPersona] = useState(contentSettings.style);
   const [selectedPersona, setSelectedPersona] = useState<string>('');
   
   // State for content expansion
@@ -539,6 +539,17 @@ export default function ContentGenerator() {
     setDialogOpen(true);
   };
 
+  // Helper function to safely render contentGeneration translations with fallbacks
+  const safeContentGenerationTranslate = (key: string, defaultValue: string) => {
+    const translated = t(key, { defaultValue });
+    // Check if we got a raw key back (translation failure)
+    if (translated.includes('contentGeneration.') || translated === key) {
+      console.warn(`Translation failed for key: ${key}, using default value`);
+      return defaultValue;
+    }
+    return translated;
+  };
+
   // Define content styles
   const getContentStyles = useCallback(() => {
     // AI Personas
@@ -570,6 +581,32 @@ export default function ContentGenerator() {
     
     return styles;
   }, [t]);
+
+  // Helper function to format persona name for display
+  const getFormattedPersonaName = (personaId: string) => {
+    switch (personaId) {
+      case 'ariastar':
+        return 'AriaStar';
+      case 'specialist_mentor':
+        return 'MentorPro';
+      case 'ai_collaborator':
+        return 'AIInsight';
+      case 'sustainable_advocate':
+        return 'EcoEssence';
+      case 'data_visualizer':
+        return 'DataStory';
+      case 'multiverse_curator':
+        return 'NexusVerse';
+      case 'ethical_tech':
+        return 'TechTranslate';
+      case 'niche_community':
+        return 'CommunityForge';
+      case 'synthesis_maker':
+        return 'SynthesisSage';
+      default:
+        return personaId;
+    }
+  };
 
   // Update the startGeneration function
   const startGeneration = async () => {
@@ -1027,32 +1064,6 @@ export default function ContentGenerator() {
     }
   };
 
-  // Helper function to format persona name for display
-  const getFormattedPersonaName = (personaId: string) => {
-    switch (personaId) {
-      case 'ariastar':
-        return 'AriaStar';
-      case 'specialist_mentor':
-        return 'MentorPro';
-      case 'ai_collaborator':
-        return 'AIInsight';
-      case 'sustainable_advocate':
-        return 'EcoEssence';
-      case 'data_visualizer':
-        return 'DataStory';
-      case 'multiverse_curator':
-        return 'NexusVerse';
-      case 'ethical_tech':
-        return 'TechTranslate';
-      case 'niche_community':
-        return 'CommunityForge';
-      case 'synthesis_maker':
-        return 'SynthesisSage';
-      default:
-        return personaId;
-    }
-  };
-
   // Handle content refinement submission
   const handleRefinementSubmit = async () => {
     if (!refinementPrompt.trim()) {
@@ -1170,7 +1181,9 @@ export default function ContentGenerator() {
           {/* Logo header */}
           <div className="flex items-center justify-center py-4">
             <div className="flex items-center">
-              <span className="text-2xl font-bold text-gray-900">{t('contentGeneration.pageTitle', { defaultValue: 'Content Generation' })}</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {safeContentGenerationTranslate('contentGeneration.pageTitle', 'Content Generation')}
+              </span>
             </div>
           </div>
 
@@ -1209,52 +1222,76 @@ export default function ContentGenerator() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     {/* Content Parameters */}
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">{t('contentGeneration.parameters', { defaultValue: 'Content Parameters' })}</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        {safeContentGenerationTranslate('contentGeneration.parameters', 'Content Parameters')}
+                      </h3>
                       <dl className="grid grid-cols-1 gap-4">
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.contentType', { defaultValue: 'Content Type' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.contentType', 'Content Type')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{formatContentTypeDisplay()}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.platform', { defaultValue: 'Platform' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.platform', 'Platform')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{getPlatformText()}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.targetAudience', { defaultValue: 'Target Audience' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.targetAudience', 'Target Audience')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{contentDetails.targetAudience}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.businessType', { defaultValue: 'Business Type' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.businessType', 'Business Type')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{contentDetails.businessType}</dd>
                         </div>
                       </dl>
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">{t('contentGeneration.settings', { defaultValue: 'Content Settings' })}</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        {safeContentGenerationTranslate('contentGeneration.settings', 'Content Settings')}
+                      </h3>
                       <dl className="grid grid-cols-1 gap-4">
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.currentStyle', { defaultValue: 'Current Style' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.currentStyle', 'Current Style')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{getFormattedPersonaName(currentPersona) || t('common.notSelected', { defaultValue: 'Not selected' })}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.length', { defaultValue: 'Length' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.length', 'Length')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">
                             <select
                               value={contentSettings.length}
                               onChange={(e) => setContentSettings(prev => ({ ...prev, length: e.target.value }))}
                               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                              aria-label={t('contentGeneration.contentLength', { defaultValue: 'Content length' })}
+                              aria-label={safeContentGenerationTranslate('contentGeneration.contentLength', 'Content length')}
                             >
-                              <option value="short">{t('contentGeneration.short', { defaultValue: 'Short' })}</option>
-                              <option value="medium">{t('contentGeneration.medium', { defaultValue: 'Medium' })}</option>
-                              <option value="long">{t('contentGeneration.long', { defaultValue: 'Long' })}</option>
+                              <option value="short">
+                                {safeContentGenerationTranslate('contentGeneration.short', 'Short')}
+                              </option>
+                              <option value="medium">
+                                {safeContentGenerationTranslate('contentGeneration.medium', 'Medium')}
+                              </option>
+                              <option value="long">
+                                {safeContentGenerationTranslate('contentGeneration.long', 'Long')}
+                              </option>
                             </select>
                           </dd>
                         </div>
                         {!shouldHideCTAAndHashtags() && (
                           <>
                             <div>
-                              <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.includeCTA', { defaultValue: 'Include CTA' })}</dt>
+                              <dt className="text-sm font-medium text-gray-500">
+                                {safeContentGenerationTranslate('contentGeneration.includeCTA', 'Include CTA')}
+                              </dt>
                               <dd className="mt-1 text-sm text-gray-900">
                                 <div className="flex items-center space-x-2">
                                   <label className="inline-flex items-center">
@@ -1270,7 +1307,9 @@ export default function ContentGenerator() {
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.includeHashtags', { defaultValue: 'Include Hashtags' })}</dt>
+                              <dt className="text-sm font-medium text-gray-500">
+                                {safeContentGenerationTranslate('contentGeneration.includeHashtags', 'Include Hashtags')}
+                              </dt>
                               <dd className="mt-1 text-sm text-gray-900">
                                 <div className="flex items-center space-x-2">
                                   <label className="inline-flex items-center">
@@ -1295,10 +1334,10 @@ export default function ContentGenerator() {
                   {!generatedContent && !isGenerating && (
                     <div className="text-center py-8 space-y-6">
                       <h3 className="text-xl font-semibold text-gray-900">
-                        {t('contentGeneration.choosePersona', { defaultValue: 'Choose an AI Persona for Your Content' })}
+                        {safeContentGenerationTranslate('contentGeneration.choosePersona', 'Choose an AI Persona for Your Content')}
                       </h3>
                       <p className="text-sm text-gray-500 mb-6">
-                        {t('contentGeneration.selectStyleText', { defaultValue: 'Select the writing style that best matches your needs' })}
+                        {safeContentGenerationTranslate('contentGeneration.selectStyleText', 'Select the writing style that best matches your needs')}
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                         {(() => {
@@ -1571,10 +1610,10 @@ export default function ContentGenerator() {
                   {generatedContent && !isGenerating && (
                     <div className="mt-8 border-t border-gray-200 pt-6">
                       <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                        {t('contentGeneration.choosePersona', { defaultValue: 'Choose an AI Persona' })}
+                        {safeContentGenerationTranslate('contentGeneration.choosePersona', 'Choose an AI Persona')}
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
-                        {t('contentGeneration.regenerateText', { defaultValue: 'Regenerate your content with any AI persona voice (including the current one for new variations)' })}
+                        {safeContentGenerationTranslate('contentGeneration.regenerateText', 'Regenerate your content with any AI persona voice (including the current one for new variations)')}
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                         {(() => {
