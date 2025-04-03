@@ -46,8 +46,16 @@ export async function launchBrowser(): Promise<Browser> {
       console.log(`Chromium executable path: ${executablePath}`);
       console.log(`Chromium args: ${chromium.args.join(' ')}`);
       
+      // Combine args from library with the user-data-dir arg for Vercel
+      const launchArgs = [
+        ...chromium.args,
+        '--user-data-dir=/tmp/chromium-user-data' // Use /tmp for user data
+      ];
+      
+      console.log(`Combined launch args: ${launchArgs.join(' ')}`);
+
       browser = await playwright.chromium.launch({
-        args: chromium.args,
+        args: launchArgs, // Use combined args
         executablePath: executablePath,
         headless: true, // Ensure headless is true for Vercel
       });
