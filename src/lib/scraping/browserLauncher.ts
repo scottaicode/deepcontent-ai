@@ -74,7 +74,7 @@ export async function launchBrowser(): Promise<Browser> {
           browser = await puppeteer.launch({
             args: launchArgs, 
             executablePath: executablePath,
-            headless: chromium.headless, // Use headless from chromium library
+            headless: true, // Explicitly set headless: true for Vercel
           });
           console.log('[DIAG] puppeteer.launch successful.');
       } catch(launchError) {
