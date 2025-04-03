@@ -94,6 +94,29 @@ export default function ProductionModeFixes() {
         }
       });
       
+      // Fix personas description texts
+      const personaDescriptions: Record<string, string> = {
+        'personas.ariastar.description': 'Friendly, relatable tone perfect for social media and blogs',
+        'personas.specialist_mentor.description': 'Professional, authoritative voice for technical content',
+        'personas.ai_collaborator.description': 'Balanced, analytical tone for research and reports',
+        'personas.sustainable_advocate.description': 'Passionate voice for sustainability and social impact',
+        'personas.data_visualizer.description': 'Clear, data-driven narrative style',
+        'personas.multiverse_curator.description': 'Creative, engaging tone for multimedia content',
+        'personas.ethical_tech.description': 'Balanced voice for explaining complex technical concepts',
+        'personas.niche_community.description': 'Engaging tone for building community and connection',
+        'personas.synthesis_maker.description': 'Insightful tone for connecting ideas across domains'
+      };
+
+      // Find all elements that might contain persona descriptions
+      document.querySelectorAll('p, span, div').forEach(el => {
+        Object.entries(personaDescriptions).forEach(([key, value]) => {
+          if (el.textContent === key) {
+            console.log(`[ProductionModeFixes] Replacing persona description: ${key}`);
+            el.textContent = value;
+          }
+        });
+      });
+      
       // Apply missing styles to dropdowns that may not be caught by StyleDropdownFix
       const selectElements = document.querySelectorAll('select');
       selectElements.forEach(select => {
