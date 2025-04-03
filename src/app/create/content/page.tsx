@@ -630,29 +630,38 @@ export default function ContentGenerator() {
       console.log('[DIAGNOSTIC] Content generation request:', {
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
-        persona: currentPersona, // Use currentPersona state
-        style: currentPersona, // Ensure style also uses currentPersona
+        persona: currentPersona,
+        style: currentPersona,
         researchLength: researchResults.perplexityResearch.length,
+        language: language,
         timestamp: new Date().toISOString()
       });
 
+      // Generate a unique request ID for tracking
+      const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Starting content generation`);
+
       const response = await fetch('/api/claude/content', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Request-ID': requestId
+        },
         body: JSON.stringify({
           contentType: contentDetails.contentType,
           platform: contentDetails.platform,
           audience: contentDetails.targetAudience,
           researchData: researchResults.perplexityResearch,
-          style: currentPersona, // Pass the reliable currentPersona state
+          style: currentPersona,
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
-          persona: currentPersona, // Pass the reliable currentPersona state
+          persona: currentPersona,
           businessType: contentDetails.businessType,
           businessName: contentDetails.businessName,
           researchTopic: contentDetails.researchTopic,
-          language: language
+          language: language, // Explicitly pass the language parameter
+          requestId: requestId // Pass the request ID
         }),
       });
 
@@ -662,35 +671,43 @@ export default function ContentGenerator() {
       }));
 
       if (!response.ok) {
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - API Error:`, response.status);
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || `API error: ${response.status}`);
       }
 
       // Get the raw response text first
       const rawText = await response.text();
-      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Raw response length:`, rawText.length);
+
+      // Validate raw response before parsing
+      if (!rawText || rawText.trim() === '') {
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Empty response from API`);
+        throw new Error('Empty response received from API');
+      }
 
       // Parse the JSON carefully
       let data;
       try {
         data = JSON.parse(rawText);
       } catch (parseError) {
-        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
-        console.error('[DIAGNOSTIC] Raw response:', rawText);
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - JSON parse error:`, parseError);
+        console.error(`[DIAGNOSTIC] Raw response (first 500 chars):`, rawText.substring(0, 500));
         throw new Error('Failed to parse API response');
       }
 
       if (!data.content) {
-        console.error('[DIAGNOSTIC] No content in response:', data);
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - No content in response:`, data);
         throw new Error('No content received from API');
       }
 
       // Log content details before setting state
-      console.log('[DIAGNOSTIC] Content generation result:', {
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Content generation result:`, {
         rawLength: rawText.length,
         contentLength: data.content.length,
         persona: currentPersona,
         status: response.status,
+        language: language,
         timestamp: new Date().toISOString()
       });
 
@@ -722,15 +739,40 @@ export default function ContentGenerator() {
           { english: "NEWS!", spanish: "¡NOTICIA!" },
           { english: "Current technology allows", spanish: "La tecnología actual permite" },
           { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
+          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" },
+          { english: "Introduction", spanish: "Introducción" },
+          { english: "Main Content", spanish: "Contenido Principal" },
+          { english: "Conclusion", spanish: "Conclusión" },
+          { english: "Key Points", spanish: "Puntos Clave" },
+          { english: "Executive Summary", spanish: "Resumen Ejecutivo" },
+          { english: "Benefits", spanish: "Beneficios" },
+          { english: "Features", spanish: "Características" },
+          { english: "Call to Action", spanish: "Llamada a la Acción" },
+          { english: "Tips", spanish: "Consejos" },
+          { english: "Trends", spanish: "Tendencias" },
+          { english: "In conclusion", spanish: "En conclusión" }
         ];
         
         // Replace any English phrases with their Spanish equivalents
         commonEnglishPhrases.forEach(({english, spanish}) => {
+          // Match full phrases
           cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
+          
+          // Also match section headings (# Introduction, ## Key Points, etc.)
+          const headerRegex = new RegExp(`# ${english}\\b`, 'gi');
+          cleanedContent = cleanedContent.replace(headerRegex, `# ${spanish}`);
+          
+          const subheaderRegex = new RegExp(`## ${english}\\b`, 'gi');
+          cleanedContent = cleanedContent.replace(subheaderRegex, `## ${spanish}`);
         });
         
-        console.log('[DIAGNOSTIC] Applied Spanish content fixes');
+        console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Applied Spanish content fixes`);
+      }
+
+      // Ensure we have content after cleaning
+      if (!cleanedContent || cleanedContent.trim() === '') {
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Content empty after cleaning`);
+        throw new Error('Content became empty after processing');
       }
 
       // Store the generated content
@@ -751,10 +793,12 @@ export default function ContentGenerator() {
         const rendered = renderSimpleMarkdown(cleanedContent);
         setPrerenderedContent(rendered);
       } catch (renderError) {
-        console.error('[DIAGNOSTIC] Render error:', renderError);
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Render error:`, renderError);
         // Fall back to plain text display if markdown rendering fails
         setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
       }
+
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Content generation completed successfully`);
 
     } catch (error) {
       console.error('[DIAGNOSTIC] Content generation error:', error);
@@ -794,12 +838,16 @@ export default function ContentGenerator() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     try {
+      // Generate a unique request ID for tracking the persona change
+      const requestId = `persona_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
       // Log the request details
-      console.log('[DIAGNOSTIC] Persona change request:', {
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Persona change request:`, {
         from: currentPersona,
         to: newPersona, 
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
+        language: language,
         researchLength: researchResults?.perplexityResearch?.length || 0,
         timestamp: new Date().toISOString()
       });
@@ -813,6 +861,7 @@ export default function ContentGenerator() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Request-ID': requestId
         },
         body: JSON.stringify({
           contentType: contentDetails.contentType,
@@ -830,7 +879,8 @@ export default function ContentGenerator() {
           isPersonaChange: true, // Flag to indicate this is a persona change request
           previousPersona: currentPersona,
           previousContent: generatedContent,
-          language: language // Explicitly pass the language to the API
+          language: language, // Explicitly pass the language to the API
+          requestId: requestId // Pass the request ID
         }),
       });
       
@@ -840,34 +890,42 @@ export default function ContentGenerator() {
       }));
       
       if (!response.ok) {
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - API Error:`, response.status);
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || `API error: ${response.status}`);
       }
       
       // Get the raw response text first
       const rawText = await response.text();
-      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Raw response length:`, rawText.length);
+      
+      // Validate raw response before parsing
+      if (!rawText || rawText.trim() === '') {
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Empty response from API`);
+        throw new Error('Empty response received from API');
+      }
       
       // Parse the JSON carefully
       let data;
       try {
         data = JSON.parse(rawText);
       } catch (parseError) {
-        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
-        console.error('[DIAGNOSTIC] Raw response:', rawText);
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - JSON parse error:`, parseError);
+        console.error(`[DIAGNOSTIC] Raw response (first 500 chars):`, rawText.substring(0, 500));
         throw new Error('Failed to parse API response');
       }
       
       if (!data.content) {
-        console.error('[DIAGNOSTIC] No content in response:', data);
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - No content in response:`, data);
         throw new Error('No content received from API');
       }
       
       // Log content details before setting state
-      console.log('[DIAGNOSTIC] Persona change content result:', {
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Persona change content result:`, {
         rawLength: rawText.length,
         contentLength: data.content.length,
         newPersona: newPersona,
+        language: language,
         status: response.status,
         timestamp: new Date().toISOString()
       });
@@ -900,15 +958,40 @@ export default function ContentGenerator() {
           { english: "NEWS!", spanish: "¡NOTICIA!" },
           { english: "Current technology allows", spanish: "La tecnología actual permite" },
           { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
+          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" },
+          { english: "Introduction", spanish: "Introducción" },
+          { english: "Main Content", spanish: "Contenido Principal" },
+          { english: "Conclusion", spanish: "Conclusión" },
+          { english: "Key Points", spanish: "Puntos Clave" },
+          { english: "Executive Summary", spanish: "Resumen Ejecutivo" },
+          { english: "Benefits", spanish: "Beneficios" },
+          { english: "Features", spanish: "Características" },
+          { english: "Call to Action", spanish: "Llamada a la Acción" },
+          { english: "Tips", spanish: "Consejos" },
+          { english: "Trends", spanish: "Tendencias" },
+          { english: "In conclusion", spanish: "En conclusión" }
         ];
         
         // Replace any English phrases with their Spanish equivalents
         commonEnglishPhrases.forEach(({english, spanish}) => {
+          // Match full phrases
           cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
+          
+          // Also match section headings (# Introduction, ## Key Points, etc.)
+          const headerRegex = new RegExp(`# ${english}\\b`, 'gi');
+          cleanedContent = cleanedContent.replace(headerRegex, `# ${spanish}`);
+          
+          const subheaderRegex = new RegExp(`## ${english}\\b`, 'gi');
+          cleanedContent = cleanedContent.replace(subheaderRegex, `## ${spanish}`);
         });
         
-        console.log('[DIAGNOSTIC] Applied Spanish content fixes to persona change content');
+        console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Applied Spanish content fixes to persona content`);
+      }
+      
+      // Ensure we have content after cleaning
+      if (!cleanedContent || cleanedContent.trim() === '') {
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Content empty after cleaning`);
+        throw new Error('Content became empty after processing');
       }
       
       // Store the generated content
@@ -927,7 +1010,7 @@ export default function ContentGenerator() {
         const rendered = renderSimpleMarkdown(cleanedContent);
         setPrerenderedContent(rendered);
       } catch (renderError) {
-        console.error('[DIAGNOSTIC] Render error:', renderError);
+        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Render error:`, renderError);
         // Fall back to plain text display if markdown rendering fails
         setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
       }
@@ -944,6 +1027,8 @@ export default function ContentGenerator() {
       setTimeout(() => {
         document.getElementById('generated-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 500);
+
+      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Persona change completed successfully`);
       
     } catch (error) {
       console.error('[DIAGNOSTIC] Persona change error:', error);
