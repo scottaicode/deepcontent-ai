@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 // conflicts caused by direct DOM manipulation or full page reloads.
 export default function MainLanguageSwitcher() {
   const router = useRouter();
-  const pathname = usePathname(); // Gets the current path *including* any locale prefix
+  const pathname = usePathname(); // Keep pathname to know the current page
   const [currentLang, setCurrentLang] = useState('en');
 
   // Determine current language preference on client-side mount
@@ -38,50 +38,29 @@ export default function MainLanguageSwitcher() {
 
   console.log('[Header LanguageDebug] Current language state:', currentLang);
 
-  // Switch language using Next.js router
+  // Switch language by setting cookie and forcing a page reload
   const switchToLanguage = (lang: string) => {
-    if (lang === currentLang) return; // Avoid unnecessary navigation
+    if (lang === currentLang) return;
     
-    console.log(`[NextJsSwitcher] Attempting to switch language to: ${lang}`);
+    console.log(`[CookieReloadSwitcher] Attempting to switch language to: ${lang}`);
     
     try {
-      // Set cookies to persist preference across reloads/sessions
-      // This ensures the preference is remembered even if the user closes the browser
+      // 1. Set cookies to persist preference
       document.cookie = `language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
       document.cookie = `preferred_language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
       console.log('[LanguageDebug] Set cookies for preference:', document.cookie);
 
-      // Ensure pathname is valid before pushing
-      if (!pathname) {
-        console.error('[NextJsSwitcher] Pathname is not available. Cannot switch language.');
-        return;
-      }
+      // 2. Update state immediately for UI feedback (optional, as page will reload)
+      // setCurrentLang(lang);
 
-      // --- Core Logic for App Router Locale Change ---
-      // 1. Get the base path by removing any existing locale prefix (/en or /es)
-      const basePathname = pathname.startsWith('/en/') ? pathname.substring(3) : 
-                         pathname.startsWith('/es/') ? pathname.substring(3) : 
-                         pathname;
+      // 3. Force a full page reload. The browser will send the new cookie value
+      // on the next request, allowing middleware and hooks to use the correct language.
+      window.location.reload(); 
       
-      // 2. Construct the new target URL with the desired locale prefix
-      // Ensure basePathname starts with a slash if it's not empty to form a valid path
-      const targetPath = lang === 'en' ? `/en${basePathname.startsWith('/') ? '' : '/'}${basePathname}` 
-                                    : `/es${basePathname.startsWith('/') ? '' : '/'}${basePathname}`;
-
-      console.log(`[NextJsSwitcher] Navigating to new locale path: ${targetPath}`);
-      
-      // 3. Use router.push with the new locale-prefixed path.
-      // Next.js handles the rest (re-rendering with correct locale content).
-      router.push(targetPath);
-      // --- End Core Logic ---
-
-      // Update state immediately for responsive UI highlighting on the button
-      setCurrentLang(lang);
-      
-      console.log(`[NextJsSwitcher] router.push initiated for locale: ${lang}`);
+      console.log(`[CookieReloadSwitcher] Cookies set to ${lang} and window.location.reload() called.`);
 
     } catch (err) {
-      console.error('Error in language switch using router:', err);
+      console.error('Error in language switch using cookie/reload:', err);
     }
   };
 
