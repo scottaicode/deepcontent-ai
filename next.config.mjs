@@ -60,14 +60,16 @@ const nextConfig = {
     // Simplified configuration to avoid conflicts
     return [
       // Handle API routes directly with no rewrites
-      {
-        source: "/api/document-analysis/:path*",
-        destination: "/api/document-analysis/:path*",
-      },
-      {
-        source: "/api/document-analysis",
-        destination: "/api/document-analysis",
-      },
+      // REMOVED: Redundant rewrite for /api/document-analysis/:path*
+      // {
+      //   source: "/api/document-analysis/:path*",
+      //   destination: "/api/document-analysis/:path*",
+      // },
+      // REMOVED: Redundant rewrite for /api/document-analysis
+      // {
+      //   source: "/api/document-analysis",
+      //   destination: "/api/document-analysis",
+      // },
       {
         source: "/api/youtube/:path*",
         destination: "/api/youtube/:path*",
