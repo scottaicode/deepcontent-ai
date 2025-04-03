@@ -1426,26 +1426,13 @@ export default function ContentGenerator() {
                   {/* Generation Progress */}
                   {isGenerating && (
                     <div className="text-center py-8">
-                      <div className="mb-4 relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
-                              {generationProgress}% Complete
-                            </span>
-                          </div>
-                        </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200">
-                          <div style={{ width: `${generationProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-600 transition-all duration-500 ease-in-out"></div>
-                        </div>
+                      {/* Replace progress bar with simple spinner */}
+                      <div className="flex justify-center mb-6">
+                        <div className="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
                       </div>
                       <h3 className="mt-4 text-lg font-medium text-gray-900">
                         {statusMessage || `Creating content with ${getFormattedPersonaName(currentPersona || contentSettings.style)}...`}
                       </h3>
-                      <p className="mt-2 text-sm text-gray-500">
-                        {t('contentGeneration.waitingMessageImproved', { 
-                          defaultValue: 'Please wait while we craft your content. For large research datasets, this may take 3-5 minutes to ensure all important information is included.'
-                        })}
-                      </p>
                     </div>
                   )}
 
