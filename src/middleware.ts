@@ -19,28 +19,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if pathname already has a supported locale prefix
-  const pathnameHasLocale = SUPPORTED_LOCALES.some(
-    (locale) => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
-  );
-
-  if (pathnameHasLocale) {
-    // If locale is already in path, just set cookies/headers and continue
-    const currentLocale = pathname.split('/')[1];
-    const response = NextResponse.next();
-    // Set cookies if necessary (using the locale from the path)
-    if (request.cookies.get('language')?.value !== currentLocale) {
-      response.cookies.set('language', currentLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
-    }
-    if (request.cookies.get('preferred_language')?.value !== currentLocale) {
-      response.cookies.set('preferred_language', currentLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
-    }
-    response.headers.set('x-language', currentLocale);
-    console.log(`[MiddlewareDebug] Path already has locale (${currentLocale}). Proceeding.`);
-    return response;
-  }
-
-  // --- Locale detection if prefix is missing --- 
+  // --- Locale detection --- 
   const url = new URL(request.url);
   const langParam = url.searchParams.get('lang');
   const cookieLang = request.cookies.get('preferred_language')?.value || request.cookies.get('language')?.value;
@@ -51,23 +30,22 @@ export function middleware(request: NextRequest) {
     detectedLocale = DEFAULT_LOCALE;
   }
 
-  console.log('[MiddlewareDebug] Detected locale for rewrite:', detectedLocale);
-
-  // --- Rewrite the path to include the detected locale --- 
-  // Construct the new URL: /<locale>/<original_path>
-  const newUrl = request.nextUrl.clone();
-  newUrl.pathname = `/${detectedLocale}${pathname}`; // Prepend locale
+  console.log('[MiddlewareDebug] Detected locale:', detectedLocale);
   
-  const response = NextResponse.rewrite(newUrl);
+  // --- Prepare response (NO REWRITE) --- 
+  const response = NextResponse.next(); // Proceed without changing the path
 
-  // Set cookies for future requests
-  if (cookieLang !== detectedLocale) {
-      response.cookies.set('language', detectedLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
-      response.cookies.set('preferred_language', detectedLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
+  // --- Set cookies and headers --- 
+  // Set cookies if necessary to ensure consistency
+  if (request.cookies.get('language')?.value !== detectedLocale) {
+    response.cookies.set('language', detectedLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
+  }
+  if (request.cookies.get('preferred_language')?.value !== detectedLocale) {
+    response.cookies.set('preferred_language', detectedLocale, { path: '/', maxAge: 60*60*24*365, sameSite: 'lax' });
   }
   response.headers.set('x-language', detectedLocale);
   
-  console.log(`[MiddlewareDebug] Rewriting path from "${pathname}" to "${newUrl.pathname}"`);
+  console.log(`[MiddlewareDebug] Passing through path "${pathname}" with locale "${detectedLocale}"`);
 
   return response;
 }
