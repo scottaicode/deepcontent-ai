@@ -54,6 +54,29 @@ const nextConfig = {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY
   },
+  // Add headers configuration to prevent caching
+  async headers() {
+    return [
+      {
+        // Apply to all routes
+        source: "/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, max-age=0, must-revalidate"
+          },
+          {
+            key: "Pragma",
+            value: "no-cache"
+          },
+          {
+            key: "Expires",
+            value: "0"
+          }
+        ]
+      }
+    ];
+  },
   async rewrites() {
     console.log("📋 Loading Next.js rewrites configuration");
     
