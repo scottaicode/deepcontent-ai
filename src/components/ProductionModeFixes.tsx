@@ -91,9 +91,47 @@ export default function ProductionModeFixes() {
         });
       };
       
+      // Fix action buttons specifically - these have a consistent pattern
+      const fixActionButtons = () => {
+        // These buttons often contain icons and other elements, so we need a different approach
+        const buttons = document.querySelectorAll('button, a');
+        buttons.forEach(button => {
+          // Check if the button contains any of our action button translation keys
+          const buttonText = button.textContent || '';
+          
+          if (buttonText.includes('contentGeneration.copyToClipboard')) {
+            // Find the text node and replace just that part
+            replaceTextInElement(button, 'contentGeneration.copyToClipboard', 'Copy to Clipboard');
+          } else if (buttonText.includes('contentGeneration.exportAsText')) {
+            replaceTextInElement(button, 'contentGeneration.exportAsText', 'Export as Text');
+          } else if (buttonText.includes('contentGeneration.saveToPanel')) {
+            replaceTextInElement(button, 'contentGeneration.saveToPanel', 'Save to Dashboard');
+          }
+        });
+      };
+      
+      // Helper to replace text in a specific element without affecting child elements
+      const replaceTextInElement = (element: Element, searchText: string, replaceText: string) => {
+        // Handle elements with childNodes by only changing text nodes
+        for (let i = 0; i < element.childNodes.length; i++) {
+          const node = element.childNodes[i];
+          if (node.nodeType === Node.TEXT_NODE && node.textContent?.includes(searchText)) {
+            node.textContent = node.textContent.replace(searchText, replaceText);
+            console.log(`[ProductionModeFixes] Fixed button text: ${searchText}`);
+          }
+        }
+        
+        // If element has no childNodes but contains the text directly
+        if (element.childNodes.length === 0 && element.textContent?.includes(searchText)) {
+          element.textContent = element.textContent.replace(searchText, replaceText);
+          console.log(`[ProductionModeFixes] Fixed simple button text: ${searchText}`);
+        }
+      };
+      
       // Run the targeted fixes
       fixExactTranslationKeys();
       fixPlaceholders();
+      fixActionButtons();
     };
     
     // Apply fixes immediately
