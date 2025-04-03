@@ -1,19 +1,20 @@
 /**
  * Browser launcher utility for web scraping
  * Supports both Vercel serverless environment and local development
+ * Uses Puppeteer-Core with @sparticuz/chromium-min on Vercel
  */
 
-import * as playwright from 'playwright';
-import chromium from '@sparticuz/chromium-min'; // Import chromium for serverless
+import puppeteer, { Browser as PuppeteerBrowser, Page as PuppeteerPage } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium-min';
 
 // Detect if we're running on Vercel
 const isVercel = process.env.VERCEL === '1';
 
-// Define a generic interface that works with both libraries
+// Define a generic interface compatible with Puppeteer's Page API
 export interface BrowserPage {
   goto: (url: string, options?: any) => Promise<any>;
   waitForSelector: (selector: string, options?: any) => Promise<any>;
-  evaluate: <T = any>(fnOrSelector: Function | string, ...args: any[]) => Promise<T>;
+  evaluate: <T = any>(fn: Function | string, ...args: any[]) => Promise<T>;
   content: () => Promise<string>;
   $: (selector: string) => Promise<any>;
   $$: (selector: string) => Promise<any[]>;
@@ -26,36 +27,32 @@ export interface Browser {
   close: () => Promise<void>;
 }
 
-/**
- * Launch a headless browser that works in both Vercel and local environments
- */
 export async function launchBrowser(): Promise<Browser> {
   // Log environment details immediately
-  console.log('[DIAG] launchBrowser called.');
+  console.log('[DIAG] launchBrowser called (using Puppeteer-Core).');
   console.log('[DIAG] isVercel:', isVercel);
   console.log('[DIAG] CWD:', process.cwd());
-  console.log('[DIAG] Env HOME:', process.env.HOME);
+  console.log('[DIAG] Env HOME:', process.env.HOME); // Should be /tmp if set previously
   console.log('[DIAG] Env PWD:', process.env.PWD);
   console.log('[DIAG] Env LAMBDA_TASK_ROOT:', process.env.LAMBDA_TASK_ROOT);
-  console.log('[DIAG] Env TMPDIR:', process.env.TMPDIR);
+  console.log('[DIAG] Env TMPDIR:', process.env.TMPDIR); // Should be /tmp if set previously
   console.log('[DIAG] Env XDG_CACHE_HOME:', process.env.XDG_CACHE_HOME);
   console.log('[DIAG] Env XDG_CONFIG_HOME:', process.env.XDG_CONFIG_HOME);
   console.log('[DIAG] Env XDG_DATA_HOME:', process.env.XDG_DATA_HOME);
 
-  let browser: playwright.Browser;
+  let browser: PuppeteerBrowser;
   
   try {
     if (isVercel) {
-      console.log('[DIAG] Vercel environment detected. Preparing sparticuz/chromium...');
+      console.log('[DIAG] Vercel environment detected. Preparing sparticuz/chromium for Puppeteer...');
       
-      // Explicitly set HOME and TMPDIR to /tmp for serverless environment
-      console.log('[DIAG] Setting process.env.HOME to /tmp');
-      process.env.HOME = '/tmp';
-      console.log('[DIAG] Setting process.env.TMPDIR to /tmp');
-      process.env.TMPDIR = '/tmp';
-      
+      // HOME and TMPDIR should be set to /tmp by previous steps, but we check executablePath directly
       let executablePath: string | null = null;
       try {
+        // console.log('[DIAG] Attempting to unpack chromium to /tmp...'); // Removed invalid unpack call
+        // await chromium.unpack(); 
+        // console.log('[DIAG] Unpack completed (or skipped if already present).');
+
         console.log('[DIAG] Attempting to get executablePath from chromium...');
         executablePath = await chromium.executablePath();
         console.log(`[DIAG] Chromium executablePath obtained: ${executablePath}`);
@@ -68,64 +65,67 @@ export async function launchBrowser(): Promise<Browser> {
         throw new Error('Could not find Chromium executable for Vercel environment (executablePath is null).');
       }
       
-      // Combine args
-      const launchArgs = [
-        ...chromium.args,
-        '--user-data-dir=/tmp/chromium-user-data',
-        '--data-path=/tmp/chromium-data-path',      
-        '--disk-cache-dir=/tmp/chromium-cache-dir'  
-      ];
-      console.log(`[DIAG] Final launch args: ${launchArgs.join(' ')}`);
+      // Combine args - Puppeteer uses slightly different args management
+      const launchArgs = chromium.args;
+      console.log(`[DIAG] Using args from chromium: ${launchArgs.join(' ')}`);
       
       try {
-          console.log('[DIAG] Attempting playwright.chromium.launch...');
-          browser = await playwright.chromium.launch({
+          console.log('[DIAG] Attempting puppeteer.launch...');
+          browser = await puppeteer.launch({
             args: launchArgs, 
             executablePath: executablePath,
-            headless: true, 
+            headless: chromium.headless, // Use headless from chromium library
           });
-          console.log('[DIAG] playwright.chromium.launch successful.');
+          console.log('[DIAG] puppeteer.launch successful.');
       } catch(launchError) {
-          console.error('[DIAG] Error during playwright.chromium.launch:', launchError);
-          // Re-throw the specific launch error with more context
-          throw new Error(`Playwright launch failed within Vercel block: ${launchError instanceof Error ? launchError.message : launchError}`);
+          console.error('[DIAG] Error during puppeteer.launch:', launchError);
+          throw new Error(`Puppeteer launch failed within Vercel block: ${launchError instanceof Error ? launchError.message : launchError}`);
       }
 
     } else {
-      // Local development launch
-      console.log('[DIAG] Local environment detected. Using local Playwright chromium installation');
+      // Local development launch - Attempt standard Puppeteer launch
+      // Note: Assumes puppeteer (full) or chrome is available locally
+      console.log('[DIAG] Local environment detected. Attempting local Puppeteer/Chrome launch');
       try {
-          browser = await playwright.chromium.launch({
-            headless: true,
+          // Use puppeteer-core which requires a local chrome install usually
+          // Or specify playwright's chrome if needed
+          browser = await puppeteer.launch({
+             headless: true,
+             // executablePath: require('playwright').chromium.executablePath() // Optional: Force playwright's local chrome
           });
-          console.log('[DIAG] Local playwright.chromium.launch successful.');
+          console.log('[DIAG] Local puppeteer.launch successful.');
       } catch (localLaunchError) {
-          console.error('[DIAG] Error during local playwright.chromium.launch:', localLaunchError);
-          throw new Error(`Local Playwright launch failed: ${localLaunchError instanceof Error ? localLaunchError.message : localLaunchError}`);
+          console.error('[DIAG] Error during local puppeteer.launch:', localLaunchError);
+          throw new Error(`Local Puppeteer launch failed: ${localLaunchError instanceof Error ? localLaunchError.message : localLaunchError}`);
       }
     }
     
-    // Return browser wrapper
+    // Return browser wrapper - adapted for Puppeteer
     console.log('[DIAG] Browser launch process seemingly successful. Returning browser wrapper.')
     return {
       newPage: async () => {
-        const context = await browser.newContext({
-          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          viewport: { width: 1920, height: 1080 },
-        });
+        const page: PuppeteerPage = await browser.newPage();
         
-        const page = await context.newPage();
+        // Set User Agent and Viewport
+        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1920, height: 1080 });
         
-        // Set timeout for navigation - shorter for Vercel
+        // Set timeout for navigation
         page.setDefaultNavigationTimeout(isVercel ? 20000 : 30000);
         
-        // Create wrapped page with our interface
+        // Create wrapped page with our interface (API is very similar)
         const wrappedPage: BrowserPage = {
           goto: async (url, options) => await page.goto(url, options),
           waitForSelector: async (selector, options) => await page.waitForSelector(selector, options),
-          evaluate: async <T = any>(fnOrSelector: Function | string, ...args: any[]): Promise<T> => {
+          evaluate: async <T = any>(fn: Function | string, ...args: any[]): Promise<T> => {
             try {
-              return await page.evaluate(fnOrSelector as any, ...args);
+              // Puppeteer expects a function for evaluate
+              if (typeof fn === 'string') {
+                  // Basic handling if a string selector is passed; adjust if needed
+                  console.warn('[DIAG] evaluate called with string, direct execution not standard in Puppeteer');
+                  return await page.evaluate(new Function(fn) as any, ...args);
+              } 
+              return await page.evaluate(fn as any, ...args);
             } catch (error) {
               console.error('Evaluate error:', error);
               throw error;
@@ -136,7 +136,8 @@ export async function launchBrowser(): Promise<Browser> {
           $$: async (selector) => await page.$$(selector),
           setDefaultNavigationTimeout: (timeout) => page.setDefaultNavigationTimeout(timeout),
           close: async () => {
-            await context.close();
+            // In Puppeteer, pages are closed directly, not contexts
+            await page.close();
           }
         };
         
