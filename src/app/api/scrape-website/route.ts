@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import cheerio from 'cheerio'; // Import cheerio for HTML parsing
+// import cheerio from 'cheerio'; // Remove top-level import
 
 // Disable caching to ensure fresh data
 export const dynamic = 'force-dynamic';
@@ -62,6 +62,7 @@ async function extractWithScrapingBee(url: string): Promise<{ success: boolean, 
     console.log(`Received HTML content from ScrapingBee for ${url}, length: ${htmlContent.length}`);
 
     // Use Cheerio to parse the HTML and extract basic data
+    const cheerio = require('cheerio'); // Use require inside the function
     const $ = cheerio.load(htmlContent);
     
     const title = $('title').first().text() || undefined;
