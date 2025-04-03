@@ -4,6 +4,7 @@
  */
 
 import * as playwright from 'playwright';
+import chromium from '@sparticuz/chromium-min'; // Import chromium for serverless
 
 // Detect if we're running on Vercel
 const isVercel = process.env.VERCEL === '1';
@@ -31,11 +32,32 @@ export interface Browser {
 export async function launchBrowser(): Promise<Browser> {
   console.log('Launching browser in', isVercel ? 'Vercel' : 'local environment');
   
+  let browser: playwright.Browser;
+  
   try {
-    // We'll use Playwright which works better in serverless environments
-    const browser = await playwright.chromium.launch({
-      headless: true,
-    });
+    if (isVercel) {
+      console.log('Using @sparticuz/chromium-min for Vercel environment');
+      const executablePath = await chromium.executablePath();
+      
+      if (!executablePath) {
+        throw new Error('Could not find Chromium executable for Vercel environment.');
+      }
+      
+      console.log(`Chromium executable path: ${executablePath}`);
+      console.log(`Chromium args: ${chromium.args.join(' ')}`);
+      
+      browser = await playwright.chromium.launch({
+        args: chromium.args,
+        executablePath: executablePath,
+        headless: true, // Ensure headless is true for Vercel
+      });
+    } else {
+      // Use standard Playwright launch for local development
+      console.log('Using local Playwright chromium installation');
+      browser = await playwright.chromium.launch({
+        headless: true,
+      });
+    }
     
     return {
       newPage: async () => {
