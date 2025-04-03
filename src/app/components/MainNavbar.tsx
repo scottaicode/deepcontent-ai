@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import MainLanguageSwitcher from '@/components/MainLanguageSwitcher';
+import DirectLanguageSwitcher from '@/components/DirectLanguageSwitcher';
 import { useLanguage } from './LanguageProvider';
 import { usePathname } from 'next/navigation';
 
@@ -67,7 +67,7 @@ const MainNavbar: React.FC = () => {
             
             {/* Language Switcher */}
             <div className="ml-2 pl-2 md:ml-4 md:pl-4 border-l border-gray-300 dark:border-gray-700">
-              <MainLanguageSwitcher />
+              <DirectLanguageSwitcher />
             </div>
           </div>
         </div>
