@@ -1,84 +1,79 @@
 'use client';
 
-// Ultra-direct language switcher - no dependencies on any context
-export default function MainLanguageSwitcher() {
-  // Get current language directly from document - MORE ROBUST VERSION
-  const getCurrentLanguage = () => {
-    if (typeof document === 'undefined') return 'en';
-    
-    // Check multiple sources with fallbacks
-    const htmlLang = document.documentElement.lang;
-    const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
-    const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
-    const localStorageLang = localStorage.getItem('language');
-    const localStoragePrefLang = localStorage.getItem('preferred_language');
-    
-    // Debug language sources (optional, can be removed for production)
-    console.log('[Header LanguageDebug] Language sources:', {
-      html: htmlLang,
-      cookieLang,
-      cookiePrefLang,
-      localStorageLang,
-      localStoragePrefLang,
-      allCookies: document.cookie
-    });
-    
-    return htmlLang || 
-           cookieLang ||
-           cookiePrefLang ||
-           localStorageLang ||
-           localStoragePrefLang ||
-           'en';
-  };
-  
-  const currentLang = getCurrentLanguage();
-  console.log('[Header LanguageDebug] Current language detected as:', currentLang);
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-  // Simplified language change with direct approach - always redirects to homepage
+// Language switcher using Next.js routing
+export default function MainLanguageSwitcher() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [currentLang, setCurrentLang] = useState('en');
+
+  // Determine current language on client-side mount
+  useEffect(() => {
+    const getLanguagePreference = () => {
+      if (typeof document === 'undefined') return 'en';
+      
+      // Prioritize cookie over document lang for consistency
+      const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
+      const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
+      const htmlLang = document.documentElement.lang;
+      
+      console.log('[Header LanguageDebug] Sources on mount:', {
+        html: htmlLang,
+        cookieLang,
+        cookiePrefLang
+      });
+      
+      return cookieLang || cookiePrefLang || htmlLang || 'en';
+    };
+    setCurrentLang(getLanguagePreference());
+  }, [pathname]); // Re-check if pathname changes
+
+  console.log('[Header LanguageDebug] Current language state:', currentLang);
+
+  // Switch language using Next.js router
   const switchToLanguage = (lang: string) => {
     if (lang === currentLang) return;
     
-    console.log(`[SimpleSwitcher] Switching language to: ${lang}`);
+    console.log(`[NextJsSwitcher] Attempting to switch language to: ${lang}`);
     
     try {
-      // Set all possible storage locations
-      localStorage.setItem('language', lang);
-      localStorage.setItem('preferred_language', lang);
-      console.log('[LanguageDebug] Updated localStorage values');
-
-      // Set cookies with maximum reliability
+      // Set cookies to persist preference across reloads/sessions
       document.cookie = `language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
       document.cookie = `preferred_language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
-      console.log('[LanguageDebug] Set cookies:', document.cookie);
+      console.log('[LanguageDebug] Set cookies for preference:', document.cookie);
 
-      // Set HTML lang
-      document.documentElement.lang = lang;
-      console.log('[LanguageDebug] Set HTML lang attribute to:', document.documentElement.lang);
-
-      // Force hard reload with URL parameters to bypass caching
-      const url = new URL(window.location.href);
-      // Check for redirect loop by looking at URL - simple version for header
-      const redirectCount = parseInt(url.searchParams.get('redirect_count') || '0');
-      if (redirectCount > 2) {
-        console.error(`[LanguageDebug] Too many redirects detected (${redirectCount}). Stopping redirect chain.`);
-        // Optionally alert the user or handle differently in header
-        return; 
+      // Ensure pathname is valid before pushing
+      if (!pathname) {
+        console.error('[NextJsSwitcher] Pathname is not available. Cannot switch language.');
+        return;
       }
+
+      // Remove existing locale prefix if present (e.g., /en/path -> /path)
+      const basePathname = pathname.startsWith('/en/') ? pathname.substring(3) : 
+                         pathname.startsWith('/es/') ? pathname.substring(3) : 
+                         pathname;
       
-      // Clear any existing redirect-related params
-      url.searchParams.delete('t');
-      url.searchParams.delete('lang');
+      // Construct the new URL with the target locale prefix
+      // Ensure basePathname starts with a slash if it's not empty
+      const targetPath = lang === 'en' ? `/en${basePathname.startsWith('/') ? '' : '/'}${basePathname}` 
+                                    : `/es${basePathname.startsWith('/') ? '' : '/'}${basePathname}`;
 
-      // Set language and redirect counter parameters
-      url.searchParams.set('lang', lang);
-      url.searchParams.set('redirect_count', (redirectCount + 1).toString());
-      url.searchParams.set('t', Date.now().toString());
+      console.log(`[NextJsSwitcher] Navigating to new locale path: ${targetPath}`);
+      
+      // Use router.push with the new path
+      router.push(targetPath);
 
-      const redirectUrl = url.toString();
-      console.log('[LanguageDebug] Redirecting to URL with lang parameter:', redirectUrl);
-      window.location.href = redirectUrl;
+      // Update state immediately for responsive UI
+      setCurrentLang(lang);
+      
+      console.log(`[NextJsSwitcher] router.push initiated for locale: ${lang}`);
+
     } catch (err) {
-      console.error('Error in language switch:', err);
+      console.error('Error in language switch using router:', err);
+      // Fallback or error handling if needed - maybe try reload?
+      // window.location.reload(); // Avoid if possible
     }
   };
 
