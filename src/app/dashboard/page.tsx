@@ -600,12 +600,20 @@ export default function DashboardPage() {
           </div>
         ) : error ? (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center shadow">
-            <p className="text-red-800 dark:text-red-300">
-              {error}
-            </p>
+            {user && !user.emailVerified && error?.toLowerCase().includes('permission') ? (
+              // Specific message for unverified users with permission errors
+              <p className="text-yellow-800 dark:text-yellow-300 mb-3">
+                {t('auth.verificationRequiredForAccess', { defaultValue: 'Please verify your email address to access your content. Check your inbox for the verification email or click below to resend it.' })}
+              </p>
+            ) : (
+              // Generic error message
+              <p className="text-red-800 dark:text-red-300">
+                {t('dashboard.errorLoadingContent', { defaultValue: 'Error loading content:' })} {error}
+              </p>
+            )}
             <div className="mt-4 space-x-3">
               {/* Conditionally show resend button if user exists, isn't verified, and error indicates permission issue */}
-              {user && !user.emailVerified && error?.includes('permission-denied') && (
+              {user && !user.emailVerified && error?.toLowerCase().includes('permission') && (
                 <button
                   onClick={handleResendVerification}
                   className="px-4 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-md transition-colors"
