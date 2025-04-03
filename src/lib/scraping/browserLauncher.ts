@@ -46,35 +46,26 @@ export async function launchBrowser(): Promise<Browser> {
     if (isVercel) {
       console.log('[DIAG] Vercel environment detected. Preparing sparticuz/chromium for Puppeteer...');
       
-      // HOME and TMPDIR should be set to /tmp by previous steps, but we check executablePath directly
-      let executablePath: string | null = null;
-      try {
-        // console.log('[DIAG] Attempting to unpack chromium to /tmp...'); // Removed invalid unpack call
-        // await chromium.unpack(); 
-        // console.log('[DIAG] Unpack completed (or skipped if already present).');
+      // HOME and TMPDIR are set earlier
 
-        console.log('[DIAG] Attempting to get executablePath from chromium...');
-        executablePath = await chromium.executablePath();
-        console.log(`[DIAG] Chromium executablePath obtained: ${executablePath}`);
-      } catch (execPathError) {
-        console.error('[DIAG] Error getting executablePath from chromium:', execPathError);
-        throw new Error(`Failed to get chromium executable path: ${execPathError instanceof Error ? execPathError.message : execPathError}`);
-      }
+      // REMOVED executablePath logic - let Puppeteer try to find it
+      // try {
+      //   console.log('[DIAG] Attempting to get executablePath from chromium...');
+      //   executablePath = await chromium.executablePath();
+      //   console.log(`[DIAG] Chromium executablePath obtained: ${executablePath}`);
+      // } catch (execPathError) { ... }
+      // if (!executablePath) { ... }
       
-      if (!executablePath) {
-        throw new Error('Could not find Chromium executable for Vercel environment (executablePath is null).');
-      }
-      
-      // Combine args - Puppeteer uses slightly different args management
+      // Use args from chromium library
       const launchArgs = chromium.args;
       console.log(`[DIAG] Using args from chromium: ${launchArgs.join(' ')}`);
       
       try {
-          console.log('[DIAG] Attempting puppeteer.launch...');
+          console.log('[DIAG] Attempting puppeteer.launch (without explicit executablePath)...');
           browser = await puppeteer.launch({
             args: launchArgs, 
-            executablePath: executablePath,
-            headless: true, // Explicitly set headless: true for Vercel
+            // executablePath: executablePath, // REMOVED
+            headless: true, 
           });
           console.log('[DIAG] puppeteer.launch successful.');
       } catch(launchError) {
