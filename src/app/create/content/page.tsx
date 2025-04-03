@@ -73,11 +73,12 @@ const renderSimpleMarkdown = (text: string) => {
 
 // Loading state component for content generation
 const ContentGenerationLoading = () => {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-10">
       <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4"></div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-2">Creating your content...</h2>
-      <p className="text-gray-600">Please wait while we refine your content</p>
+      <h2 className="text-xl font-semibold text-gray-800 mb-2">{t('contentGeneration.preparingContent', { defaultValue: 'Creating your content...' })}</h2>
+      <p className="text-gray-600">{t('contentGeneration.creatingWithPersona', { defaultValue: 'Please wait while we refine your content' })}</p>
     </div>
   );
 };
@@ -1416,7 +1417,10 @@ export default function ContentGenerator() {
                         </div>
                       </div>
                       <h3 className="mt-4 text-lg font-medium text-gray-900">
-                        {statusMessage || `Creating content with ${getFormattedPersonaName(currentPersona || contentSettings.style)}...`}
+                        {statusMessage || t('contentGeneration.creatingWith', { 
+                          defaultValue: 'Creating content with {persona}...', 
+                          persona: getFormattedPersonaName(currentPersona || contentSettings.style) 
+                        })}
                       </h3>
                       <p className="mt-2 text-sm text-gray-500">
                         {t('contentGeneration.waitingMessageImproved', { 

@@ -58,7 +58,9 @@
     "showMore": "Show More",
     "showLess": "Show Less",
     "whatToDo": "What to do:",
-    "comingSoon": "Coming Soon"
+    "comingSoon": "Coming Soon",
+    "yes": "Yes",
+    "no": "No"
   },
   "navigation": {
     "home": "Home",
@@ -1213,6 +1215,7 @@
     "selectStyleText": "Select the writing style that best matches your needs",
     "preparingContent": "Preparing your content...",
     "waitingMessage": "Please wait while we refine your content",
+    "waitingMessageImproved": "Please wait while we craft your content. For large research datasets, this may take 3-5 minutes to ensure all important information is included.",
     "refining": "Refining...",
     "versionHistory": "Version History",
     "showHistory": "Show History",
@@ -1229,7 +1232,8 @@
     "exportAsText": "Export as Text",
     "saveToPanel": "Save to Dashboard",
     "creatingWith": "Creating content with {persona}...",
-    "regenerateText": "Regenerate Content"
+    "regenerateText": "Regenerate Content",
+    "creatingWithPersona": "Please wait while we refine your content"
   },
   "refineContent": {
     "title": "Refine Content",
