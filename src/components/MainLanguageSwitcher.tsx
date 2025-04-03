@@ -14,19 +14,42 @@ export default function MainLanguageSwitcher() {
     console.log(`[SimpleSwitcher] Switching language to: ${lang}`);
     
     try {
-      // Store the selected language in both storage types
-      localStorage.setItem('preferred_language', lang);
+      // Set all possible storage locations
       localStorage.setItem('language', lang);
-      
-      // Set cookies directly
+      localStorage.setItem('preferred_language', lang);
+      console.log('[LanguageDebug] Updated localStorage values');
+
+      // Set cookies with maximum reliability
       document.cookie = `language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
       document.cookie = `preferred_language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
-      
-      // Set the HTML attribute manually
+      console.log('[LanguageDebug] Set cookies:', document.cookie);
+
+      // Set HTML lang
       document.documentElement.lang = lang;
+      console.log('[LanguageDebug] Set HTML lang attribute to:', document.documentElement.lang);
+
+      // Force hard reload with URL parameters to bypass caching
+      const url = new URL(window.location.href);
+      // Check for redirect loop by looking at URL - simple version for header
+      const redirectCount = parseInt(url.searchParams.get('redirect_count') || '0');
+      if (redirectCount > 2) {
+        console.error(`[LanguageDebug] Too many redirects detected (${redirectCount}). Stopping redirect chain.`);
+        // Optionally alert the user or handle differently in header
+        return; 
+      }
       
-      // Always redirect to homepage with language parameter
-      window.location.href = `/${lang === 'es' ? '?lang=es' : ''}`;
+      // Clear any existing redirect-related params
+      url.searchParams.delete('t');
+      url.searchParams.delete('lang');
+
+      // Set language and redirect counter parameters
+      url.searchParams.set('lang', lang);
+      url.searchParams.set('redirect_count', (redirectCount + 1).toString());
+      url.searchParams.set('t', Date.now().toString());
+
+      const redirectUrl = url.toString();
+      console.log('[LanguageDebug] Redirecting to URL with lang parameter:', redirectUrl);
+      window.location.href = redirectUrl;
     } catch (err) {
       console.error('Error in language switch:', err);
     }
