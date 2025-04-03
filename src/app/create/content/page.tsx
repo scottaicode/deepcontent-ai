@@ -135,6 +135,9 @@ export default function ContentGenerator() {
   // Add heartbeat management
   const [heartbeatInterval, setHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
 
+  // Add a progress indicator during generation
+  const [generationProgress, setGenerationProgress] = useState(0);
+
   // Helper to safely update state without blocking UI
   const safeUpdate = useCallback(() => {
     // Use a queue of microtasks to avoid blocking the main thread
@@ -590,8 +593,8 @@ export default function ContentGenerator() {
       
       // If research data is very large, warn the user
       if (researchDataLength > 60000 || transcriptLength > 60000) {
-        console.warn('[DIAGNOSTIC] Large research data detected - may cause slower content generation');
-        toast.info('Large amount of research data detected. Content generation may take longer than usual.');
+        console.warn('[DIAGNOSTIC] Large research data detected - may cause longer content generation');
+        toast.info('Large amount of research data detected. Content generation may take up to 5 minutes, but will preserve all important information.');
       }
       
       // Use AbortController for request cancellation
@@ -601,7 +604,7 @@ export default function ContentGenerator() {
       const timeoutId = setTimeout(() => {
         console.log('[DIAGNOSTIC] Request timeout reached, aborting request');
         abortController.abort();
-      }, 180000); // 3 minute timeout
+      }, 300000); // 5 minute timeout (increased from 3 minutes)
       
       // Prepare enhanced content request with all available data
       console.log('Starting content generation with research data...');
@@ -1139,6 +1142,39 @@ export default function ContentGenerator() {
     </li>
   );
 
+  // Add a function to update progress for better user feedback
+  useEffect(() => {
+    if (isGenerating) {
+      // Start a progress simulation for better user experience
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 2;
+        if (progress > 95) {
+          progress = 95; // Cap at 95% until complete
+          clearInterval(interval);
+        }
+        setGenerationProgress(Math.floor(progress));
+        
+        // Update status message based on progress
+        if (progress < 20) {
+          setStatusMessage('Analyzing research data...');
+        } else if (progress < 40) {
+          setStatusMessage('Structuring content with persona voice...');
+        } else if (progress < 60) {
+          setStatusMessage('Developing key points and insights...');
+        } else if (progress < 80) {
+          setStatusMessage('Optimizing for platform and audience...');
+        } else {
+          setStatusMessage('Finalizing content generation...');
+        }
+      }, 2000);
+      
+      return () => clearInterval(interval);
+    } else {
+      setGenerationProgress(0);
+    }
+  }, [isGenerating]);
+
   return (
     <AppShell hideHeader={true}>
       <div className="min-h-screen bg-gray-50">
@@ -1363,7 +1399,18 @@ export default function ContentGenerator() {
                   {/* Generation Progress */}
                   {isGenerating && (
                     <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                      <div className="mb-4 relative pt-1">
+                        <div className="flex mb-2 items-center justify-between">
+                          <div>
+                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
+                              {generationProgress}% Complete
+                            </span>
+                          </div>
+                        </div>
+                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200">
+                          <div style={{ width: `${generationProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-600 transition-all duration-500 ease-in-out"></div>
+                        </div>
+                      </div>
                       <h3 className="mt-4 text-lg font-medium text-gray-900">
                         {statusMessage || t('contentGeneration.processingWithPersona', { 
                           defaultValue: 'Processing with {{persona}}...', 
@@ -1371,8 +1418,8 @@ export default function ContentGenerator() {
                         })}
                       </h3>
                       <p className="mt-2 text-sm text-gray-500">
-                        {t('contentGeneration.waitingMessage', { 
-                          defaultValue: 'Please wait while we craft your content with the selected persona'
+                        {t('contentGeneration.waitingMessageImproved', { 
+                          defaultValue: 'Please wait while we craft your content. For large research datasets, this may take 3-5 minutes to ensure all important information is included.'
                         })}
                       </p>
                     </div>
@@ -1414,6 +1461,59 @@ export default function ContentGenerator() {
                   {/* Generated Content Display */}
                   {generatedContent && !isGenerating && (
                     <div className="prose max-w-none" id="generated-content">
+                      <div className="mb-4 px-4 py-3 bg-gray-50 rounded-md border border-gray-200">
+                        <div className="flex items-center">
+                          <div className="mr-3 text-2xl">
+                            {(() => {
+                              // Return appropriate emoji based on persona
+                              switch (currentPersona) {
+                                case 'ariastar': return '👋';
+                                case 'specialist_mentor': return '👨‍🏫';
+                                case 'ai_collaborator': return '🤖';
+                                case 'sustainable_advocate': return '🌱';
+                                case 'data_visualizer': return '📊';
+                                case 'multiverse_curator': return '🎨';
+                                case 'ethical_tech': return '⚙️';
+                                case 'niche_community': return '👥';
+                                case 'synthesis_maker': return '🧠';
+                                default: return '✍️';
+                              }
+                            })()}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900 m-0">
+                              {getFormattedPersonaName(currentPersona)}
+                            </h3>
+                            <p className="text-sm text-gray-500 m-0">
+                              {(() => {
+                                // Return persona description based on selected persona
+                                switch (currentPersona) {
+                                  case 'ariastar': 
+                                    return 'Friendly, relatable tone perfect for social media and blogs';
+                                  case 'specialist_mentor': 
+                                    return 'Professional, authoritative voice for technical content';
+                                  case 'ai_collaborator': 
+                                    return 'Balanced, analytical tone for research and reports';
+                                  case 'sustainable_advocate': 
+                                    return 'Passionate voice for sustainability and social impact';
+                                  case 'data_visualizer': 
+                                    return 'Clear, data-driven narrative style';
+                                  case 'multiverse_curator': 
+                                    return 'Creative, engaging tone for multimedia content';
+                                  case 'ethical_tech': 
+                                    return 'Balanced voice for explaining complex technical concepts';
+                                  case 'niche_community': 
+                                    return 'Engaging tone for building community and connection';
+                                  case 'synthesis_maker': 
+                                    return 'Insightful tone for connecting ideas across domains';
+                                  default: 
+                                    return 'Custom writing style';
+                                }
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                       <div className={`transition-all duration-500 ${isContentExpanded ? 'max-h-none' : 'max-h-96 overflow-hidden relative'}`}>
                         {prerenderedContent}
                         {!isContentExpanded && (

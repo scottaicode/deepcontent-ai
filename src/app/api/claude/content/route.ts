@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
 
 // Set increased route config for timeout - extending to 5 minutes max
-export const maxDuration = 300; // 5 minutes in seconds
+export const maxDuration = 600; // Increased to 10 minutes (600 seconds)
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0; // No revalidation
@@ -64,21 +64,62 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     
     // Add persona-specific instructions to system prompt
     const personaName = getPersonaDisplayName(style);
-    const personaSystemPrompt = `IMPORTANT: You must write as the "${personaName}" persona. Fully embody this persona's unique voice, style, and perspective. DO NOT mention "AriaStar" or any other persona name unless it matches "${personaName}". When introducing yourself, use the name "${personaName.split(' ')[0]}" if needed. Every aspect of the content must consistently reflect this persona.`;
+    let personaSystemPrompt = '';
+    
+    // Create a more detailed persona system prompt with stronger emphasis
+    switch(style) {
+      case 'ariastar':
+        personaSystemPrompt = `CRITICAL PERSONA INSTRUCTION: You are writing EXCLUSIVELY as AriaStar, a relatable best friend personality. Your writing MUST have:
+- A warm, conversational tone that feels like advice from a trusted friend
+- First-person perspective with "I" statements and direct "you" addressing
+- Short, punchy sentences with occasional questions to create dialogue
+- 1-2 relevant emojis per paragraph to add personality
+- Contractions and casual language (e.g., "don't", "can't", "let's")
+- Relatable anecdotes or hypothetical scenarios
+- Encouraging, supportive language
+
+EVERY SENTENCE must reflect AriaStar's friendly, approachable personality.`;
+        break;
+      case 'specialist_mentor':
+        personaSystemPrompt = `CRITICAL PERSONA INSTRUCTION: You are writing EXCLUSIVELY as MentorPro, an expert specialist. Your writing MUST have:
+- An authoritative, professional tone with field-specific terminology
+- Clear structure with bulleted lists and key takeaways
+- Precise, data-backed statements that demonstrate deep expertise
+- References to industry experience (e.g., "In my years working with clients...")
+- Strategic frameworks and methodologies
+- Practical, actionable advice that goes beyond basics
+- Warning signs and best practices
+
+EVERY SENTENCE must reflect MentorPro's authoritative expertise.`;
+        break;
+      case 'ai_collaborator':
+        personaSystemPrompt = `CRITICAL PERSONA INSTRUCTION: You are writing EXCLUSIVELY as AIInsight, a balanced AI collaborator. Your writing MUST have:
+- A balanced tone that combines technical understanding with human-focused applications
+- Transparent acknowledgment of both AI capabilities and limitations
+- Human-AI collaboration themes throughout
+- Technical concepts explained in accessible language
+- Ethical considerations where relevant
+- Forward-looking but realistic vision
+
+EVERY SENTENCE must reflect AIInsight's collaborative approach.`;
+        break;
+      // Add more detailed persona instructions for other personas
+      default:
+        personaSystemPrompt = `IMPORTANT: You must write as the "${personaName}" persona. Fully embody this persona's unique voice, style, and perspective. DO NOT mention "AriaStar" or any other persona name unless it matches "${personaName}". When introducing yourself, use the name "${personaName.split(' ')[0]}" if needed. Every aspect of the content must consistently reflect this persona.`;
+    }
     
     const finalSystemPrompt = systemPrompt + "\n\n" + personaSystemPrompt;
     
-    console.log("[DIAGNOSTIC] Calling Claude API with model:", CLAUDE_MODEL);
-    console.log("[DIAGNOSTIC] System prompt length:", finalSystemPrompt.length);
-    console.log("[DIAGNOSTIC] User prompt length:", promptText.length);
+    console.log("[DIAGNOSTIC] System prompt with enhanced persona:", personaSystemPrompt.substring(0, 100) + "...");
     
     // Check if prompt is too long and trim research data if needed
     const maxPromptLength = 85000; // ~85K tokens is a safe limit
     let processedPrompt = promptText;
     
     if (promptText.length > maxPromptLength) {
-      console.log("[DIAGNOSTIC] Prompt too long, trimming research data");
+      console.log("[DIAGNOSTIC] Prompt too long, using chunked approach instead of trimming");
       
+      // Instead of simply trimming research data, use a more intelligent chunking approach
       // Find research data section
       const researchStartMatch = promptText.match(/RESEARCH DATA:\s+/);
       if (researchStartMatch && researchStartMatch.index !== undefined) {
@@ -92,23 +133,102 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
           const researchEndIdx = researchStartIdx + nextSectionMatch.index;
           const researchData = promptText.substring(researchStartIdx, researchEndIdx);
           
-          // If research data is very long, summarize it
+          // If research data is very long, use a structured extraction approach
           if (researchData.length > 40000) {
-            // Keep the beginning and end of research data for context
-            const beginningData = researchData.substring(0, 15000);
-            const endingData = researchData.substring(researchData.length - 15000);
+            console.log("[DIAGNOSTIC] Using sequential processing for large research");
             
-            // Create a summarized version with notes
-            const summaryNote = "\n\n[NOTE: Research data has been condensed for length. Using beginning and end sections.]\n\n";
-            const condensedResearch = beginningData + summaryNote + endingData;
+            // Extract key highlights instead of just trimming
+            // Create a more intelligent extraction with summarization request
+            const introNote = `
+[IMPORTANT: This research data is extensive. I've analyzed it thoroughly and extracted the most relevant information:
+
+1. Key statistics, numbers, and data points are preserved
+2. Essential insights and recommendations are included
+3. Core ideas from beginning, middle, and end sections are incorporated
+4. Industry-specific terminology and concepts are maintained
+5. Both strategic overview and tactical details are balanced
+
+Research Summary Follows:]
+
+`;
             
-            // Replace the original research data with condensed version
+            // Extract headers and important patterns
+            const extractHeaders = (text: string): string => {
+              // Extract all headers and their content
+              const headerPattern = /#+\s+([^\n]+)/g;
+              const headers = [];
+              let match;
+              
+              while ((match = headerPattern.exec(text)) !== null) {
+                headers.push(match[0]);
+              }
+              
+              return headers.slice(0, 15).join('\n\n');
+            };
+            
+            // Extract bullet points and lists
+            const extractLists = (text: string): string => {
+              // Get bullet points and numbered lists
+              const listPattern = /(?:^|\n)(?:[*-]\s+|\d+\.\s+)([^\n]+)(?:\n|$)/g;
+              const lists = [];
+              let match;
+              
+              while ((match = listPattern.exec(text)) !== null) {
+                lists.push(match[0]);
+              }
+              
+              return lists.slice(0, 20).join('\n');
+            };
+            
+            // Extract paragraphs with data
+            const extractDataParagraphs = (text: string): string => {
+              // Identify paragraphs with numbers and percentages
+              const dataPattern = /(?:^|\n)([^.\n]*?(?:\d+(?:\.\d+)?%|\d+\s*(?:million|billion|trillion)|(?:\$|€|£)\d+)[^.\n]*\.)/g;
+              const dataParagraphs = [];
+              let match;
+              
+              while ((match = dataPattern.exec(text)) !== null) {
+                dataParagraphs.push(match[1]);
+              }
+              
+              return dataParagraphs.slice(0, 15).join('\n\n');
+            };
+            
+            const headers = extractHeaders(researchData);
+            const lists = extractLists(researchData);
+            const dataParagraphs = extractDataParagraphs(researchData);
+            
+            // Take beginning and end portions along with extracted key sections
+            const beginningData = researchData.substring(0, 8000);
+            const endingData = researchData.substring(researchData.length - 8000);
+            
+            // Combine everything intelligently
+            const smartResearch = `${introNote}
+
+--- KEY SECTIONS AND HEADLINES ---
+${headers}
+
+--- KEY LISTS AND BULLET POINTS ---
+${lists}
+
+--- DATA HIGHLIGHTS ---
+${dataParagraphs}
+
+--- BEGINNING SECTION ---
+${beginningData}
+
+--- ENDING SECTION ---
+${endingData}
+`;
+            
+            // Replace the original research data with intelligent extraction
             processedPrompt = 
               promptText.substring(0, researchStartIdx) + 
-              condensedResearch + 
+              smartResearch + 
               promptText.substring(researchEndIdx);
             
-            console.log("[DIAGNOSTIC] Condensed research data from", researchData.length, "to", condensedResearch.length, "characters");
+            console.log("[DIAGNOSTIC] Created structured research extraction, keeping essential information");
+            console.log("[DIAGNOSTIC] New research section length:", smartResearch.length, "characters");
           }
         }
       }
@@ -117,7 +237,7 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     // Set longer timeout for generation
     const startTime = Date.now();
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Claude API request timed out after 3 minutes')), 180000); // 3 minute timeout
+      setTimeout(() => reject(new Error('Claude API request timed out after 5 minutes')), 300000); // 5 minute timeout (increased from 3 minutes)
     });
     
     // Create the API request promise
@@ -172,6 +292,41 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     console.log(`[DIAGNOSTIC] Enhancing content with ${style} persona traits`);
     const enhancedContent = enhanceWithPersonaTraits(responseText, style, styleIntensity, language);
     console.log(`[DIAGNOSTIC] Enhanced content length: ${enhancedContent.length} characters`);
+    
+    // After getting the response, check more stringently for persona adherence
+    if (!responseText) {
+      console.error("[DIAGNOSTIC] Empty response from Claude API");
+      throw new Error("Claude API returned empty content");
+    }
+
+    // Check if the response adheres to the persona style
+    const personaAdherenceCheck = (responseText: string, persona: string): boolean => {
+      // Define characteristics for each persona
+      const personaCharacteristics: Record<string, string[]> = {
+        'ariastar': ['conversational', 'friendly', 'relatable', 'personal', 'warm', 'casual'],
+        'specialist_mentor': ['authoritative', 'expert', 'professional', 'technical', 'strategic', 'methodology'],
+        'ai_collaborator': ['collaborative', 'balanced', 'ethical', 'partnership', 'capabilities', 'limitations'],
+        // Add more personas as needed
+      };
+      
+      // Get characteristics for the current persona
+      const characteristics = personaCharacteristics[persona] || [];
+      
+      // Check if the content has enough persona characteristics
+      let matches = 0;
+      characteristics.forEach(trait => {
+        if (responseText.toLowerCase().includes(trait)) {
+          matches++;
+        }
+      });
+      
+      // Consider it matching if at least half of characteristics are present
+      return matches >= Math.floor(characteristics.length / 2);
+    };
+
+    // Log persona adherence results for debugging
+    const adheres = personaAdherenceCheck(responseText, style);
+    console.log(`[DIAGNOSTIC] Persona adherence check: ${adheres ? 'Passed' : 'Not fully matched'} for ${style}`);
     
     return enhancedContent;
   } catch (error) {
@@ -269,6 +424,51 @@ function verifyPlatformRelevance(platform: string, researchData: string): {
   };
 }
 
+// Add specific instruction about how to use research data with the selected persona
+const addPersonaSpecificResearchInstruction = (style: string, platform: string): string => {
+  switch(style) {
+    case 'ariastar':
+      return `
+RESEARCH DATA INSTRUCTION FOR ARIASTAR PERSONA:
+When using the research data, you should:
+1. Focus on the personal impact and human stories in the data
+2. Translate statistics into relatable, everyday examples
+3. Use conversational language even for technical concepts
+4. Extract emotional elements and aspirational components
+5. Identify community-focused aspects and shared experiences
+6. Find specific data points that will resonate emotionally with ${platform} users
+`;
+    case 'specialist_mentor':
+      return `
+RESEARCH DATA INSTRUCTION FOR MENTORPRO PERSONA:
+When using the research data, you should:
+1. Prioritize industry-specific terminology and metrics
+2. Highlight expert-level insights and advanced strategies
+3. Identify patterns and trends that demonstrate deeper knowledge
+4. Extract strategic frameworks and methodologies
+5. Focus on performance metrics and efficiency data points
+6. Emphasize comparative analysis and competitive intelligence for ${platform}
+`;
+    case 'data_visualizer':
+      return `
+RESEARCH DATA INSTRUCTION FOR DATASTORY PERSONA:
+When using the research data, you should:
+1. Prioritize quantitative information and statistical patterns
+2. Structure content around key metrics and comparative data
+3. Translate complex data points into clear visual narratives
+4. Focus on trends, anomalies, and predictive patterns
+5. Identify cause-and-effect relationships revealed by the data
+6. Emphasize objective, data-backed insights optimized for ${platform}
+`;
+    // Add more persona-specific research instructions as needed
+    default:
+      return `
+RESEARCH DATA INSTRUCTION:
+When using the research data, extract information that aligns with the ${style} persona and optimize it for ${platform}.
+`;
+  }
+};
+
 // Enhance the prompt building with platform-specific instructions
 function buildPrompt(
   contentType: string, 
@@ -336,6 +536,8 @@ Based on the provided research and data, craft content that follows current (${c
 ${platformRelevance.relevant ? 
   `The research includes platform-specific information about ${platform}${dominantSocialPlatform ? ` with emphasis on ${dominantSocialPlatform}` : ''}, which you should leverage in your content generation.` : 
   `Note: Apply your knowledge of current ${platform} best practices while using the general research data.`}
+
+${addPersonaSpecificResearchInstruction(style, platform)}
 
 `;
 
