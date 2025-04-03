@@ -30,56 +30,76 @@ export interface Browser {
  * Launch a headless browser that works in both Vercel and local environments
  */
 export async function launchBrowser(): Promise<Browser> {
-  console.log('Launching browser in', isVercel ? 'Vercel' : 'local environment');
-  
+  // Log environment details immediately
+  console.log('[DIAG] launchBrowser called.');
+  console.log('[DIAG] isVercel:', isVercel);
+  console.log('[DIAG] CWD:', process.cwd());
+  console.log('[DIAG] Env HOME:', process.env.HOME);
+  console.log('[DIAG] Env PWD:', process.env.PWD);
+  console.log('[DIAG] Env LAMBDA_TASK_ROOT:', process.env.LAMBDA_TASK_ROOT);
+  console.log('[DIAG] Env TMPDIR:', process.env.TMPDIR);
+  console.log('[DIAG] Env XDG_CACHE_HOME:', process.env.XDG_CACHE_HOME);
+  console.log('[DIAG] Env XDG_CONFIG_HOME:', process.env.XDG_CONFIG_HOME);
+  console.log('[DIAG] Env XDG_DATA_HOME:', process.env.XDG_DATA_HOME);
+
   let browser: playwright.Browser;
   
   try {
     if (isVercel) {
-      console.log('Using @sparticuz/chromium-min for Vercel environment');
-      const executablePath = await chromium.executablePath();
-      
-      if (!executablePath) {
-        throw new Error('Could not find Chromium executable for Vercel environment.');
+      console.log('[DIAG] Vercel environment detected. Preparing sparticuz/chromium...');
+      let executablePath: string | null = null;
+      try {
+        console.log('[DIAG] Attempting to get executablePath from chromium...');
+        executablePath = await chromium.executablePath();
+        console.log(`[DIAG] Chromium executablePath obtained: ${executablePath}`);
+      } catch (execPathError) {
+        console.error('[DIAG] Error getting executablePath from chromium:', execPathError);
+        throw new Error(`Failed to get chromium executable path: ${execPathError instanceof Error ? execPathError.message : execPathError}`);
       }
       
-      console.log(`Chromium executable path: ${executablePath}`);
-      // console.log(`Chromium args: ${chromium.args.join(' ')}`); // Redundant now
+      if (!executablePath) {
+        throw new Error('Could not find Chromium executable for Vercel environment (executablePath is null).');
+      }
       
-      // Combine args from library with the user-data-dir arg for Vercel
+      // Combine args
       const launchArgs = [
         ...chromium.args,
-        '--user-data-dir=/tmp/chromium-user-data', // Use /tmp for user data
-        '--data-path=/tmp/chromium-data-path',      // Use /tmp for data path
-        '--disk-cache-dir=/tmp/chromium-cache-dir'  // Use /tmp for cache
+        '--user-data-dir=/tmp/chromium-user-data',
+        '--data-path=/tmp/chromium-data-path',      
+        '--disk-cache-dir=/tmp/chromium-cache-dir'  
       ];
+      console.log(`[DIAG] Final launch args: ${launchArgs.join(' ')}`);
       
-      console.log(`Final launch args: ${launchArgs.join(' ')}`);
+      try {
+          console.log('[DIAG] Attempting playwright.chromium.launch...');
+          browser = await playwright.chromium.launch({
+            args: launchArgs, 
+            executablePath: executablePath,
+            headless: true, 
+          });
+          console.log('[DIAG] playwright.chromium.launch successful.');
+      } catch(launchError) {
+          console.error('[DIAG] Error during playwright.chromium.launch:', launchError);
+          // Re-throw the specific launch error with more context
+          throw new Error(`Playwright launch failed within Vercel block: ${launchError instanceof Error ? launchError.message : launchError}`);
+      }
 
-      // Log environment details before launch
-      console.log('Current Working Directory:', process.cwd());
-      console.log('Env HOME:', process.env.HOME);
-      console.log('Env PWD:', process.env.PWD);
-      console.log('Env LAMBDA_TASK_ROOT:', process.env.LAMBDA_TASK_ROOT);
-      console.log('Env TMPDIR:', process.env.TMPDIR);
-      console.log('Env XDG_CACHE_HOME:', process.env.XDG_CACHE_HOME);
-      console.log('Env XDG_CONFIG_HOME:', process.env.XDG_CONFIG_HOME);
-      console.log('Env XDG_DATA_HOME:', process.env.XDG_DATA_HOME);
-      console.log('Attempting browser launch...');
-
-      browser = await playwright.chromium.launch({
-        args: launchArgs, // Use combined args
-        executablePath: executablePath,
-        headless: true, // Ensure headless is true for Vercel
-      });
     } else {
-      // Use standard Playwright launch for local development
-      console.log('Using local Playwright chromium installation');
-      browser = await playwright.chromium.launch({
-        headless: true,
-      });
+      // Local development launch
+      console.log('[DIAG] Local environment detected. Using local Playwright chromium installation');
+      try {
+          browser = await playwright.chromium.launch({
+            headless: true,
+          });
+          console.log('[DIAG] Local playwright.chromium.launch successful.');
+      } catch (localLaunchError) {
+          console.error('[DIAG] Error during local playwright.chromium.launch:', localLaunchError);
+          throw new Error(`Local Playwright launch failed: ${localLaunchError instanceof Error ? localLaunchError.message : localLaunchError}`);
+      }
     }
     
+    // Return browser wrapper
+    console.log('[DIAG] Browser launch process seemingly successful. Returning browser wrapper.')
     return {
       newPage: async () => {
         const context = await browser.newContext({
@@ -119,10 +139,10 @@ export async function launchBrowser(): Promise<Browser> {
         await browser.close();
       }
     };
+
   } catch (error: unknown) {
-    console.error('Failed to launch browser:', error);
-    
-    // Handle the error with proper type checking
+    // Catch errors from getting executablePath or the specific launch blocks
+    console.error('[DIAG] Overall error in launchBrowser:', error);
     if (error instanceof Error) {
       throw new Error(`Browser launch failed: ${error.message}`);
     } else {
