@@ -37,18 +37,18 @@ interface ExtractedData {
 
 // Define keywords for priority link finding based on context
 const CONTEXT_KEYWORDS: Record<string, string[]> = {
-  product: ['product', 'shop', 'store', 'item', 'collection', 'catalog', 'merch'],
-  service: ['service', 'offering', 'solution', 'capability', 'platform'],
-  pricing: ['price', 'pricing', 'plan', 'cost', 'subscribe', 'buy'],
-  about: ['about', 'company', 'story', 'mission', 'team', 'who-we-are'],
-  contact: ['contact', 'support', 'help', 'reach', 'connect'],
-  blog: ['blog', 'article', 'news', 'update', 'insight'],
+  product: ['product', 'shop', 'store', 'item', 'collection', 'catalog', 'merch', 'gear'],
+  service: ['service', 'offering', 'solution', 'capability', 'platform', 'feature', 'benefit'],
+  pricing: ['price', 'pricing', 'plan', 'cost', 'subscribe', 'buy', 'purchase', 'invest', 'opportunity', 'compensation', 'pay'],
+  about: ['about', 'company', 'story', 'mission', 'team', 'who-we-are', 'values', 'founder'],
+  contact: ['contact', 'support', 'help', 'reach', 'connect', 'location', 'address'],
+  blog: ['blog', 'article', 'news', 'update', 'insight', 'resource', 'learn'],
 };
 
 // Function to get context keywords based on request context
 function getPriorityKeywords(context?: ScrapingRequest['context']): string[] {
   const keywords = new Set<string>();
-  // Always include basic priorities
+  // Always include basic priorities with lower initial weight
   for (const k of CONTEXT_KEYWORDS.about) { keywords.add(k); }
   for (const k of CONTEXT_KEYWORDS.contact) { keywords.add(k); }
 
@@ -59,20 +59,22 @@ function getPriorityKeywords(context?: ScrapingRequest['context']): string[] {
   const subPlatformLower = (context.subPlatform || '').toLowerCase();
   const audienceNeedsLower = (context.audienceNeeds || '').toLowerCase();
 
-  if (topicLower.includes('product') || topicLower.includes('item') || topicLower.includes('shop')) {
+  // Add context-specific keywords
+  if (topicLower.includes('product') || topicLower.includes('item') || topicLower.includes('shop') || topicLower.includes('gear')) {
     CONTEXT_KEYWORDS.product.forEach(k => keywords.add(k));
-    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k));
+    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k)); // Products often relate to pricing
   }
-  if (topicLower.includes('service') || topicLower.includes('solution')) {
+  if (topicLower.includes('service') || topicLower.includes('solution') || topicLower.includes('feature') || topicLower.includes('benefit')) {
     CONTEXT_KEYWORDS.service.forEach(k => keywords.add(k));
-    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k));
+    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k)); // Services often relate to pricing
   }
-  if (platformLower.includes('blog') || subPlatformLower.includes('blog')) {
+  if (platformLower.includes('blog') || subPlatformLower.includes('blog') || topicLower.includes('article')) {
     CONTEXT_KEYWORDS.blog.forEach(k => keywords.add(k));
   }
-  if (audienceNeedsLower.includes('price') || audienceNeedsLower.includes('cost')) {
+  if (audienceNeedsLower.includes('price') || audienceNeedsLower.includes('cost') || audienceNeedsLower.includes('invest') || audienceNeedsLower.includes('opportunity') || audienceNeedsLower.includes('compensation')) {
     CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k));
   }
+  // Add more conditions based on platform, targetAudience, etc. if needed
 
   console.log('[DIAG] Priority Keywords based on context:', Array.from(keywords));
   return Array.from(keywords);
@@ -122,6 +124,7 @@ async function extractWithScrapingBee(url: string, context?: ScrapingRequest['co
     // 2. Extract & Prioritize Links
     const internalLinks = new Map<string, number>(); // url -> score
     const priorityKeywords = getPriorityKeywords(context);
+    const defaultKeywords = new Set([...CONTEXT_KEYWORDS.about, ...CONTEXT_KEYWORDS.contact]); // Create set of default keywords
     
     $('a[href]').each((i, el) => {
       const href = $(el).attr('href');
@@ -130,14 +133,15 @@ async function extractWithScrapingBee(url: string, context?: ScrapingRequest['co
       try {
         const absoluteUrl = new URL(href, url).toString().split('#')[0].split('?')[0]; // Normalize
         if (new URL(absoluteUrl).hostname === baseDomain && absoluteUrl !== url) {
-          let score = 1; // Base score for internal link
+          let score = 1; 
           const linkText = $(el).text().toLowerCase();
           const urlLower = absoluteUrl.toLowerCase();
 
           // Score based on keywords
           priorityKeywords.forEach(keyword => {
+            const isDefaultKeyword = defaultKeywords.has(keyword); // Check if it's a default keyword
             if (urlLower.includes(keyword) || linkText.includes(keyword)) {
-              score += 5; // Higher score for keyword match
+              score += isDefaultKeyword ? 3 : 6; // Give higher score for context-specific keywords
             }
           });
 

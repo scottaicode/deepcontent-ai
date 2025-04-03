@@ -16,6 +16,7 @@ import DocumentAnalysis, { DocumentAnalysisResult } from './DocumentAnalysis';
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { platformToContentType, subPlatformToContentType, getContentTypeFromPlatform } from '@/app/lib/contentTypeDetection';
+import { BiWorld } from 'react-icons/bi';
 
 interface ContentFormProps {
   onSuccess?: () => void;
@@ -1040,7 +1041,23 @@ export const ContentForm: React.FC<ContentFormProps> = ({
         
         {/* Website Analysis */}
         <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-lg mt-6">
-          <WebsiteAnalysis onScrapedContent={handleWebsiteContent} />
+          <h3 className="text-lg font-medium mb-3 flex items-center">
+            <BiWorld className="mr-2" />
+            {t('platformOptions.website', { defaultValue: 'Website Analysis' })}
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            {t('websiteAnalysis.description', { defaultValue: 'Extract information from company websites to enhance your research.' })}
+          </p>
+          <WebsiteAnalysis 
+            onScrapedContent={handleWebsiteContent}
+            contentContext={{
+              topic: title,
+              platform: platform,
+              subPlatform: subPlatform,
+              targetAudience: targetAudience,
+              audienceNeeds: audienceNeeds
+            }}
+          />
         </div>
         
         {/* Divider */}

@@ -921,20 +921,27 @@ const WebsiteAnalysis: React.FC<WebsiteAnalysisProps> = ({ onScrapedContent }) =
           </div>
           
           <div className="ml-2">
-            <select 
-              value={maxDepth} 
+            {/* Remove Important pages dropdown and associated elements */}
+            {/* 
+            <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+              <BiNetworkChart className="mr-1" />
+              {t('websiteAnalysis.crawlInfo', { defaultValue: 'Will crawl links for comprehensive analysis' })}
+            </div>
+            */}
+            {/*
+            <select
+              value={maxDepth}
               onChange={handleMaxDepthChange}
-              className="p-2 border border-gray-300 rounded dark:bg-gray-800 dark:border-gray-700 dark:text-white min-w-[200px]"
               disabled={isLoading}
+              className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value={1}>{t('websiteAnalysis.mainPage', { defaultValue: 'Main page' })}</option>
-              <option value={2}>{t('websiteAnalysis.importantPages', { defaultValue: 'Important pages' })}</option>
-              <option value={3}>{t('websiteAnalysis.fullSite', { defaultValue: 'Full site' })}</option>
+              <option value={1}>{t('websiteAnalysis.depth.homeOnly', { defaultValue: 'Home page only' })}</option>
+              <option value={2}>{t('websiteAnalysis.depth.importantPages', { defaultValue: 'Important pages (About, Contact, etc.)' })}</option>
+              <option value={3}>{t('websiteAnalysis.depth.comprehensive', { defaultValue: 'More comprehensive (up to 5 pages)' })}</option>
             </select>
-          </div>
-          
-          <div className="ml-2">
+            */}
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={isLoading}
               className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
