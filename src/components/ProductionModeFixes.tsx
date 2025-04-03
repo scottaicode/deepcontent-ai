@@ -10,92 +10,36 @@ export default function ProductionModeFixes() {
   useEffect(() => {
     // Function to apply fixes for UI elements that might not display correctly in production mode
     const applyProductionFixes = () => {
-      console.log('[ProductionModeFixes] Applying fixes for UI elements');
+      console.log('[ProductionModeFixes] Applying targeted fixes for UI elements');
       
-      // Fix for contentGeneration.pageTitle display issues
-      const allSpans = document.querySelectorAll('span');
-      allSpans.forEach(el => {
-        if (el.textContent?.includes('contentGeneration.pageTitle')) {
-          console.log('[ProductionModeFixes] Found contentGeneration.pageTitle element to fix');
-          el.textContent = 'Content Generation';
-        } else if (el.textContent?.includes('contentGeneration.waitingMessageImproved')) {
-          console.log('[ProductionModeFixes] Found waitingMessageImproved element to fix');
-          el.textContent = 'Analyzing research data...';
-        }
-      });
+      // APPROACH 1: Fix specific translation keys in elements with specific classes
+      // Target only elements likely to have translation issues, not all text on the page
       
-      // Fix for contentGeneration.parameters display issues
-      const allH3s = document.querySelectorAll('h3');
-      allH3s.forEach(el => {
-        if (el.textContent?.includes('contentGeneration.parameters')) {
-          console.log('[ProductionModeFixes] Found contentGeneration.parameters element to fix');
-          el.textContent = 'Content Parameters';
-        }
-        else if (el.textContent?.includes('contentGeneration.settings')) {
-          console.log('[ProductionModeFixes] Found contentGeneration.settings element to fix');
-          el.textContent = 'Content Settings';
-        }
-        else if (el.textContent?.includes('contentGeneration.choosePersona')) {
-          console.log('[ProductionModeFixes] Found contentGeneration.choosePersona element to fix');
-          if (el.textContent?.includes('for Your Content')) {
-            el.textContent = 'Choose an AI Persona for Your Content';
-          } else {
-            el.textContent = 'Choose an AI Persona';
-          }
-        } else if (el.textContent?.includes('contentGeneration.versionHistory')) {
-          console.log('[ProductionModeFixes] Found versionHistory element to fix');
-          el.textContent = 'Version History';
-        }
-      });
-      
-      // Fix button translation issues
-      const allButtons = document.querySelectorAll('button');
-      allButtons.forEach(el => {
-        if (el.textContent?.includes('refineContent.refineButton')) {
-          console.log('[ProductionModeFixes] Found refineButton element to fix');
-          el.textContent = 'Refine Content';
-        }
-      });
-      
-      // Fix all text nodes in buttons and other elements
-      const fixButtonText = (selector: string, textReplacements: Record<string, string>) => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach(el => {
-          Object.entries(textReplacements).forEach(([key, value]) => {
-            if (el.textContent?.includes(key)) {
-              console.log(`[ProductionModeFixes] Replacing "${key}" with "${value}"`);
-              el.textContent = el.textContent.replace(key, value);
-            }
-          });
-        });
-      };
-      
-      // Fix button texts
-      fixButtonText('button, a, div, span', {
+      // Fix UI elements in content generation section
+      const contentGenKeys = {
+        'contentGeneration.pageTitle': 'Content Generation',
+        'contentGeneration.parameters': 'Content Parameters',
+        'contentGeneration.settings': 'Content Settings',
+        'contentGeneration.waitingMessageImproved': 'Analyzing research data...',
+        'contentGeneration.choosePersona': 'Choose an AI Persona',
+        'contentGeneration.versionHistory': 'Version History',
         'contentGeneration.copyToClipboard': 'Copy to Clipboard',
         'contentGeneration.exportAsText': 'Export as Text',
         'contentGeneration.saveToPanel': 'Save to Dashboard',
-        'contentGeneration.showHistory': 'Show History',
-        'refineContent.refineButton': 'Refine Content'
-      });
+        'contentGeneration.showHistory': 'Show History'
+      };
       
-      // Fix header and label texts
-      fixButtonText('h1, h2, h3, h4, h5, h6, label, p', {
+      // Fix UI elements in refine content section
+      const refineContentKeys = {
         'refineContent.title': 'Refine Your Content',
-        'refineContent.promptInstructions': 'Provide feedback or specific changes you want to make to your content'
-      });
+        'refineContent.promptInstructions': 'Provide feedback or specific changes',
+        'refineContent.placeholder': 'Enter your feedback...',
+        'refineContent.refineButton': 'Refine Content'
+      };
       
-      // Fix placeholder texts
-      const allTextareas = document.querySelectorAll('textarea');
-      allTextareas.forEach(el => {
-        if (el.placeholder?.includes('refineContent.placeholder')) {
-          console.log('[ProductionModeFixes] Found placeholder element to fix');
-          el.placeholder = 'Enter your feedback or instructions for content refinement...';
-        }
-      });
-      
-      // Fix personas description texts
-      const personaDescriptions: Record<string, string> = {
+      // APPROACH 2: Fix persona descriptions
+      // More targeted approach to only fix persona descriptions
+      const personaDescriptions = {
         'personas.ariastar.description': 'Friendly, relatable tone perfect for social media and blogs',
         'personas.specialist_mentor.description': 'Professional, authoritative voice for technical content',
         'personas.ai_collaborator.description': 'Balanced, analytical tone for research and reports',
@@ -106,29 +50,50 @@ export default function ProductionModeFixes() {
         'personas.niche_community.description': 'Engaging tone for building community and connection',
         'personas.synthesis_maker.description': 'Insightful tone for connecting ideas across domains'
       };
-
-      // Find all elements that might contain persona descriptions
-      document.querySelectorAll('p, span, div').forEach(el => {
-        Object.entries(personaDescriptions).forEach(([key, value]) => {
-          if (el.textContent === key) {
-            console.log(`[ProductionModeFixes] Replacing persona description: ${key}`);
-            el.textContent = value;
+      
+      // Only fix elements that EXACTLY match our translation keys - not partial matches
+      const fixExactTranslationKeys = () => {
+        // For exact matches, we can more safely replace content
+        document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, button, a, label').forEach(el => {
+          // Skip complex elements that might contain multiple items
+          if (el.children.length > 0) return;
+          
+          const content = el.textContent?.trim();
+          if (!content) return;
+          
+          // Fix content generation keys
+          if (contentGenKeys[content as keyof typeof contentGenKeys]) {
+            el.textContent = contentGenKeys[content as keyof typeof contentGenKeys];
+            console.log(`[ProductionModeFixes] Fixed exact match: ${content}`);
+          }
+          
+          // Fix refine content keys
+          if (refineContentKeys[content as keyof typeof refineContentKeys]) {
+            el.textContent = refineContentKeys[content as keyof typeof refineContentKeys];
+            console.log(`[ProductionModeFixes] Fixed exact match: ${content}`);
+          }
+          
+          // Fix persona descriptions
+          if (personaDescriptions[content as keyof typeof personaDescriptions]) {
+            el.textContent = personaDescriptions[content as keyof typeof personaDescriptions];
+            console.log(`[ProductionModeFixes] Fixed persona description: ${content}`);
           }
         });
-      });
+      };
       
-      // Apply missing styles to dropdowns that may not be caught by StyleDropdownFix
-      const selectElements = document.querySelectorAll('select');
-      selectElements.forEach(select => {
-        // Only apply if it looks like a dropdown is missing styling
-        if (!select.style.backgroundImage && !select.classList.contains('style-dropdown')) {
-          select.style.appearance = 'auto';
-          select.style.paddingRight = '2rem';
-          select.style.backgroundSize = '16px 16px';
-          select.style.backgroundPosition = 'right 0.5rem center';
-          select.style.backgroundRepeat = 'no-repeat';
-        }
-      });
+      // Fix placeholder texts separately - these are safer to fix
+      const fixPlaceholders = () => {
+        const allTextareas = document.querySelectorAll('textarea');
+        allTextareas.forEach(el => {
+          if (el.placeholder === 'refineContent.placeholder') {
+            el.placeholder = 'Enter your feedback or instructions for content refinement...';
+          }
+        });
+      };
+      
+      // Run the targeted fixes
+      fixExactTranslationKeys();
+      fixPlaceholders();
     };
     
     // Apply fixes immediately
@@ -137,14 +102,25 @@ export default function ProductionModeFixes() {
     // Also apply after a short delay to catch dynamically rendered content
     setTimeout(applyProductionFixes, 200);
     setTimeout(applyProductionFixes, 1000);
-    setTimeout(applyProductionFixes, 3000);
     
     // Set up MutationObserver to watch for future DOM changes
-    const observer = new MutationObserver(() => {
-      applyProductionFixes();
+    // IMPORTANT: Use a less aggressive callback to avoid breaking page
+    const observer = new MutationObserver((mutations) => {
+      // Only run fixes if we see text nodes with our target keys
+      const shouldFix = mutations.some(mutation => {
+        // Only look at text content changes or new nodes
+        return (
+          mutation.type === 'characterData' || 
+          (mutation.type === 'childList' && mutation.addedNodes.length > 0)
+        );
+      });
+      
+      if (shouldFix) {
+        applyProductionFixes();
+      }
     });
     
-    // Start observing document body for changes
+    // Start observing document body for changes - with more targeted options
     observer.observe(document.body, {
       childList: true,
       subtree: true,
