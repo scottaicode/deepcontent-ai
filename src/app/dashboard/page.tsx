@@ -133,8 +133,9 @@ export default function DashboardPage() {
   
   // Clean up useEffect - simplify initialization
   useEffect(() => {
-    // Initial content load
-    if (user?.uid && !isRefreshing) {
+    // Initial content load - ONLY if user is verified
+    if (user?.uid && user.emailVerified && !isRefreshing) {
+      console.log('User is verified, attempting initial content load...');
       setIsRefreshing(true);
       
       refreshContent()
@@ -142,13 +143,20 @@ export default function DashboardPage() {
           setLastRefreshTime(new Date());
         })
         .catch(error => {
-          console.error('Error loading content:', error);
+          // Error from useContent will be handled by the main render block
+          console.error('Error loading content during initial load (verified user):', error);
         })
         .finally(() => {
           setIsRefreshing(false);
         });
+    } else if (user?.uid && !user.emailVerified) {
+      // User exists but is not verified - Do nothing here.
+      // The UI error display logic will handle showing the prompt based on the lack of content 
+      // and the user's verification status, or any error caught by handleRefresh if clicked.
+      console.log('User is not verified, skipping initial content load.');
     }
-  }, [user?.uid]);
+    // Only re-run if user ID or verification status changes, or refresh function instance changes.
+  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, setIsRefreshing, setLastRefreshTime]);
   
   // Add Firestore connection check - keep this as it's important for UX
   useEffect(() => {
