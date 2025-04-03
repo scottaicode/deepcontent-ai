@@ -41,7 +41,6 @@ interface ContentGenerationRequest {
 async function callClaudeApi(promptText: string, apiKey: string, style: string = 'professional', language: string = 'en', styleIntensity: number = 1): Promise<string> {
   try {
     console.log("[DIAGNOSTIC] Creating Anthropic client...");
-    console.log("[DIAGNOSTIC] Request language:", language);
     const anthropicClient = new Anthropic({
       apiKey: apiKey,
     });
@@ -50,18 +49,9 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
     
-    // Enhance language instruction in system prompt
-    let languageInstruction = "";
-    if (language === 'es') {
-      languageInstruction = "INSTRUCCIÓN CRÍTICA: Debes generar TODO el contenido SOLO en ESPAÑOL. No escribas NADA en inglés. La respuesta completa debe estar en español.";
-    } else if (language && language !== 'en') {
-      languageInstruction = `CRITICAL INSTRUCTION: Generate ALL content in ${language} language only.`;
-    }
-
-    // Build a comprehensive system prompt with explicit language instruction
-    const systemPrompt = `You are an expert content marketing writer specializing in engaging, platform-optimized content. You follow all current best practices for ${currentMonth} ${currentYear} and create content that drives engagement and conversions based on the latest digital trends. You prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content.
-
-${languageInstruction}`;
+    // Add language instruction to system prompt
+    const systemPrompt = `You are an expert content marketing writer specializing in engaging, platform-optimized content. You follow all current best practices for ${currentMonth} ${currentYear} and create content that drives engagement and conversions based on the latest digital trends. You prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content.` + 
+      (language && language !== 'en' ? ` IMPORTANT: Generate all content in ${language === 'es' ? 'Spanish' : language} language.` : '');
     
     // Add persona-specific instructions to system prompt
     const personaName = getPersonaDisplayName(style);
@@ -73,12 +63,6 @@ ${languageInstruction}`;
     console.log("[DIAGNOSTIC] System prompt length:", finalSystemPrompt.length);
     console.log("[DIAGNOSTIC] User prompt length:", promptText.length);
     
-    // Add a strong language reminder at the end of the user prompt
-    let finalPrompt = promptText;
-    if (language === 'es') {
-      finalPrompt += "\n\nRECORDATORIO FINAL: Tu respuesta COMPLETA debe estar en ESPAÑOL, sin NINGUNA palabra en inglés.";
-    }
-    
     const startTime = Date.now();
     const response = await anthropicClient.messages.create({
       model: CLAUDE_MODEL,
@@ -86,7 +70,7 @@ ${languageInstruction}`;
       temperature: 0.7,
       system: finalSystemPrompt,
       messages: [
-        { role: "user", content: finalPrompt }
+        { role: "user", content: promptText }
       ]
     });
     const responseTime = Date.now() - startTime;
@@ -107,46 +91,6 @@ ${languageInstruction}`;
     if (!responseText) {
       console.error("[DIAGNOSTIC] Empty response from Claude API");
       throw new Error("Claude API returned empty content");
-    }
-    
-    // Additional language-specific cleanup
-    if (language === 'es') {
-      console.log("[DIAGNOSTIC] Applying Spanish-specific content cleanup");
-      
-      // Add common English-to-Spanish translations that might need fixing
-      const englishSpanishPairs = [
-        { english: "Introduction", spanish: "Introducción" },
-        { english: "Main Content", spanish: "Contenido Principal" },
-        { english: "Conclusion", spanish: "Conclusión" },
-        { english: "Key Points", spanish: "Puntos Clave" },
-        { english: "Executive Summary", spanish: "Resumen Ejecutivo" },
-        { english: "Benefits", spanish: "Beneficios" },
-        { english: "Features", spanish: "Características" },
-        { english: "Call to Action", spanish: "Llamada a la Acción" },
-        { english: "Tips", spanish: "Consejos" },
-        { english: "Trends", spanish: "Tendencias" },
-        { english: "In conclusion", spanish: "En conclusión" },
-        { english: "First", spanish: "Primero" },
-        { english: "Second", spanish: "Segundo" },
-        { english: "Third", spanish: "Tercero" },
-        { english: "Finally", spanish: "Finalmente" },
-        { english: "Today", spanish: "Hoy" }
-      ];
-      
-      // Replace any English headers or terms with Spanish equivalents
-      englishSpanishPairs.forEach(({ english, spanish }) => {
-        // Try to match headers (e.g., "# Introduction")
-        const headerRegex = new RegExp(`# ${english}\\b`, 'gi');
-        responseText = responseText.replace(headerRegex, `# ${spanish}`);
-        
-        // Try to match subheaders (e.g., "## Key Points")
-        const subheaderRegex = new RegExp(`## ${english}\\b`, 'gi');
-        responseText = responseText.replace(subheaderRegex, `## ${spanish}`);
-        
-        // Match standalone terms
-        const termRegex = new RegExp(`\\b${english}\\b`, 'g');
-        responseText = responseText.replace(termRegex, spanish);
-      });
     }
     
     // Check if the response inadvertently uses the wrong persona name

@@ -11,8 +11,7 @@ import {
   User,
   setPersistence, 
   browserLocalPersistence,
-  getAuth,
-  sendEmailVerification
+  getAuth
 } from "firebase/auth";
 import { initializeApp, deleteApp } from "firebase/app";
 
@@ -193,15 +192,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // You can add additional user profile setup here if needed
       // Example: await updateProfile(userCredential.user, { displayName: name });
-      
-      // Send verification email
-      try {
-        await sendEmailVerification(userCredential.user);
-        console.log('Verification email sent to:', userCredential.user.email);
-      } catch (verificationError) {
-        console.error('Error sending verification email:', verificationError);
-        // Decide how to handle this - maybe log it, but don't block the signup
-      }
     } catch (error) {
       console.error("Error signing up with email/password", error);
       throw error;

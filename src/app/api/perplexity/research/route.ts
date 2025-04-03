@@ -135,8 +135,7 @@ export async function POST(request: NextRequest) {
     companyName,
     websiteContent,
     contentType = 'article',
-    platform = 'general',
-    refresh = false  // Add a refresh parameter to force bypassing cache
+    platform = 'general'
   } = body;
   
   if (!topic) {
@@ -176,8 +175,7 @@ export async function POST(request: NextRequest) {
     contentType: extractedContentType,
     platform: extractedPlatform,
     hasCompanyInfo: !!companyName,
-    hasWebsiteContent: !!websiteContent,
-    refresh
+    hasWebsiteContent: !!websiteContent
   }));
   
   // Get API key from environment variables
@@ -197,55 +195,51 @@ export async function POST(request: NextRequest) {
   const cacheKey = createCacheKey(topic, extractedContentType, extractedPlatform, language);
   logSection(requestId, 'CACHE', `Cache key: ${cacheKey}`);
   
-  // Check if research is already cached - skip this if refresh is true
+  // Check if research is already cached
   let cachedResult = null;
-  if (!refresh) {
-    try {
-      if (kv) {
-        // Try to get the exact cache match
-        cachedResult = await kv.get(cacheKey);
+  try {
+    if (kv) {
+      // Try to get the exact cache match
+      cachedResult = await kv.get(cacheKey);
+      
+      // If exact match not found, try a simplified key lookup
+      if (!cachedResult) {
+        const simplifiedKey = createSimplifiedTopicKey(topic);
+        logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
         
-        // If exact match not found, try a simplified key lookup
-        if (!cachedResult) {
-          const simplifiedKey = createSimplifiedTopicKey(topic);
-          logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
-          
-          // Try to get any keys that start with the simplified pattern
-          try {
-            const keys = await kv.keys(`${simplifiedKey}*`);
-            if (keys && keys.length > 0) {
-              logSection(requestId, 'CACHE', `Found ${keys.length} potential matches with simplified key pattern`);
-              // Get the first match (could improve this to get the most recent one)
-              cachedResult = await kv.get(keys[0]);
-              if (cachedResult) {
-                logSection(requestId, 'CACHE', `Found partial match with key: ${keys[0]}`);
-              }
+        // Try to get any keys that start with the simplified pattern
+        try {
+          const keys = await kv.keys(`${simplifiedKey}*`);
+          if (keys && keys.length > 0) {
+            logSection(requestId, 'CACHE', `Found ${keys.length} potential matches with simplified key pattern`);
+            // Get the first match (could improve this to get the most recent one)
+            cachedResult = await kv.get(keys[0]);
+            if (cachedResult) {
+              logSection(requestId, 'CACHE', `Found partial match with key: ${keys[0]}`);
             }
-          } catch (err) {
-            console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
           }
-        }
-        
-        // Return cached result if found
-        if (cachedResult) {
-          logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
-          return new Response(
-            JSON.stringify({ 
-              research: cachedResult,
-              fromCache: true,
-              cacheKey 
-            }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          );
-        } else {
-          logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
+        } catch (err) {
+          console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
         }
       }
-    } catch (err) {
-      console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
+      
+      // Return cached result if found
+      if (cachedResult) {
+        logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
+        return new Response(
+          JSON.stringify({ 
+            research: cachedResult,
+            fromCache: true,
+            cacheKey 
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
+      }
     }
-  } else {
-    logSection(requestId, 'CACHE', `Refresh parameter is true, skipping cache lookup`);
+  } catch (err) {
+    console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
   }
   
   // Build the prompt

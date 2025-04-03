@@ -38,8 +38,6 @@ import {
   getDisplayNames 
 } from '@/app/lib/contentTypeDetection';
 import { generatePerplexityResearch } from '@/lib/api/generatePerplexityResearch';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { okaidia } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 
 // Add declaration for global EventSource property
 declare global {
@@ -240,35 +238,124 @@ export default function ResearchPage() {
     sources?: string[],
     language?: string,
     companyName?: string,
-    websiteContent?: any,
-    refresh?: boolean
+    websiteContent?: any
   ): Promise<string> => {
-    try {
-      console.log(`[DIAG] Initiating Perplexity research on "${topic}" with refresh=${refresh || false}`);
-      
-      // Use the imported function
-      const research = await import('@/lib/api/generatePerplexityResearch').then(module => {
-        return module.generatePerplexityResearch(
-          topic,
-          context,
-          sources,
-          language,
-          companyName,
-          refresh
-        );
-      });
-      
-      console.log(`[DIAG] Research completed successfully. Length: ${research.length}`);
-      
-      return research;
-    } catch (error) {
-      console.error(`[DIAG] Research generation failed:`, error);
-      setErrorState({
-        hasError: true,
-        message: error instanceof Error ? error.message : String(error)
-      });
-      throw error;
+    console.log('Calling Perplexity research API with:', { 
+      topic, 
+      context,
+      sources: sources || [],
+      language,
+      companyName,
+      hasWebsiteContent: !!websiteContent
+    });
+    
+    // Validate topic to ensure it's not empty
+    if (!topic || topic.trim() === '') {
+      throw new Error('Empty research topic provided to Perplexity API');
     }
+    
+    // Log special message for company-specific research
+    if (companyName) {
+      console.log(`📊 Performing company-specific research on "${companyName}" - Will prioritize official website and social media sources`);
+    }
+    
+    // Add timestamp for tracking request duration
+    const startTime = Date.now();
+    
+    const response = await fetch('/api/perplexity/research', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        topic: topic.trim(),
+        context: context.trim(),
+        sources: sources || [],
+        language,
+        companyName,
+        websiteContent // Include website content if available
+      }),
+    });
+    
+    // Calculate request duration
+    const duration = Date.now() - startTime;
+    console.log(`Perplexity research request completed in ${duration}ms`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      // Better handling for specific error types
+      if (response.status === 504) {
+        console.error('Perplexity research request timed out (504 Gateway Timeout)');
+        throw new Error('Research generation timed out. Please try again with a more specific topic or try later when the service is less busy.');
+      } else if (response.status === 503) {
+        console.error('Perplexity research service temporarily unavailable (503)');
+        throw new Error('The research service is temporarily unavailable. Please try again in a few minutes.');
+      } else {
+        console.error(`API error (${response.status}):`, errorData);
+        throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
+    }
+    
+    const data = await response.json();
+    
+    // Check for company research validation
+    if (companyName && data.companyResearchValidation && !data.companyResearchValidation.isValid) {
+      console.warn(`⚠️ Company research validation failed: ${data.companyResearchValidation.message}`);
+      
+      // Show toast notification about the issue
+      if (typeof window !== 'undefined' && window.document) {
+        // Add to session storage to display warning on research page
+        sessionStorage.setItem('companyResearchWarning', data.companyResearchValidation.message);
+      }
+    }
+    
+    // Verify that company research was included if requested
+    if (companyName && data.research) {
+      const researchText = data.research.toLowerCase();
+      const companyLower = companyName.toLowerCase();
+      
+      // Check if company name appears frequently in the research
+      const companyNameMatches = (researchText.match(new RegExp(companyLower, 'g')) || []).length;
+      
+      if (companyNameMatches < 5) {
+        console.warn(`⚠️ Warning: Company name "${companyName}" only appears ${companyNameMatches} times in the research. The research may not contain sufficient company-specific information.`);
+      } else {
+        console.log(`✓ Company name "${companyName}" appears ${companyNameMatches} times in the research.`);
+      }
+      
+      // Check for website citations
+      const hasWebsiteCitation = researchText.includes(`${companyLower}'s website`) || 
+                                researchText.includes(`${companyLower} website`) ||
+                                researchText.includes(`official website`);
+                                
+      // Check for LinkedIn citations
+      const hasLinkedInCitation = researchText.includes('linkedin') || researchText.includes('linked in');
+      
+      // Check for social media citations
+      const hasSocialMediaCitation = researchText.includes('facebook') || 
+                                    researchText.includes('twitter') || 
+                                    researchText.includes('instagram') ||
+                                    researchText.includes('social media');
+      
+      if (!hasWebsiteCitation) {
+        console.warn(`⚠️ Warning: No explicit citations of ${companyName}'s website found in the research.`);
+      }
+      
+      if (!hasLinkedInCitation) {
+        console.warn(`⚠️ Warning: No LinkedIn citations found in the research.`);
+      }
+      
+      if (!hasSocialMediaCitation) {
+        console.warn(`⚠️ Warning: No social media citations found in the research.`);
+      }
+    }
+    
+    if (!data.research) {
+      throw new Error('No research content returned from Perplexity API');
+    }
+    
+    return data.research;
   };
   
   /**
@@ -2086,119 +2173,157 @@ If you'd like complete research, please try again later when our research servic
 
   // Render the content for Step 4 (Research Results)
   const renderStep4Content = () => {
+    // Use the existing deepResearch state variable
+    const research = deepResearch || '';
+    
     return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {safeTranslate('researchPage.step4.title', 'Your Research Results')}
-          </h2>
-          <p className="text-gray-600">
-            {safeTranslate('researchPage.step4.subtitle', 'Review your deep research analysis below')}
-          </p>
-        </div>
-
-        {/* Research results container */}
-        <div className="bg-white shadow sm:rounded-lg mb-8">
-          <div className="border-b border-gray-200 px-4 py-4 sm:px-6 flex justify-between items-center">
-            <h3 className="text-lg font-medium leading-6 text-gray-900">
-              {safeTranslate('researchPage.perplexityTitle', 'Comprehensive Research')}
-            </h3>
-            <div className="flex space-x-2">
-              <button 
-                className="inline-flex items-center px-3 py-1.5 border border-blue-600 text-xs font-medium rounded-md text-blue-600 hover:bg-blue-50"
-                onClick={toggleResearchExpansion}
-              >
-                {isResearchExpanded 
-                  ? safeTranslate('common.showLess', 'Show Less')
-                  : safeTranslate('common.showMore', 'Show More')
-                }
-              </button>
-              {/* Add Refresh button */}
-              <button 
-                className="inline-flex items-center px-3 py-1.5 border border-green-600 text-xs font-medium rounded-md text-green-600 hover:bg-green-50"
-                onClick={handleRefreshResearch}
-                disabled={isLoading || isGenerating}
-              >
-                {isLoading || isGenerating ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {safeTranslate('common.refreshing', 'Refreshing...')}
-                  </>
-                ) : (
-                  <>
-                    <svg className="-ml-1 mr-2 h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    {safeTranslate('common.refresh', 'Refresh Research')}
-                  </>
-                )}
-              </button>
+      <div className="mb-12">
+        <h2 className="text-2xl md:text-3xl font-bold mb-4">{safeTranslate('researchPage.researchResults.title', 'Research Results')}</h2>
+        
+        {/* Display company research warning if present */}
+        {companyResearchWarning && <CompanyResearchWarning />}
+        
+        <div className="bg-white rounded-lg p-6 shadow-lg mb-6">
+          {/* Research Summary at the top */}
+          <div className="research-summary mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-md">
+            <h4 className="text-md font-medium mb-2">{safeTranslate('researchPage.results.summary', 'Research Summary')}</h4>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <span className="font-medium">{safeTranslate('researchPage.results.topic', 'Topic:')} </span> 
+                <span>{safeContentDetails.researchTopic || 'Not specified'}</span>
+              </div>
+              <div>
+                <span className="font-medium">{safeTranslate('researchPage.results.contentType', 'Content Type:')} </span>
+                <span>
+                  {(() => {
+                    // Use the display names system for consistent display
+                    const { displayContentType } = getDisplayNames(
+                      safeContentDetails.contentType || '',
+                      safeContentDetails.platform || '',
+                      safeContentDetails.subPlatform || '',
+                      language
+                    );
+                    return displayContentType;
+                  })()}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium">{safeTranslate('researchPage.results.targetAudience', 'Target Audience:')} </span>
+                <span>{safeContentDetails.targetAudience || 'Not specified'}</span>
+              </div>
+              <div>
+                <span className="font-medium">{safeTranslate('researchPage.results.platform', 'Platform:')} </span>
+                <span>
+                  {(() => {
+                    // Display both platform and subPlatform when needed for clarity
+                    if (safeContentDetails.platform === 'blog' && safeContentDetails.subPlatform === 'company-blog') {
+                      return language === 'es' ? 'Blog de Empresa' : 'Company Blog';
+                    }
+                    
+                    // Use the display names system for consistent display
+                    const { displayPlatform } = getDisplayNames(
+                      safeContentDetails.contentType || '',
+                      safeContentDetails.platform || '',
+                      safeContentDetails.subPlatform || '',
+                      language
+                    );
+                    return displayPlatform;
+                  })()}
+                </span>
+              </div>
             </div>
           </div>
-          <div className={`px-4 py-5 sm:p-6 ${isResearchExpanded ? '' : 'max-h-screen overflow-auto'}`}>
-            <div className="prose max-w-none">
-              {deepResearch ? (
-                <ReactMarkdown
+          
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-medium text-gray-900 dark:text-white">
+              {safeTranslate('researchPage.results.title', 'Generated Research')}
+            </h3>
+            
+            <ResearchActionButtons 
+              research={research}
+              isExpanded={isResearchExpanded}
+              topicName={`research-${safeContentDetails.researchTopic || 'content'}`}
+              onToggleExpand={toggleResearchExpansion}
+              translationFunc={safeTranslate}
+            />
+          </div>
+          
+          {/* Display loading state if needed */}
+          {!research && <p className="text-gray-500">Loading research results...</p>}
+          
+          {/* Display the actual research content with improved formatting */}
+          {research && (
+            <div 
+              ref={researchRef}
+              className={`prose max-w-none dark:prose-invert bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg ${
+                isResearchExpanded ? 'p-6' : 'p-6 max-h-96 overflow-hidden relative'
+              }`}
+            >
+              <div className="markdown-content research-content">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw, rehypeSlug, rehypeSanitize]}
                   components={{
-                    table: ({ node, ...props }) => <table className="border-collapse table-auto w-full" {...props} />,
-                    tr: ({ node, ...props }) => <tr className="border-b border-gray-200" {...props} />,
-                    th: ({ node, ...props }) => <th className="px-4 py-2 text-left font-medium text-gray-900 bg-gray-50" {...props} />,
-                    td: ({ node, ...props }) => <td className="px-4 py-2" {...props} />,
-                    pre: ({ node, ...props }) => <pre className="bg-gray-800 text-white rounded-md p-4 overflow-auto" {...props} />,
-                    code: ({ inline, className, children, ...props }: CodeProps) => {
-                      const match = /language-(\w+)/.exec(className || '');
-                      return !inline && match ? (
-                        <SyntaxHighlighter
-                          language={match[1]}
-                          style={okaidia}
-                          className="rounded-md"
-                          wrapLongLines
-                          {...props}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <code className="bg-gray-100 text-gray-900 px-1 py-0.5 rounded-md" {...props}>
-                          {children}
-                        </code>
-                      );
-                    }
+                    h1: ({children, ...props}) => <h1 className="text-2xl font-bold my-5 pb-2 border-b dark:border-gray-700 text-gray-900 dark:text-white" {...props}>{children}</h1>,
+                    h2: ({children, ...props}) => <h2 className="text-xl font-bold my-4 pt-2 pb-1 border-b dark:border-gray-700 text-gray-800 dark:text-gray-100" {...props}>{children}</h2>,
+                    h3: ({children, ...props}) => <h3 className="text-lg font-bold my-3 text-gray-800 dark:text-gray-200" {...props}>{children}</h3>,
+                    p: ({children, ...props}) => <p className="my-3 text-base leading-7 text-gray-700 dark:text-gray-300" {...props}>{children}</p>,
+                    ul: ({children, ...props}) => <ul className="list-disc pl-6 my-3 space-y-2 text-gray-700 dark:text-gray-300" {...props}>{children}</ul>,
+                    ol: ({children, ...props}) => <ol className="list-decimal pl-6 my-3 space-y-2 text-gray-700 dark:text-gray-300" {...props}>{children}</ol>,
+                    li: ({children, ...props}) => <li className="my-1.5" {...props}>{children}</li>,
+                    a: ({children, ...props}) => <a className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>,
+                    blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-indigo-300 dark:border-indigo-600 pl-4 italic my-3 text-gray-600 dark:text-gray-400" {...props}>{children}</blockquote>,
+                    code: ({children, inline, ...props}: CodeProps) => 
+                      inline 
+                        ? <code className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800 dark:text-gray-200" {...props}>{children}</code>
+                        : <code className="block bg-gray-200 dark:bg-gray-700 p-3 rounded my-3 text-sm font-mono overflow-x-auto text-gray-800 dark:text-gray-200" {...props}>{children}</code>,
+                    table: ({children, ...props}) => <table className="border-collapse border border-gray-300 dark:border-gray-700 my-4 min-w-full bg-white dark:bg-gray-900" {...props}>{children}</table>,
+                    th: ({children, ...props}) => <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 bg-gray-100 dark:bg-gray-800 font-semibold text-gray-800 dark:text-gray-200" {...props}>{children}</th>,
+                    td: ({children, ...props}) => <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-gray-700 dark:text-gray-300" {...props}>{children}</td>,
+                    hr: ({...props}) => <hr className="my-6 border-t border-gray-300 dark:border-gray-700" {...props} />,
+                    strong: ({children, ...props}) => <strong className="font-bold text-gray-900 dark:text-white" {...props}>{children}</strong>,
+                    em: ({children, ...props}) => <em className="italic text-gray-800 dark:text-gray-300" {...props}>{children}</em>
                   }}
                 >
-                  {deepResearch}
+                  {research}
                 </ReactMarkdown>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">{safeTranslate('common.noData', 'No research data available')}</p>
-                </div>
+              </div>
+              
+              {/* Enhanced gradient fade effect when collapsed */}
+              {!isResearchExpanded && (
+                <div className="absolute bottom-0 left-0 right-0 h-36 bg-gradient-to-t from-gray-50 to-transparent dark:from-gray-800 pointer-events-none"></div>
               )}
             </div>
-          </div>
+          )}
+          
+          {/* Show expand button at the bottom when collapsed */}
+          {research && !isResearchExpanded && (
+            <div className="mt-2 text-center">
+              <button
+                onClick={toggleResearchExpansion}
+                className="text-blue-600 hover:text-blue-800 text-sm inline-flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                {safeTranslate('researchPage.results.expandResearch', 'Show full research')}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Page controls at the bottom of the research page */}
-        <div className="flex justify-between items-center mt-8">
+        <div className="mt-6 flex space-x-4">
           <button
-            onClick={() => setResearchStep(2)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            onClick={() => setResearchStep(3)}
+            className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
           >
-            <svg className="-ml-1 mr-2 h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {safeTranslate('common.back', 'Back')}
+            {language === 'es' ? 'Atrás' : 'Back'}
           </button>
-          
           <button
             onClick={proceedToContentCreation}
-            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 flex items-center"
           >
-            {safeTranslate('researchPage.createContent', 'Create Content')}
-            <svg className="ml-2 -mr-1 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            {t('researchPage.buttons.continueToContent', { defaultValue: 'Proceed to Content Creation' })}
           </button>
         </div>
       </div>
@@ -3347,61 +3472,6 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
       // Reset states
       setIsLoading(false);
       setIsGenerating(false);
-    }
-  };
-
-  // Add a new function to handle refresh request
-  const handleRefreshResearch = async () => {
-    if (!contentDetails?.researchTopic) {
-      toast.error(safeTranslate('researchPage.noTopic', 'No research topic specified'));
-      return;
-    }
-
-    setIsLoading(true);
-    setIsGenerating(true);
-    setGenerationProgress(10);
-    setStatusMessage(safeTranslate('researchPage.refreshing', 'Refreshing research...'));
-    
-    try {
-      // Build simple context with content details
-      const context = `Target Audience: ${contentDetails.targetAudience || 'general audience'}, 
-                     Audience Needs: ${contentDetails.audienceNeeds || 'not specified'}, 
-                     Content Type: ${contentDetails.contentType || 'social-media'}, 
-                     Platform: ${contentDetails.platform || 'facebook'}`;
-      
-      const sources = ['recent', 'scholar'];
-      
-      // Force refresh by passing true as the last parameter
-      const research = await generatePerplexityResearch(
-        contentDetails.researchTopic || '',
-        context,
-        sources,
-        language,
-        contentDetails.businessName,
-        null, // websiteContent
-        true  // force refresh
-      );
-      
-      // Clean the research content before setting it
-      setDeepResearch(cleanResearchContent(research));
-      
-      // Save to session storage
-      const researchResults = {
-        researchMethod: 'perplexity' as const,
-        perplexityResearch: cleanResearchContent(research)
-      };
-      sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-      
-      toast.success(safeTranslate('researchPage.refreshSuccess', 'Research refreshed successfully!'));
-      setStatusMessage(safeTranslate('researchPage.refreshed', 'Research refreshed!'));
-    } catch (error) {
-      console.error('Error refreshing research:', error);
-      toast.error(safeTranslate('researchPage.refreshError', 'Failed to refresh research'));
-      setStatusMessage(safeTranslate('researchPage.refreshFailed', 'Research refresh failed'));
-    } finally {
-      setIsLoading(false);
-      setIsGenerating(false);
-      setGenerationProgress(100);
     }
   };
 

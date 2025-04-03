@@ -135,9 +135,6 @@ export default function ContentGenerator() {
   // Add heartbeat management
   const [heartbeatInterval, setHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // New state for triggering generation
-  const [triggerGeneration, setTriggerGeneration] = useState(false);
-
   // Helper to safely update state without blocking UI
   const safeUpdate = useCallback(() => {
     // Use a queue of microtasks to avoid blocking the main thread
@@ -571,88 +568,54 @@ export default function ContentGenerator() {
     return styles;
   }, [t]);
 
-  // Helper function to format persona name for display (Moved before startGeneration)
-  const getFormattedPersonaName = (personaId: string) => {
-    switch (personaId) {
-      case 'ariastar':
-        return 'AriaStar';
-      case 'specialist_mentor':
-        return 'MentorPro';
-      case 'ai_collaborator':
-        return 'AIInsight';
-      case 'sustainable_advocate':
-        return 'EcoEssence';
-      case 'data_visualizer':
-        return 'DataStory';
-      case 'multiverse_curator':
-        return 'NexusVerse';
-      case 'ethical_tech':
-        return 'TechTranslate';
-      case 'niche_community':
-        return 'CommunityForge';
-      case 'synthesis_maker':
-        return 'SynthesisSage';
-      default:
-        return personaId;
-    }
-  };
-
-  // Wrap startGeneration in useCallback
-  const startGeneration = useCallback(async () => {
+  // Update the startGeneration function
+  const startGeneration = async () => {
     if (isGenerating) {
       console.log("[DIAGNOSTIC] Generation already in progress");
       return;
     }
+
     if (!contentDetails?.contentType || !contentDetails?.platform) {
       console.error('[DIAGNOSTIC] Missing required content details');
       setError('Missing content type or platform. Please go back to the previous step.');
       return;
     }
+
     if (!researchResults?.perplexityResearch) {
       console.error('[DIAGNOSTIC] Missing research data');
       setError('Missing research data. Please go back to the research step.');
       return;
     }
 
-    // Make sure we have a persona selected
-    if (!currentPersona) {
-        console.error('[DIAGNOSTIC] No persona selected');
-        setError('Please select an AI Persona before generating content.'); // Or use translation key
-        return; 
-    }
-    
     try {
       setIsGenerating(true);
       setError(null);
       setStatusMessage(t('contentGeneration.preparingContent', { defaultValue: 'Preparing your content...' }));
+      
+      // Scroll to the absolute top of the page when generation starts
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
+      // Log the request details
       console.log('[DIAGNOSTIC] Content generation request:', {
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
         persona: currentPersona,
-        style: currentPersona,
+        style: contentSettings.style,
         researchLength: researchResults.perplexityResearch.length,
-        language: language,
         timestamp: new Date().toISOString()
       });
 
-      // Generate a unique request ID for tracking
-      const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Starting content generation`);
-
       const response = await fetch('/api/claude/content', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'X-Request-ID': requestId
         },
         body: JSON.stringify({
           contentType: contentDetails.contentType,
           platform: contentDetails.platform,
           audience: contentDetails.targetAudience,
           researchData: researchResults.perplexityResearch,
-          style: currentPersona,
+          style: currentPersona || contentSettings.style,
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
@@ -660,8 +623,7 @@ export default function ContentGenerator() {
           businessType: contentDetails.businessType,
           businessName: contentDetails.businessName,
           researchTopic: contentDetails.researchTopic,
-          language: language, // Explicitly pass the language parameter
-          requestId: requestId // Pass the request ID
+          language: language // Explicitly pass the language to the API
         }),
       });
 
@@ -671,43 +633,35 @@ export default function ContentGenerator() {
       }));
 
       if (!response.ok) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - API Error:`, response.status);
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || `API error: ${response.status}`);
       }
 
       // Get the raw response text first
       const rawText = await response.text();
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Raw response length:`, rawText.length);
-
-      // Validate raw response before parsing
-      if (!rawText || rawText.trim() === '') {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Empty response from API`);
-        throw new Error('Empty response received from API');
-      }
+      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
 
       // Parse the JSON carefully
       let data;
       try {
         data = JSON.parse(rawText);
       } catch (parseError) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - JSON parse error:`, parseError);
-        console.error(`[DIAGNOSTIC] Raw response (first 500 chars):`, rawText.substring(0, 500));
+        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
+        console.error('[DIAGNOSTIC] Raw response:', rawText);
         throw new Error('Failed to parse API response');
       }
 
       if (!data.content) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - No content in response:`, data);
+        console.error('[DIAGNOSTIC] No content in response:', data);
         throw new Error('No content received from API');
       }
 
       // Log content details before setting state
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Content generation result:`, {
+      console.log('[DIAGNOSTIC] Content generation result:', {
         rawLength: rawText.length,
         contentLength: data.content.length,
         persona: currentPersona,
         status: response.status,
-        language: language,
         timestamp: new Date().toISOString()
       });
 
@@ -739,40 +693,15 @@ export default function ContentGenerator() {
           { english: "NEWS!", spanish: "¡NOTICIA!" },
           { english: "Current technology allows", spanish: "La tecnología actual permite" },
           { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" },
-          { english: "Introduction", spanish: "Introducción" },
-          { english: "Main Content", spanish: "Contenido Principal" },
-          { english: "Conclusion", spanish: "Conclusión" },
-          { english: "Key Points", spanish: "Puntos Clave" },
-          { english: "Executive Summary", spanish: "Resumen Ejecutivo" },
-          { english: "Benefits", spanish: "Beneficios" },
-          { english: "Features", spanish: "Características" },
-          { english: "Call to Action", spanish: "Llamada a la Acción" },
-          { english: "Tips", spanish: "Consejos" },
-          { english: "Trends", spanish: "Tendencias" },
-          { english: "In conclusion", spanish: "En conclusión" }
+          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
         ];
         
         // Replace any English phrases with their Spanish equivalents
         commonEnglishPhrases.forEach(({english, spanish}) => {
-          // Match full phrases
           cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
-          
-          // Also match section headings (# Introduction, ## Key Points, etc.)
-          const headerRegex = new RegExp(`# ${english}\\b`, 'gi');
-          cleanedContent = cleanedContent.replace(headerRegex, `# ${spanish}`);
-          
-          const subheaderRegex = new RegExp(`## ${english}\\b`, 'gi');
-          cleanedContent = cleanedContent.replace(subheaderRegex, `## ${spanish}`);
         });
-        
-        console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Applied Spanish content fixes`);
-      }
 
-      // Ensure we have content after cleaning
-      if (!cleanedContent || cleanedContent.trim() === '') {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Content empty after cleaning`);
-        throw new Error('Content became empty after processing');
+        console.log('[DIAGNOSTIC] Applied Spanish content fixes');
       }
 
       // Store the generated content
@@ -786,19 +715,17 @@ export default function ContentGenerator() {
       };
       setContentVersions(prev => [...prev, versionEntry]);
       
-      setStatusMessage(language === 'es' ? 'Contenido generado exitosamente!' : 'Content successfully generated!');
+      setStatusMessage('Content successfully generated!');
       
       // Pre-render the content with error boundary
       try {
         const rendered = renderSimpleMarkdown(cleanedContent);
         setPrerenderedContent(rendered);
       } catch (renderError) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Render error:`, renderError);
+        console.error('[DIAGNOSTIC] Render error:', renderError);
         // Fall back to plain text display if markdown rendering fails
         setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
       }
-
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Content generation completed successfully`);
 
     } catch (error) {
       console.error('[DIAGNOSTIC] Content generation error:', error);
@@ -810,18 +737,8 @@ export default function ContentGenerator() {
       // Scroll to the absolute top of the page after generation completes
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [isGenerating, contentDetails, researchResults, currentPersona, contentSettings, language, t, setGeneratedContent, setContentVersions, setStatusMessage, setPrerenderedContent, setError, setIsGenerating, renderSimpleMarkdown]);
-
-  // --- New useEffect hook to trigger generation --- 
-  useEffect(() => {
-    // Only run if triggerGeneration is true and not already generating
-    if (triggerGeneration && !isGenerating) {
-      console.log('[DIAGNOSTIC] useEffect triggering startGeneration...');
-      startGeneration();
-      setTriggerGeneration(false); // Reset the trigger
-    }
-  }, [triggerGeneration, isGenerating, startGeneration]);
-
+  };
+  
   // Function to regenerate with a new persona
   const changePersonaAndRegenerate = async (newPersona: string) => {
     if (isGenerating) return;
@@ -838,16 +755,12 @@ export default function ContentGenerator() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     try {
-      // Generate a unique request ID for tracking the persona change
-      const requestId = `persona_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
       // Log the request details
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Persona change request:`, {
+      console.log('[DIAGNOSTIC] Persona change request:', {
         from: currentPersona,
         to: newPersona, 
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
-        language: language,
         researchLength: researchResults?.perplexityResearch?.length || 0,
         timestamp: new Date().toISOString()
       });
@@ -861,7 +774,6 @@ export default function ContentGenerator() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Request-ID': requestId
         },
         body: JSON.stringify({
           contentType: contentDetails.contentType,
@@ -879,8 +791,7 @@ export default function ContentGenerator() {
           isPersonaChange: true, // Flag to indicate this is a persona change request
           previousPersona: currentPersona,
           previousContent: generatedContent,
-          language: language, // Explicitly pass the language to the API
-          requestId: requestId // Pass the request ID
+          language: language // Explicitly pass the language to the API
         }),
       });
       
@@ -890,42 +801,34 @@ export default function ContentGenerator() {
       }));
       
       if (!response.ok) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - API Error:`, response.status);
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || `API error: ${response.status}`);
       }
       
       // Get the raw response text first
       const rawText = await response.text();
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Raw response length:`, rawText.length);
-      
-      // Validate raw response before parsing
-      if (!rawText || rawText.trim() === '') {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Empty response from API`);
-        throw new Error('Empty response received from API');
-      }
+      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
       
       // Parse the JSON carefully
       let data;
       try {
         data = JSON.parse(rawText);
       } catch (parseError) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - JSON parse error:`, parseError);
-        console.error(`[DIAGNOSTIC] Raw response (first 500 chars):`, rawText.substring(0, 500));
+        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
+        console.error('[DIAGNOSTIC] Raw response:', rawText);
         throw new Error('Failed to parse API response');
       }
       
       if (!data.content) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - No content in response:`, data);
+        console.error('[DIAGNOSTIC] No content in response:', data);
         throw new Error('No content received from API');
       }
       
       // Log content details before setting state
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Persona change content result:`, {
+      console.log('[DIAGNOSTIC] Persona change content result:', {
         rawLength: rawText.length,
         contentLength: data.content.length,
         newPersona: newPersona,
-        language: language,
         status: response.status,
         timestamp: new Date().toISOString()
       });
@@ -958,40 +861,15 @@ export default function ContentGenerator() {
           { english: "NEWS!", spanish: "¡NOTICIA!" },
           { english: "Current technology allows", spanish: "La tecnología actual permite" },
           { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" },
-          { english: "Introduction", spanish: "Introducción" },
-          { english: "Main Content", spanish: "Contenido Principal" },
-          { english: "Conclusion", spanish: "Conclusión" },
-          { english: "Key Points", spanish: "Puntos Clave" },
-          { english: "Executive Summary", spanish: "Resumen Ejecutivo" },
-          { english: "Benefits", spanish: "Beneficios" },
-          { english: "Features", spanish: "Características" },
-          { english: "Call to Action", spanish: "Llamada a la Acción" },
-          { english: "Tips", spanish: "Consejos" },
-          { english: "Trends", spanish: "Tendencias" },
-          { english: "In conclusion", spanish: "En conclusión" }
+          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
         ];
         
         // Replace any English phrases with their Spanish equivalents
         commonEnglishPhrases.forEach(({english, spanish}) => {
-          // Match full phrases
           cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
-          
-          // Also match section headings (# Introduction, ## Key Points, etc.)
-          const headerRegex = new RegExp(`# ${english}\\b`, 'gi');
-          cleanedContent = cleanedContent.replace(headerRegex, `# ${spanish}`);
-          
-          const subheaderRegex = new RegExp(`## ${english}\\b`, 'gi');
-          cleanedContent = cleanedContent.replace(subheaderRegex, `## ${spanish}`);
         });
-        
-        console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Applied Spanish content fixes to persona content`);
-      }
-      
-      // Ensure we have content after cleaning
-      if (!cleanedContent || cleanedContent.trim() === '') {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Content empty after cleaning`);
-        throw new Error('Content became empty after processing');
+
+        console.log('[DIAGNOSTIC] Applied Spanish content fixes to persona change content');
       }
       
       // Store the generated content
@@ -1010,7 +888,7 @@ export default function ContentGenerator() {
         const rendered = renderSimpleMarkdown(cleanedContent);
         setPrerenderedContent(rendered);
       } catch (renderError) {
-        console.error(`[DIAGNOSTIC] Request ID: ${requestId} - Render error:`, renderError);
+        console.error('[DIAGNOSTIC] Render error:', renderError);
         // Fall back to plain text display if markdown rendering fails
         setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
       }
@@ -1027,8 +905,6 @@ export default function ContentGenerator() {
       setTimeout(() => {
         document.getElementById('generated-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 500);
-
-      console.log(`[DIAGNOSTIC] Request ID: ${requestId} - Persona change completed successfully`);
       
     } catch (error) {
       console.error('[DIAGNOSTIC] Persona change error:', error);
@@ -1129,6 +1005,32 @@ export default function ContentGenerator() {
         title: t('actions.saveToDashboardError', { defaultValue: 'Failed to save content. Please try again.' }),
         variant: "destructive"
       });
+    }
+  };
+
+  // Helper function to format persona name for display
+  const getFormattedPersonaName = (personaId: string) => {
+    switch (personaId) {
+      case 'ariastar':
+        return 'AriaStar';
+      case 'specialist_mentor':
+        return 'MentorPro';
+      case 'ai_collaborator':
+        return 'AIInsight';
+      case 'sustainable_advocate':
+        return 'EcoEssence';
+      case 'data_visualizer':
+        return 'DataStory';
+      case 'multiverse_curator':
+        return 'NexusVerse';
+      case 'ethical_tech':
+        return 'TechTranslate';
+      case 'niche_community':
+        return 'CommunityForge';
+      case 'synthesis_maker':
+        return 'SynthesisSage';
+      default:
+        return personaId;
     }
   };
 
@@ -1412,10 +1314,9 @@ export default function ContentGenerator() {
                             <button
                               key={`initial-${persona.id}-${index}`}
                               onClick={() => {
-                                console.log(`[DIAGNOSTIC] Persona button clicked: ${persona.id}`);
                                 setContentSettings(prev => ({ ...prev, style: persona.id }));
                                 setCurrentPersona(persona.id);
-                                setTriggerGeneration(true);
+                                startGeneration();
                               }}
                               className={`p-6 border rounded-lg text-left transition-all hover:border-blue-500 hover:shadow-md h-full ${
                                 currentPersona === persona.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'

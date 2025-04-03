@@ -12,8 +12,7 @@ export async function generatePerplexityResearch(
   context: string,
   sources?: string[],
   language?: string,
-  companyName?: string,
-  refresh?: boolean
+  companyName?: string
 ): Promise<string> {
   try {
     console.log('Starting Perplexity research job with:', { 
@@ -21,8 +20,7 @@ export async function generatePerplexityResearch(
       context,
       sources: sources || [],
       language,
-      companyName: companyName || 'N/A',
-      refresh: refresh || false
+      companyName: companyName || 'N/A'
     });
     
     // Validate topic to ensure it's not empty
@@ -30,25 +28,21 @@ export async function generatePerplexityResearch(
       throw new Error('Empty research topic provided to Perplexity API');
     }
     
-    // First check if we already have cached research for this topic (unless refresh is true)
-    if (!refresh) {
-      const cachedCheckResponse = await fetch(`/api/perplexity/research?topic=${encodeURIComponent(topic.trim())}`, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      // If we found cached research, return it immediately
-      if (cachedCheckResponse.ok) {
-        const cachedData = await cachedCheckResponse.json();
-        if (cachedData.research) {
-          console.log('Found cached research for topic, using it directly');
-          return cachedData.research;
-        }
+    // First check if we already have cached research for this topic
+    const cachedCheckResponse = await fetch(`/api/perplexity/research?topic=${encodeURIComponent(topic.trim())}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache'
       }
-    } else {
-      console.log('Refresh parameter is true, skipping cache check');
+    });
+    
+    // If we found cached research, return it immediately
+    if (cachedCheckResponse.ok) {
+      const cachedData = await cachedCheckResponse.json();
+      if (cachedData.research) {
+        console.log('Found cached research for topic, using it directly');
+        return cachedData.research;
+      }
     }
     
     // Create a research job
@@ -63,8 +57,7 @@ export async function generatePerplexityResearch(
         context: context.trim(),
         sources: sources || [],
         language,
-        companyName, // Pass company name to the API route
-        refresh: refresh || false // Pass refresh parameter to bypass server cache
+        companyName // Pass company name to the API route
       }),
     });
     
