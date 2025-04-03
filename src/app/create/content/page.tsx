@@ -364,7 +364,7 @@ export default function ContentGenerator() {
           setError('Loading took too long. Some data might not be available. Please reload the page and try again.');
         }
       }
-    }, 30000); // Increased timeout to 30 seconds for slower connections
+    }, 60000); // Increased timeout to 60 seconds (from 30 seconds) for slower connections
     
     // Initialize the page data
     const initializePageData = async () => {
@@ -570,41 +570,42 @@ export default function ContentGenerator() {
 
   // Update the startGeneration function
   const startGeneration = async () => {
-    if (isGenerating) {
-      console.log("[DIAGNOSTIC] Generation already in progress");
-      return;
-    }
-
-    if (!contentDetails?.contentType || !contentDetails?.platform) {
-      console.error('[DIAGNOSTIC] Missing required content details');
-      setError('Missing content type or platform. Please go back to the previous step.');
-      return;
-    }
-
-    if (!researchResults?.perplexityResearch) {
-      console.error('[DIAGNOSTIC] Missing research data');
-      setError('Missing research data. Please go back to the research step.');
-      return;
-    }
-
+    // Prevent multiple generation attempts
+    if (isGenerating) return;
+    
     try {
-      setIsGenerating(true);
       setError(null);
-      setStatusMessage(t('contentGeneration.preparingContent', { defaultValue: 'Preparing your content...' }));
+      setIsGenerating(true);
+      setStatusMessage('Preparing content generation...');
       
-      // Scroll to the absolute top of the page when generation starts
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      // Log the request details
-      console.log('[DIAGNOSTIC] Content generation request:', {
-        contentType: contentDetails.contentType,
-        platform: contentDetails.platform,
-        persona: currentPersona,
-        style: contentSettings.style,
-        researchLength: researchResults.perplexityResearch.length,
-        timestamp: new Date().toISOString()
-      });
-
+      // Check if we have valid research data
+      if (!researchResults?.perplexityResearch && !contentDetails.youtubeTranscript) {
+        throw new Error("No research data available for content generation. Please go back to research page.");
+      }
+      
+      // Log the research data length for debugging
+      const researchDataLength = researchResults?.perplexityResearch?.length || 0;
+      const transcriptLength = contentDetails.youtubeTranscript?.length || 0;
+      console.log(`[DIAGNOSTIC] Research data length: ${researchDataLength} characters, transcript length: ${transcriptLength} characters`);
+      
+      // If research data is very large, warn the user
+      if (researchDataLength > 60000 || transcriptLength > 60000) {
+        console.warn('[DIAGNOSTIC] Large research data detected - may cause slower content generation');
+        toast.info('Large amount of research data detected. Content generation may take longer than usual.');
+      }
+      
+      // Use AbortController for request cancellation
+      const abortController = new AbortController();
+      
+      // Set up a timeout for the request
+      const timeoutId = setTimeout(() => {
+        console.log('[DIAGNOSTIC] Request timeout reached, aborting request');
+        abortController.abort();
+      }, 180000); // 3 minute timeout
+      
+      // Prepare enhanced content request with all available data
+      console.log('Starting content generation with research data...');
+      
       const response = await fetch('/api/claude/content', {
         method: 'POST',
         headers: {
@@ -614,128 +615,155 @@ export default function ContentGenerator() {
           contentType: contentDetails.contentType,
           platform: contentDetails.platform,
           audience: contentDetails.targetAudience,
-          researchData: researchResults.perplexityResearch,
-          style: currentPersona || contentSettings.style,
+          context: prompt,
+          researchData: researchResults?.perplexityResearch || '',
+          youtubeTranscript: contentDetails.youtubeTranscript || '',
+          youtubeUrl: contentDetails.youtubeUrl || '',
+          style: contentSettings.style,
+          language,
+          styleIntensity: 1,
+          subPlatform: contentDetails.subPlatform || '',
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
-          persona: currentPersona,
           businessType: contentDetails.businessType,
           businessName: contentDetails.businessName,
-          researchTopic: contentDetails.researchTopic,
-          language: language // Explicitly pass the language to the API
+          researchTopic: contentDetails.researchTopic
         }),
+        signal: abortController.signal
       });
-
-      setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-        defaultValue: 'Creating content with {{persona}}...', 
-        persona: getFormattedPersonaName(currentPersona) 
-      }));
-
+      
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || `API error: ${response.status}`);
-      }
-
-      // Get the raw response text first
-      const rawText = await response.text();
-      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
-
-      // Parse the JSON carefully
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseError) {
-        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
-        console.error('[DIAGNOSTIC] Raw response:', rawText);
-        throw new Error('Failed to parse API response');
-      }
-
-      if (!data.content) {
-        console.error('[DIAGNOSTIC] No content in response:', data);
-        throw new Error('No content received from API');
-      }
-
-      // Log content details before setting state
-      console.log('[DIAGNOSTIC] Content generation result:', {
-        rawLength: rawText.length,
-        contentLength: data.content.length,
-        persona: currentPersona,
-        status: response.status,
-        timestamp: new Date().toISOString()
-      });
-
-      // Check if we're in Spanish mode and fix common English elements that might appear
-      let cleanedContent = data.content;
-      if (language === 'es') {
-        // Common English phrases that might appear and their Spanish translations
-        const commonEnglishPhrases = [
-          { english: "That feeling when you think you're the only one struggling? Not true.", spanish: "¿Esa sensación cuando piensas que eres el único que lucha? No es cierto." },
-          { english: "Ever notice how", spanish: "¿Alguna vez has notado cómo" },
-          { english: "Did you know that", spanish: "¿Sabías que" },
-          { english: "The key difference between", spanish: "La diferencia clave entre" },
-          { english: "feels like trying to solve a Rubik's cube blindfolded?", spanish: "¿se siente como intentar resolver un cubo de Rubik con los ojos vendados?" },
-          { english: "How frustrating is it", spanish: "Qué frustrante es" },
-          { english: "An advanced strategy I recommend is", spanish: "Una estrategia avanzada que recomiendo es" },
-          { english: "Looking for reliable", spanish: "¿Buscando" },
-          { english: "Struggling with", spanish: "¿Luchando con" },
-          { english: "Are you tired of", spanish: "¿Estás cansado de" },
-          { english: "Searching for", spanish: "¿Buscando" },
-          { english: "Having reliable", spanish: "Tener" },
-          { english: "Living in rural areas", spanish: "Vivir en zonas rurales" },
-          { english: "Rural connectivity", spanish: "La conectividad rural" },
-          { english: "Internet service", spanish: "El servicio de internet" },
-          { english: "Today,", spanish: "Hoy," },
-          { english: "Let's face it:", spanish: "Seamos sinceros:" },
-          { english: "Based on recent data,", spanish: "Según datos recientes," },
-          { english: "Picture this:", spanish: "Imagina esto:" },
-          { english: "SOLUTION:", spanish: "SOLUCIÓN:" },
-          { english: "NEWS!", spanish: "¡NOTICIA!" },
-          { english: "Current technology allows", spanish: "La tecnología actual permite" },
-          { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
-        ];
+        // Try to get error details from the response
+        let errorMsg = 'Failed to generate content';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
         
-        // Replace any English phrases with their Spanish equivalents
-        commonEnglishPhrases.forEach(({english, spanish}) => {
-          cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
-        });
-
-        console.log('[DIAGNOSTIC] Applied Spanish content fixes');
+        // For timeout errors, provide more helpful guidance
+        if (errorMsg.includes('timed out') || errorMsg.includes('timeout')) {
+          errorMsg += '. This is likely due to the large amount of research data. Try generating content with more focused research or try again.';
+        }
+        
+        throw new Error(errorMsg);
       }
-
-      // Store the generated content
-      setGeneratedContent(cleanedContent);
       
-      // Add to version history with timestamp
-      const versionEntry: ContentVersion = {
-        content: cleanedContent,
+      const data = await response.json();
+      
+      if (!data.content) {
+        throw new Error('No content was generated');
+      }
+      
+      // Add version tracking for the newly generated content
+      const newVersion = {
+        content: data.content,
         timestamp: new Date().toISOString(),
-        persona: currentPersona
+        persona: contentSettings.style
       };
-      setContentVersions(prev => [...prev, versionEntry]);
       
-      setStatusMessage('Content successfully generated!');
+      setContentVersions(prev => {
+        // Check if this is the first version or a duplicate of the last version
+        if (prev.length === 0 || prev[prev.length - 1].content !== newVersion.content) {
+          return [...prev, newVersion];
+        }
+        return prev;
+      });
       
-      // Pre-render the content with error boundary
-      try {
-        const rendered = renderSimpleMarkdown(cleanedContent);
-        setPrerenderedContent(rendered);
-      } catch (renderError) {
-        console.error('[DIAGNOSTIC] Render error:', renderError);
-        // Fall back to plain text display if markdown rendering fails
-        setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
+      setGeneratedContent(data.content);
+      
+      // Pre-render the content to avoid UI jank
+      const rendered = renderSimpleMarkdown(data.content);
+      setPrerenderedContent(rendered);
+      
+      // Show a success message
+      toast.success('Content generated successfully!');
+    } catch (error: any) {
+      console.error('[ERROR] Content generation failed:', error);
+      
+      // Provide user-friendly error messages based on the error
+      let errorMessage = error.message || 'An error occurred during content generation';
+      
+      // For AbortError (timeout), provide more specific guidance
+      if (error.name === 'AbortError') {
+        errorMessage = 'Content generation timed out. This could be due to the large amount of research data. Try again with more focused research.';
       }
-
-    } catch (error) {
-      console.error('[DIAGNOSTIC] Content generation error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate content');
+      
+      // For connection errors, suggest retry
+      if (errorMessage.includes('fetch') || errorMessage.includes('network')) {
+        errorMessage = 'Connection error during content generation. Please check your internet connection and try again.';
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+      
+      // If we have research results but no generated content, try to recover
+      if (researchResults?.perplexityResearch && !generatedContent) {
+        console.log('[RECOVERY] Attempting emergency content generation with reduced research data');
+        
+        // Show recovery attempt message
+        toast.info('Attempting recovery with reduced research data');
+        
+        try {
+          // Create a condensed version of the research data
+          const research = researchResults.perplexityResearch;
+          const condensedResearch = research.length > 20000 
+            ? research.substring(0, 8000) + "\n\n[...]\n\n" + research.substring(research.length - 8000)
+            : research;
+          
+          // Try a simplified request with condensed data
+          const recoveryResponse = await fetch('/api/claude/content', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contentType: contentDetails.contentType,
+              platform: contentDetails.platform,
+              audience: contentDetails.targetAudience,
+              context: prompt,
+              researchData: condensedResearch,
+              style: contentSettings.style,
+              language
+            })
+          });
+          
+          if (recoveryResponse.ok) {
+            const recoveryData = await recoveryResponse.json();
+            if (recoveryData.content) {
+              console.log('[RECOVERY] Emergency content generation succeeded');
+              
+              // Create a recovery version
+              const recoveryVersion = {
+                content: recoveryData.content,
+                timestamp: new Date().toISOString(),
+                persona: contentSettings.style
+              };
+              
+              setContentVersions(prev => [...prev, recoveryVersion]);
+              setGeneratedContent(recoveryData.content);
+              
+              // Pre-render the content to avoid UI jank
+              const rendered = renderSimpleMarkdown(recoveryData.content);
+              setPrerenderedContent(rendered);
+              
+              // Clear error and show success message
+              setError(null);
+              toast.success('Content generation recovered with condensed research!');
+            }
+          }
+        } catch (recoveryError) {
+          console.error('[RECOVERY] Emergency content generation failed:', recoveryError);
+        }
+      }
     } finally {
       setIsGenerating(false);
       setStatusMessage('');
-      
-      // Scroll to the absolute top of the page after generation completes
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
   

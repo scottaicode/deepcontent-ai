@@ -3,9 +3,18 @@ import { Anthropic } from '@anthropic-ai/sdk';
 import { enhanceWithPersonaTraits, getPersonaDisplayName } from '@/app/lib/personaUtils';
 import { verifyResearchQuality } from '@/app/lib/middleware/researchGuard';
 
+// Add NextRequest for route config
+import { NextRequest } from 'next/server';
+
 // Constants - Using the correct Claude 3.7 Sonnet model identifier
 // From official Anthropic API docs: https://docs.anthropic.com/en/api/getting-started
 const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
+
+// Set increased route config for timeout - extending to 5 minutes max
+export const maxDuration = 300; // 5 minutes in seconds
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0; // No revalidation
 
 // Request interface for content generation
 interface ContentGenerationRequest {
@@ -63,16 +72,68 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     console.log("[DIAGNOSTIC] System prompt length:", finalSystemPrompt.length);
     console.log("[DIAGNOSTIC] User prompt length:", promptText.length);
     
+    // Check if prompt is too long and trim research data if needed
+    const maxPromptLength = 85000; // ~85K tokens is a safe limit
+    let processedPrompt = promptText;
+    
+    if (promptText.length > maxPromptLength) {
+      console.log("[DIAGNOSTIC] Prompt too long, trimming research data");
+      
+      // Find research data section
+      const researchStartMatch = promptText.match(/RESEARCH DATA:\s+/);
+      if (researchStartMatch && researchStartMatch.index !== undefined) {
+        const researchStartIdx = researchStartMatch.index + researchStartMatch[0].length;
+        
+        // Find the next section after research data
+        const nextSectionMatch = promptText.substring(researchStartIdx).match(/\n\n[A-Z\s]+:/);
+        
+        if (nextSectionMatch && nextSectionMatch.index !== undefined) {
+          // Calculate where to cut the research data
+          const researchEndIdx = researchStartIdx + nextSectionMatch.index;
+          const researchData = promptText.substring(researchStartIdx, researchEndIdx);
+          
+          // If research data is very long, summarize it
+          if (researchData.length > 40000) {
+            // Keep the beginning and end of research data for context
+            const beginningData = researchData.substring(0, 15000);
+            const endingData = researchData.substring(researchData.length - 15000);
+            
+            // Create a summarized version with notes
+            const summaryNote = "\n\n[NOTE: Research data has been condensed for length. Using beginning and end sections.]\n\n";
+            const condensedResearch = beginningData + summaryNote + endingData;
+            
+            // Replace the original research data with condensed version
+            processedPrompt = 
+              promptText.substring(0, researchStartIdx) + 
+              condensedResearch + 
+              promptText.substring(researchEndIdx);
+            
+            console.log("[DIAGNOSTIC] Condensed research data from", researchData.length, "to", condensedResearch.length, "characters");
+          }
+        }
+      }
+    }
+    
+    // Set longer timeout for generation
     const startTime = Date.now();
-    const response = await anthropicClient.messages.create({
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Claude API request timed out after 3 minutes')), 180000); // 3 minute timeout
+    });
+    
+    // Create the API request promise
+    const apiRequestPromise = anthropicClient.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 4000,
       temperature: 0.7,
       system: finalSystemPrompt,
       messages: [
-        { role: "user", content: promptText }
+        { role: "user", content: processedPrompt }
       ]
     });
+    
+    // Race the API request against the timeout
+    const response = await Promise.race([apiRequestPromise, timeoutPromise]) as Anthropic.Messages.Message;
+    
     const responseTime = Date.now() - startTime;
     console.log(`[DIAGNOSTIC] Claude API responded in ${responseTime}ms`);
     
@@ -119,6 +180,12 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
       message: error.message,
       stack: error.stack
     } : 'Unknown error type');
+    
+    // For timeout errors, provide a more specific error message
+    if (error instanceof Error && error.message.includes('timed out')) {
+      throw new Error("Claude API request timed out. This is likely due to the large size of research data. Please try again with more concise research or try breaking it into smaller sections.");
+    }
+    
     throw error;
   }
 }
@@ -801,6 +868,4 @@ Return ONLY the transformed content in the new persona voice, with no explanatio
       { status: 500 }
     );
   }
-}
-
-export const dynamic = 'force-dynamic'; 
+} 
