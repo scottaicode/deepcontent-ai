@@ -538,12 +538,21 @@ export default function ResearchPage() {
       // Get the step from the URL query parameters
       const urlParams = new URLSearchParams(window.location.search);
       const stepParam = urlParams.get('step');
+      const showGenerateUI = urlParams.get('showGenerateUI');
       
       if (stepParam) {
         const parsedStep = parseInt(stepParam, 10);
         // Only set the step if it's valid (1-5)
         if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
           setResearchStep(parsedStep);
+          
+          // If we're navigating to step 3 with showGenerateUI=true,
+          // ensure we don't skip the generate UI by setting flags to prevent auto-transition
+          if (parsedStep === 3 && showGenerateUI === 'true') {
+            console.log('[DEBUG] Showing Generate Research UI as requested by URL parameter');
+            // Set any flags needed to ensure we stay on step 3
+            sessionStorage.setItem('forceShowGenerateResearch', 'true');
+          }
         }
       }
     }
@@ -1300,29 +1309,61 @@ If you'd like complete research, please try again later when our research servic
     // Add more verbose logging for debugging purposes
     console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
     
+    // Check if we should force showing the Generate Research UI
+    const forceShowGenerateResearch = sessionStorage.getItem('forceShowGenerateResearch') === 'true';
+    
+    if (forceShowGenerateResearch && researchStep === 3) {
+      console.log('[DEBUG TRANSITION] Forcing Generate Research UI to be shown - not auto-transitioning');
+      // Clear the flag so it doesn't persist for future navigations
+      sessionStorage.removeItem('forceShowGenerateResearch');
+      return;
+    }
+    
     // Check state changes that should trigger a transition
     if (deepResearch && researchStep < 4) {
       console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
       
-      // Move to research step 4 (results) directly if we have data
-      const timer = setTimeout(() => {
-        console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
-        setResearchStep(4);
+      // Check if we're coming from step 2 - if so, always go to step 3 first
+      if (researchStep === 2) {
+        const timer = setTimeout(() => {
+          console.log('[DEBUG TRANSITION] Going from step 2 to step 3 (Generate Research)');
+          setResearchStep(3);
+          
+          // Save research results for redundancy
+          const researchResults: ResearchResults = {
+            researchMethod: 'perplexity',
+            perplexityResearch: deepResearch,
+            trendingTopics: [],
+            dataSources: {
+              reddit: true,
+              rss: true
+            }
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+        }, 500);
         
-        // Save research results for redundancy
-        const researchResults: ResearchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: deepResearch,
-          trendingTopics: [],
-          dataSources: {
-            reddit: true,
-            rss: true
-          }
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-      }, 500);
-      
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      } else if (researchStep === 3 && !forceShowGenerateResearch) {
+        // Only auto-transition from step 3 if not forcing the Generate Research UI
+        const timer = setTimeout(() => {
+          console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
+          setResearchStep(4);
+          
+          // Save research results for redundancy
+          const researchResults: ResearchResults = {
+            researchMethod: 'perplexity',
+            perplexityResearch: deepResearch,
+            trendingTopics: [],
+            dataSources: {
+              reddit: true,
+              rss: true
+            }
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+        }, 500);
+        
+        return () => clearTimeout(timer);
+      }
     }
     
     // Also transition if generation has stopped but we're still in step 2
@@ -1331,8 +1372,8 @@ If you'd like complete research, please try again later when our research servic
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        console.log('[DEBUG TRANSITION] Moving from step 2 to step 4 with research data');
-        setResearchStep(4);
+        console.log('[DEBUG TRANSITION] Moving from step 2 to step 3 with research data');
+        setResearchStep(3); // Changed from 4 to 3 to not skip the Generate Research step
         
         // Make sure we save the research results
         const researchResults: ResearchResults = {
@@ -2472,6 +2513,19 @@ If you'd like complete research, please try again later when our research servic
           </button>
           
           <div className="flex space-x-4">
+            {/* Add continue to results button for manual navigation */}
+            {deepResearch && !isGenerating && (
+              <button
+                onClick={() => {
+                  console.log('[DEBUG] User manually requested to proceed to Research Results');
+                  setResearchStep(4);
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+              >
+                {language === 'es' ? 'Continuar a Resultados' : 'Continue to Results'}
+              </button>
+            )}
+            
             {/* Add quick access to content creation if research is already available */}
             {deepResearch && (
               <button
