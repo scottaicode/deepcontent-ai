@@ -634,163 +634,77 @@ const WebsiteAnalysis: React.FC<WebsiteAnalysisProps> = ({ onScrapedContent }) =
     const pricingInfo = scrapedContent.pricingInfo || '';
     const contactInfo = scrapedContent.contactInfo || { emails: [], phones: [], socialLinks: [] };
     const subpagesScraped = Array.isArray(scrapedContent.subpagesScraped) ? scrapedContent.subpagesScraped : [];
-    
-    // Track content counts for display
+    const pageCount = subpagesScraped.length || 1;
     const headingCount = headings.length;
     const paragraphCount = paragraphs.length;
-    const pageCount = subpagesScraped.length || 1;
-
-    // DEBUGGING LOGS
-    console.log("Rendering scraped content summary:", {
-      contentType: typeof scrapedContent,
-      hasContent: !!scrapedContent,
-      title,
-      metaDescriptionLength: metaDescription?.length || 0,
-      headingsCount: headings?.length || 0,
-      paragraphsCount: paragraphs?.length || 0,
-      subpagesScrapedCount: subpagesScraped?.length || 0,
-      aboutContentLength: aboutContent?.length || 0,
-      productInfoLength: productInfo?.length || 0,
-      pricingInfoLength: pricingInfo?.length || 0,
-      hasContactInfo: !!contactInfo,
-      contactInfoType: typeof contactInfo,
-    });
-    // DEBUGGING LOGS END
+    
+    // Prepare text for copy button
+    let textToCopy = `${title}\n\n`;
+    if (metaDescription) textToCopy += `Meta Description: ${metaDescription}\n\n`;
+    if (subpagesScraped.length > 0) textToCopy += `Pages Analyzed (${subpagesScraped.length}):\n${subpagesScraped.join('\n')}\n\n`;
+    if (headings.length > 0) textToCopy += `Sample Headings (${headingCount}):\n${headings.join('\n')}\n\n`;
+    if (paragraphs.length > 0) textToCopy += `Sample Paragraphs (${paragraphCount}):\n${paragraphs.join('\n\n')}\n\n`;
+    // Add other sections if they exist in future
+    textToCopy = textToCopy.trim();
 
     return (
-      <div className="mt-4 bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-100 dark:border-green-800/40">
-        <div className="flex justify-between items-start">
-          <div>
+      <div className="mt-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-100 dark:border-green-800/40 overflow-hidden">
+        {/* Header with Title, Copy Button, and Toggle */}
+        <div className="p-3 flex justify-between items-center">
+          <div className='flex-grow'>
             <h3 className="text-base font-medium text-green-800 dark:text-green-200 flex items-center">
-              <BiCheckCircle className="mr-2 text-green-500" />
-              {t('websiteAnalysis.websiteContent', { defaultValue: 'Website content extracted from {count} pages', count: pageCount.toString() })}
+              <BiCheckCircle className="mr-2 text-green-500 flex-shrink-0" />
+              <span className='truncate'>{title || t('websiteAnalysis.websiteContent', { defaultValue: 'Website Content' })}</span>
             </h3>
-            
-            {title && (
-              <p className="text-sm text-green-700 dark:text-green-300 mt-1 font-medium">
-                {title}
-              </p>
-            )}
-            {metaDescription && (
-               <p className="text-xs text-green-600 dark:text-green-400 mt-1 opacity-80">
-                 {metaDescription}
-               </p>
-            )}
-            
-            <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-              {t('websiteAnalysis.extractedContent', { defaultValue: 'Extracted {paragraphs} paragraphs, {headings} headings.', paragraphs: paragraphCount.toString(), headings: headingCount.toString() })}
+             <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+               {t('websiteAnalysis.extractedFromPages', { defaultValue: 'Extracted from {count} pages.', count: pageCount.toString() })}
             </p>
           </div>
-          
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-green-600 dark:text-green-400 p-1 hover:bg-green-100 dark:hover:bg-green-800/30 rounded"
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-            title={expanded ? 'Hide full content' : 'Show full content'}
-          >
-            {expanded ? <BiChevronUp size={24} /> : <BiChevronDown size={24} />}
-          </button>
-        </div>
-
-        {/* Content Preview when collapsed */}
-        {!expanded && (
-          <div className="mt-3 border-t border-green-200 dark:border-green-800/40 pt-3">
-            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-3 mb-3">
-              {/* Show a sample of headings */}
-              {headings.length > 0 && (
-                <div>
-                  <p className="font-medium mb-1">{t('websiteAnalysis.preview.headings', { defaultValue: 'Sample Headings:' })}</p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {headings.slice(0, 3).map((heading: string, i: number) => (
-                      <li key={i} className="truncate" title={heading}>{heading}</li>
-                    ))}
-                    {headings.length > 3 && <li className="italic text-gray-500">{t('websiteAnalysis.preview.more', { defaultValue: '... and {count} more', count: (headings.length - 3).toString() })}</li>}
-                  </ul>
-                </div>
-              )}
-              
-              {/* Show a sample of paragraphs */}
-              {paragraphs.length > 0 && (
-                <div>
-                  <p className="font-medium mb-1">{t('websiteAnalysis.preview.paragraphs', { defaultValue: 'Sample Content:' })}</p>
-                  <div className="pl-5 space-y-1">
-                    {paragraphs.slice(0, 2).map((para: string, i: number) => (
-                      <p key={i} className="line-clamp-2 text-gray-600 dark:text-gray-400">{para}</p>
-                    ))}
-                    {paragraphs.length > 2 && <p className="italic text-gray-500">{t('websiteAnalysis.preview.more', { defaultValue: '... and {count} more', count: (paragraphs.length - 2).toString() })}</p>}
-                  </div>
-                </div>
-              )}
-              
-              {/* Show if about content exists */}
-              {aboutContent && (
-                <div>
-                  <p className="font-medium mb-1">{t('websiteAnalysis.preview.about', { defaultValue: 'About:' })}</p>
-                  <p className="pl-5 line-clamp-2 text-gray-600 dark:text-gray-400">{aboutContent}</p>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 italic text-center">
-              {t('websiteAnalysis.preview.clickToExpand', { defaultValue: 'Click the arrow above to see all content' })}
-            </p>
-          </div>
-        )}
-        
-        {/* Action Buttons */}
-        <div className="mt-3 border-t border-green-200 dark:border-green-800/40 pt-3">
-          <div className="flex flex-wrap gap-2">
-            <button
-              id="websiteAnalysis-copyAll"
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  const content = scrapedContent;
-                  if (!content) return;
-                  
-                  let textToCopy = `${title}\\n\\n`;
-                  if (metaDescription) textToCopy += `${metaDescription}\\n\\n`;
-                  if (headings.length > 0) textToCopy += `Headings:\\n${headings.join('\\n')}\\n\\n`;
-                  if (paragraphs.length > 0) textToCopy += `Paragraphs:\\n${paragraphs.join('\\n\\n')}\\n\\n`;
-                  if (aboutContent) textToCopy += `About Content:\\n${aboutContent}\\n\\n`;
-                  if (productInfo) textToCopy += `Product Info:\\n${productInfo}\\n\\n`;
-                  if (pricingInfo) textToCopy += `Pricing Info:\\n${pricingInfo}\\n\\n`;
-                   if (contactInfo) {
-                     textToCopy += `Contact Info:\\n`;
-                     if (contactInfo.emails?.length > 0) textToCopy += `Emails: ${contactInfo.emails.join(', ')}\\n`;
-                     if (contactInfo.phones?.length > 0) textToCopy += `Phones: ${contactInfo.phones.join(', ')}\\n`;
-                     if (contactInfo.socialLinks?.length > 0) textToCopy += `Social: ${contactInfo.socialLinks.join(', ')}\\n`;
-                   }
-                   if (subpagesScraped.length > 0) textToCopy += `\\nScraped Pages:\\n${subpagesScraped.join('\\n')}`;
-
-                  navigator.clipboard.writeText(textToCopy.trim());
-                  showToast(t('websiteAnalysis.copiedAll', { defaultValue: 'All content copied' }), 'success');
-                }
-              }}
-              className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 border border-green-200 rounded-md hover:bg-green-200 transition-colors"
-            >
-              {t('websiteAnalysis.copyAllContent', { defaultValue: 'Copy All Content' })}
-            </button>
+          <div className='flex items-center flex-shrink-0 ml-2'>
+             <button
+               onClick={() => {
+                 if (typeof window !== 'undefined' && textToCopy) {
+                   navigator.clipboard.writeText(textToCopy);
+                   showToast(t('websiteAnalysis.copiedAll', { defaultValue: 'All content copied' }), 'success');
+                 }
+               }}
+               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mr-1"
+               aria-label={t('websiteAnalysis.copyAllContent', { defaultValue: 'Copy All Content' })}
+               title={t('websiteAnalysis.copyAllContent', { defaultValue: 'Copy All Content' })}
+               disabled={!textToCopy}
+             >
+               <BiCopy size={18} />
+             </button>
+             <button
+               onClick={() => setExpanded(!expanded)}
+               className="text-green-600 dark:text-green-400 p-1 hover:bg-green-100 dark:hover:bg-green-800/30 rounded"
+               aria-label={expanded ? 'Collapse' : 'Expand'}
+               title={expanded ? 'Hide details' : 'Show details'}
+             >
+               {expanded ? <BiChevronUp size={24} /> : <BiChevronDown size={24} />}
+             </button>
           </div>
         </div>
-        
-        {/* Expanded view - Directly use scrapedContent fields */}
+
+        {/* Expandable Content Area */}
         {expanded && (
-          <div id="website-content-details" className="mt-4 border-t border-green-200 dark:border-green-800/40 pt-3 space-y-4 text-xs">
+          <div id="website-content-details" className="bg-white dark:bg-gray-800 p-4 border-t border-green-200 dark:border-green-800/40 space-y-4 text-xs">
              {/* Website Info */}
-             <div id="website-info-section" className="bg-white dark:bg-gray-800 rounded p-3 border border-gray-100 dark:border-gray-700">
+             <div id="website-info-section" >
                 <h5 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">{t('websiteAnalysis.websiteInfo', { defaultValue: 'Website Information' })}</h5>
-                <div className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <div className="text-xs text-gray-600 dark:text-gray-300 space-y-1 pl-1">
                    <p><strong>{t('websiteAnalysis.titleLabel', { defaultValue: 'Title' })}:</strong> {title || 'N/A'}</p>
                    <p><strong>{t('websiteAnalysis.metaDescription', { defaultValue: 'Meta Description' })}:</strong> {metaDescription || 'N/A'}</p>
                 </div>
              </div>
 
-            {/* Pages Analyzed - Ensure this renders when expanded and pages exist */}
+            {/* Pages Analyzed */}
             {subpagesScraped && subpagesScraped.length > 0 && (
-              <div id="pages-analyzed-section" className="bg-white dark:bg-gray-800 rounded p-3 border border-gray-100 dark:border-gray-700">
+              <div id="pages-analyzed-section">
                  <h5 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-200 flex items-center">
-                    <BiWorld className="mr-1.5" /> {t('websiteAnalysis.pagesAnalyzedTitle', { defaultValue: 'Pages Analyzed ({count})', count: subpagesScraped.length.toString() })}
+                    <BiWorld className="mr-1.5 flex-shrink-0" /> {t('websiteAnalysis.pagesAnalyzedTitle', { defaultValue: 'Pages Analyzed ({count}) ', count: subpagesScraped.length.toString() })}
                  </h5>
-                 <ul className="text-xs text-gray-600 dark:text-gray-300 list-disc pl-5 space-y-1 max-h-60 overflow-y-auto">
+                 <ul className="text-xs text-gray-600 dark:text-gray-300 list-disc pl-5 space-y-1 max-h-40 overflow-y-auto">
                    {subpagesScraped.map((page: string, i: number) => (
                      <li key={i} className="truncate" title={page}>{page}</li>
                    ))}
@@ -800,8 +714,8 @@ const WebsiteAnalysis: React.FC<WebsiteAnalysisProps> = ({ onScrapedContent }) =
 
             {/* Sample Headings */}
             {headings.length > 0 && (
-               <div id="headings-section" className="bg-white dark:bg-gray-800 rounded p-3 border border-gray-100 dark:border-gray-700">
-                 <h5 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">{t('websiteAnalysis.sampleHeadings', { defaultValue: 'Sample Headings ({count})', count: headingCount.toString() })}</h5>
+               <div id="headings-section">
+                 <h5 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">{t('websiteAnalysis.sampleHeadings', { defaultValue: 'Sample Headings ({count}) ', count: headingCount.toString() })}</h5>
                  <ul className="text-xs text-gray-600 dark:text-gray-300 list-disc pl-5 space-y-1 max-h-60 overflow-y-auto">
                     {headings.map((heading: string, i: number) => (
                        <li key={i}>{heading}</li>
@@ -812,9 +726,9 @@ const WebsiteAnalysis: React.FC<WebsiteAnalysisProps> = ({ onScrapedContent }) =
 
             {/* Sample Paragraphs */}
             {paragraphs.length > 0 && (
-               <div id="paragraphs-section" className="bg-white dark:bg-gray-800 rounded p-3 border border-gray-100 dark:border-gray-700">
-                 <h5 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">{t('websiteAnalysis.sampleParagraphs', { defaultValue: 'Sample Content ({count})', count: paragraphCount.toString() })}</h5>
-                 <div className="text-xs text-gray-600 dark:text-gray-300 space-y-2 max-h-60 overflow-y-auto">
+               <div id="paragraphs-section">
+                 <h5 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">{t('websiteAnalysis.sampleParagraphs', { defaultValue: 'Sample Paragraphs ({count}) ', count: paragraphCount.toString() })}</h5>
+                 <div className="text-xs text-gray-600 dark:text-gray-300 space-y-2 max-h-80 overflow-y-auto">
                     {paragraphs.map((p: string, i: number) => (
                       <p key={i}>{p}</p>
                     ))}

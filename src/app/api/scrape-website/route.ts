@@ -37,26 +37,22 @@ interface ExtractedData {
 
 // Define keywords for priority link finding based on context
 const CONTEXT_KEYWORDS: Record<string, string[]> = {
-  product: ['product', 'shop', 'store', 'item', 'collection', 'catalog', 'merch', 'gear'],
-  service: ['service', 'offering', 'solution', 'capability', 'platform', 'feature', 'benefit'],
-  pricing: ['price', 'pricing', 'plan', 'cost', 'subscribe', 'buy', 'purchase', 'invest', 'opportunity', 'compensation', 'pay'],
-  about: ['about', 'company', 'story', 'mission', 'team', 'who-we-are', 'values', 'founder'],
-  contact: ['contact', 'support', 'help', 'reach', 'connect', 'location', 'address'],
-  blog: ['blog', 'article', 'news', 'update', 'insight', 'resource', 'learn'],
+  product: ['product', 'shop', 'store', 'item', 'collection', 'catalog', 'merch', 'gear', 'mojo', 'liquid-collagen', 'supplement'],
+  service: ['service', 'offering', 'solution', 'capability', 'platform', 'feature', 'benefit', 'program', 'system'],
+  pricing: ['price', 'pricing', 'plan', 'cost', 'subscribe', 'buy', 'purchase', 'invest', 'opportunity', 'compensation', 'pay', 'enroll', 'join', 'rewards'],
+  about: ['about', 'company', 'story', 'mission', 'team', 'who-we-are', 'values', 'founder', 'culture'],
+  contact: ['contact', 'support', 'help', 'reach', 'connect', 'location', 'address', 'map'],
+  blog: ['blog', 'article', 'news', 'update', 'insight', 'resource', 'learn', 'stories', 'events'],
+  health: ['health', 'wellness', 'nutrition', 'collagen', 'gut', 'skin', 'energy'],
+  business: ['business', 'opportunity', 'entrepreneur', 'income', 'financial']
 };
 
 // Function to get context keywords based on request context
 function getPriorityKeywords(context?: ScrapingRequest['context']): string[] {
   const keywords = new Set<string>();
-  // Always include basic priorities using a standard for loop
-  const aboutKeywords = CONTEXT_KEYWORDS.about;
-  for (let i = 0; i < aboutKeywords.length; i++) {
-    keywords.add(aboutKeywords[i]);
-  }
-  const contactKeywords = CONTEXT_KEYWORDS.contact;
-  for (let i = 0; i < contactKeywords.length; i++) {
-    keywords.add(contactKeywords[i]);
-  }
+  // Always include basic priorities 
+  for (const k of CONTEXT_KEYWORDS.about) { keywords.add(k); }
+  for (const k of CONTEXT_KEYWORDS.contact) { keywords.add(k); }
 
   if (!context) return Array.from(keywords);
 
@@ -66,22 +62,29 @@ function getPriorityKeywords(context?: ScrapingRequest['context']): string[] {
   const audienceNeedsLower = (context.audienceNeeds || '').toLowerCase();
 
   // Add context-specific keywords
-  if (topicLower.includes('product') || topicLower.includes('item') || topicLower.includes('shop') || topicLower.includes('gear')) {
+  // Product/Service related
+  if (topicLower.includes('product') || topicLower.includes('mojo') || topicLower.includes('item') || topicLower.includes('shop') || topicLower.includes('gear') || topicLower.includes('collagen') || topicLower.includes('supplement') || audienceNeedsLower.includes('product')) {
     CONTEXT_KEYWORDS.product.forEach(k => keywords.add(k));
-    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k)); // Products often relate to pricing
+    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k)); 
   }
-  if (topicLower.includes('service') || topicLower.includes('solution') || topicLower.includes('feature') || topicLower.includes('benefit')) {
+  if (topicLower.includes('service') || topicLower.includes('solution') || topicLower.includes('feature') || topicLower.includes('benefit') || topicLower.includes('program') || topicLower.includes('system') || audienceNeedsLower.includes('service')) {
     CONTEXT_KEYWORDS.service.forEach(k => keywords.add(k));
-    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k)); // Services often relate to pricing
+    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k)); 
   }
-  if (platformLower.includes('blog') || subPlatformLower.includes('blog') || topicLower.includes('article')) {
+  // Pricing/Opportunity related
+  if (audienceNeedsLower.includes('price') || audienceNeedsLower.includes('cost') || audienceNeedsLower.includes('invest') || audienceNeedsLower.includes('opportunity') || audienceNeedsLower.includes('compensation') || audienceNeedsLower.includes('financial') || audienceNeedsLower.includes('income') || topicLower.includes('opportunity') || topicLower.includes('business')) {
+    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k));
+    CONTEXT_KEYWORDS.business.forEach(k => keywords.add(k));
+  }
+  // Blog/Article related
+  if (platformLower.includes('blog') || subPlatformLower.includes('blog') || topicLower.includes('article') || topicLower.includes('news') || topicLower.includes('insight')) {
     CONTEXT_KEYWORDS.blog.forEach(k => keywords.add(k));
   }
-  if (audienceNeedsLower.includes('price') || audienceNeedsLower.includes('cost') || audienceNeedsLower.includes('invest') || audienceNeedsLower.includes('opportunity') || audienceNeedsLower.includes('compensation')) {
-    CONTEXT_KEYWORDS.pricing.forEach(k => keywords.add(k));
+  // Health related
+  if (audienceNeedsLower.includes('health') || audienceNeedsLower.includes('wellness') || topicLower.includes('health') || topicLower.includes('wellness') || topicLower.includes('nutrition')){
+    CONTEXT_KEYWORDS.health.forEach(k => keywords.add(k));
   }
-  // Add more conditions based on platform, targetAudience, etc. if needed
-
+  
   console.log('[DIAG] Priority Keywords based on context:', Array.from(keywords));
   return Array.from(keywords);
 }
@@ -160,10 +163,10 @@ async function extractWithScrapingBee(url: string, context?: ScrapingRequest['co
       } catch (e) { /* Ignore invalid URLs */ }
     });
 
-    // 3. Select Top 2 Priority Links
+    // 3. Select Top 3 Priority Links
     const sortedLinks = Array.from(internalLinks.entries()).sort((a, b) => b[1] - a[1]);
-    const linksToFetch = sortedLinks.slice(0, 2).map(entry => entry[0]);
-    console.log(`[DIAG] Top 2 links selected for fetching: ${linksToFetch.join(', ')}`);
+    const linksToFetch = sortedLinks.slice(0, 3).map(entry => entry[0]);
+    console.log(`[DIAG] Top 3 links selected for fetching: ${linksToFetch.join(', ')}`);
 
     // 4. Fetch Priority Pages Concurrently
     if (linksToFetch.length > 0) {
