@@ -13,44 +13,34 @@ export default function ProductionModeFixes() {
       console.log('[ProductionModeFixes] Applying fixes for UI elements');
       
       // Fix for contentGeneration.pageTitle display issues
-      const pageTitleElements = document.querySelectorAll('span:contains("contentGeneration.pageTitle")');
-      if (pageTitleElements.length > 0) {
-        console.log('[ProductionModeFixes] Found contentGeneration.pageTitle elements to fix:', pageTitleElements.length);
-        pageTitleElements.forEach(el => {
+      const allSpans = document.querySelectorAll('span');
+      allSpans.forEach(el => {
+        if (el.textContent?.includes('contentGeneration.pageTitle')) {
+          console.log('[ProductionModeFixes] Found contentGeneration.pageTitle element to fix');
           el.textContent = 'Content Generation';
-        });
-      }
+        }
+      });
       
       // Fix for contentGeneration.parameters display issues
-      const parametersElements = document.querySelectorAll('h3:contains("contentGeneration.parameters")');
-      if (parametersElements.length > 0) {
-        console.log('[ProductionModeFixes] Found contentGeneration.parameters elements to fix:', parametersElements.length);
-        parametersElements.forEach(el => {
+      const allH3s = document.querySelectorAll('h3');
+      allH3s.forEach(el => {
+        if (el.textContent?.includes('contentGeneration.parameters')) {
+          console.log('[ProductionModeFixes] Found contentGeneration.parameters element to fix');
           el.textContent = 'Content Parameters';
-        });
-      }
-      
-      // Fix for contentGeneration.settings display issues
-      const settingsElements = document.querySelectorAll('h3:contains("contentGeneration.settings")');
-      if (settingsElements.length > 0) {
-        console.log('[ProductionModeFixes] Found contentGeneration.settings elements to fix:', settingsElements.length);
-        settingsElements.forEach(el => {
+        }
+        else if (el.textContent?.includes('contentGeneration.settings')) {
+          console.log('[ProductionModeFixes] Found contentGeneration.settings element to fix');
           el.textContent = 'Content Settings';
-        });
-      }
-      
-      // Fix for contentGeneration.choosePersona display issues
-      const personaElements = document.querySelectorAll('h3:contains("contentGeneration.choosePersona")');
-      if (personaElements.length > 0) {
-        console.log('[ProductionModeFixes] Found contentGeneration.choosePersona elements to fix:', personaElements.length);
-        personaElements.forEach(el => {
+        }
+        else if (el.textContent?.includes('contentGeneration.choosePersona')) {
+          console.log('[ProductionModeFixes] Found contentGeneration.choosePersona element to fix');
           if (el.textContent?.includes('for Your Content')) {
             el.textContent = 'Choose an AI Persona for Your Content';
           } else {
             el.textContent = 'Choose an AI Persona';
           }
-        });
-      }
+        }
+      });
       
       // Apply missing styles to dropdowns that may not be caught by StyleDropdownFix
       const selectElements = document.querySelectorAll('select');
@@ -72,50 +62,6 @@ export default function ProductionModeFixes() {
     // Also apply after a short delay to catch dynamically rendered content
     setTimeout(applyProductionFixes, 200);
     setTimeout(applyProductionFixes, 1000);
-    
-    // Polyfill for :contains selector if not available
-    if (!Element.prototype.matches) {
-      // Add contains matcher
-      const originalMatches = Element.prototype.matches;
-      Element.prototype.matches = function(selector: string) {
-        if (selector.includes(':contains(') && this.textContent) {
-          const containsMatch = selector.match(/:contains\(['"](.+?)['"]\)/);
-          if (containsMatch && containsMatch[1]) {
-            const containsText = containsMatch[1];
-            const cleanSelector = selector.replace(/:contains\(['"].+?['"]\)/, '');
-            return originalMatches.call(this, cleanSelector) && this.textContent.includes(containsText);
-          }
-        }
-        return originalMatches.call(this, selector);
-      };
-    }
-    
-    // Add contains selector to querySelectorAll
-    const originalQuerySelectorAll = Document.prototype.querySelectorAll;
-    Document.prototype.querySelectorAll = function(selector: string) {
-      if (selector.includes(':contains(')) {
-        const containsMatch = selector.match(/:contains\(['"](.+?)['"]\)/);
-        if (containsMatch && containsMatch[1]) {
-          const containsText = containsMatch[1];
-          const cleanSelector = selector.replace(/:contains\(['"].+?['"]\)/, '');
-          
-          const elements = originalQuerySelectorAll.call(this, cleanSelector);
-          const result = Array.from(elements).filter(el => 
-            el.textContent && el.textContent.includes(containsText)
-          );
-          
-          // Create a NodeList-like object with the filtered results
-          const nodeList = Object.create(NodeList.prototype);
-          result.forEach((item, index) => {
-            nodeList[index] = item;
-          });
-          nodeList.length = result.length;
-          
-          return nodeList;
-        }
-      }
-      return originalQuerySelectorAll.call(this, selector);
-    };
     
     // Set up MutationObserver to watch for future DOM changes
     const observer = new MutationObserver(() => {
