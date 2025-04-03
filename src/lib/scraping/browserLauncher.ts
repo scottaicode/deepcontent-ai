@@ -49,7 +49,9 @@ export async function launchBrowser(): Promise<Browser> {
       // Combine args from library with the user-data-dir arg for Vercel
       const launchArgs = [
         ...chromium.args,
-        '--user-data-dir=/tmp/chromium-user-data' // Use /tmp for user data
+        '--user-data-dir=/tmp/chromium-user-data', // Use /tmp for user data
+        '--data-path=/tmp/chromium-data-path',      // Use /tmp for data path
+        '--disk-cache-dir=/tmp/chromium-cache-dir'  // Use /tmp for cache
       ];
       
       console.log(`Combined launch args: ${launchArgs.join(' ')}`);
