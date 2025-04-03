@@ -1341,5 +1341,16 @@
     "synthesis_maker": {
       "description": "Tono perspicaz para conectar ideas entre dominios"
     }
+  },
+  "contentGeneration": {
+    "refinementError": "Error al refinar el contenido. Por favor, inténtalo de nuevo.",
+    "refinementFailure": "No se pudo refinar el contenido. Por favor, inténtalo de nuevo.",
+    "contentLength": "Longitud del Contenido",
+    "emptyFeedbackError": "Por favor, proporciona comentarios para el refinamiento",
+    "refiningContent": "Refinando contenido según tus comentarios...",
+    "noRefinedContent": "No se recibió contenido refinado",
+    "refinementSuccess": "¡Contenido refinado con éxito!",
+    "refining": "Refinando Contenido...",
+    "backToResearch": "Volver a Investigación"
   }
 } 
