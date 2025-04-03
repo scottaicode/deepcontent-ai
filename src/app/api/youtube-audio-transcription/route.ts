@@ -10,7 +10,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ytdl from 'ytdl-core';
 import { decode } from 'html-entities';
-import * as BackupService from '@/app/lib/services/backups/YouTubeTranscriptBackupService';
 
 // Mark as dynamic to prevent static generation
 export const dynamic = 'force-dynamic';
@@ -114,48 +113,41 @@ export async function GET(request: NextRequest) {
         errorDetails: videoError
       });
       
-      // ytdl failed, try the backup service (youtube-transcript)
-      console.warn(`[DEBUG-AUDIO] ytdl failed for ${videoId}. Attempting backup transcript service.`);
-      try {
-        const backupTranscript = await BackupService.fetchDirectTranscript(videoId);
-        
-        if (backupTranscript && backupTranscript.length > 0) {
-          console.log(`[DEBUG-AUDIO] Backup service succeeded for ${videoId}, length: ${backupTranscript.length}`);
-          // Format the backup transcript (optional, could use a simpler format)
-          const formattedBackup = `# Fallback Transcript\n\n${backupTranscript}`;
-          
-          return NextResponse.json({
-            transcript: formattedBackup,
-            videoId,
-            source: 'backup-transcript', // Indicate source
-            error: null, // No error as we got content
-            isFallback: true, // Still mark as fallback as ytdl failed
-            metadata: {
-              limited: true,
-              errorType: 'YTDL_FAILED_BACKUP_USED'
-            }
-          }, { status: 200 });
-        } else {
-          // Backup service returned empty or null
-          console.warn(`[DEBUG-AUDIO] Backup transcript service returned no content for ${videoId}.`);
-          throw new Error('Backup service returned empty transcript.'); // Proceed to final catch
+      // Restore original fallback content generation
+      const fallbackContent = `# YouTube Video Analysis
+
+## Unable to Retrieve Video Details
+We couldn't access complete information for video ID: ${videoId}
+
+## What You Can Do Instead
+1. **Check the video URL** to ensure it's correct and publicly available
+2. **Try a different video** that might have more accessible information
+3. **Watch the video directly** to extract key insights manually
+
+This could happen because:
+- The video might be private or unlisted
+- The video ID might be incorrect
+- YouTube might be restricting API access to this video
+
+---
+*Note: This is a computer-generated message due to limited access to video information.*`;
+
+      console.log('[DEBUG-AUDIO] Returning fallback content due to ytdl error', {
+        errorMessage: videoError.message,
+        source: 'fallback-analysis'
+      });
+
+      return NextResponse.json({
+        transcript: fallbackContent,
+        videoId,
+        source: 'fallback-analysis',
+        error: videoError.message, // Keep original error message for context
+        isFallback: true,
+        metadata: {
+          limited: true,
+          errorType: 'VIDEO_INFO_UNAVAILABLE'
         }
-      } catch (backupError: any) {
-        // Backup service also failed
-        console.error(`[DEBUG-AUDIO] Backup transcript service also failed for ${videoId}:`, backupError);
-        return NextResponse.json({ 
-          error: 'Transcript unavailable or video cannot be processed.',
-          videoId,
-          source: 'processing-failed',
-          isFallback: true,
-          metadata: {
-            limited: true,
-            errorType: 'ALL_METHODS_FAILED',
-            originalYtdlError: videoError.message, // Include original error context
-            backupServiceError: backupError.message
-          }
-        }, { status: 404 }); // Return 404 Not Found as no content available
-      }
+      }, { status: 200 }); // Return 200 with fallback content
     }
   } catch (error: any) {
     console.error('[DEBUG-AUDIO] Error in YouTube video analysis:', error);

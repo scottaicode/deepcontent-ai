@@ -123,6 +123,10 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   const [playerReady, setPlayerReady] = useState(false);
   const playerInstanceRef = React.useRef<YouTubePlayer | null>(null);
 
+  // **** FEATURE FLAG ****
+  // Set this to true to enable the YouTube feature when fixed
+  const isYouTubeFeatureEnabled = false; 
+
   useEffect(() => {
     // Reset error when URL changes
     if (url) {
@@ -970,6 +974,26 @@ For your research, consider watching the video with captions enabled and taking 
     );
   };
 
+  // Render a placeholder if the feature is disabled
+  if (!isYouTubeFeatureEnabled) {
+    return (
+      <div className={`overflow-hidden ${className}`}>
+        <div className="mt-2 flex flex-col items-center justify-center p-6 text-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div className="p-3 mb-3 bg-gray-100 dark:bg-gray-700 rounded-full">
+            <Youtube className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+          </div>
+          <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+            YouTube Transcript Analysis
+          </h4>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            This feature is temporarily unavailable. Coming soon!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // **** Original Component Return (if feature is enabled) ****
   return (
     <div className={`overflow-hidden ${className}`}>
       <div className="space-y-4">
