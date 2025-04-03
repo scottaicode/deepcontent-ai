@@ -775,10 +775,7 @@ export default function ContentGenerator() {
     if (isGenerating) return;
     
     setIsGenerating(true);
-    setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-      defaultValue: 'Creating content with {{persona}}...', 
-      persona: getFormattedPersonaName(newPersona) 
-    }));
+    setStatusMessage(`Creating content with ${getFormattedPersonaName(newPersona)}...`);
     setContentSettings(prev => ({ ...prev, style: newPersona }));
     setCurrentPersona(newPersona);
     
@@ -796,10 +793,7 @@ export default function ContentGenerator() {
         timestamp: new Date().toISOString()
       });
       
-      setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-        defaultValue: 'Creating content with {{persona}}...', 
-        persona: getFormattedPersonaName(newPersona) 
-      }));
+      setStatusMessage(`Creating content with ${getFormattedPersonaName(newPersona)}...`);
       
       const response = await fetch('/api/claude/content', {
         method: 'POST',
@@ -826,10 +820,7 @@ export default function ContentGenerator() {
         }),
       });
       
-      setStatusMessage(t('contentGeneration.finalizingPersonaContent', { 
-        defaultValue: 'Finalizing your {{persona}} content...', 
-        persona: getFormattedPersonaName(newPersona)
-      }));
+      setStatusMessage('Finalizing your content...');
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -924,10 +915,7 @@ export default function ContentGenerator() {
         setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
       }
       
-      setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-        defaultValue: 'Content created with {{persona}}!', 
-        persona: getFormattedPersonaName(newPersona) 
-      }));
+      setStatusMessage(`Content created with ${getFormattedPersonaName(newPersona)}!`);
       
       // Reset content expansion
       setIsContentExpanded(false);
@@ -1412,10 +1400,7 @@ export default function ContentGenerator() {
                         </div>
                       </div>
                       <h3 className="mt-4 text-lg font-medium text-gray-900">
-                        {statusMessage || t('contentGeneration.processingWithPersona', { 
-                          defaultValue: 'Processing with {{persona}}...', 
-                          persona: getFormattedPersonaName(currentPersona) 
-                        })}
+                        {statusMessage || `Creating content with ${getFormattedPersonaName(currentPersona || contentSettings.style)}...`}
                       </h3>
                       <p className="mt-2 text-sm text-gray-500">
                         {t('contentGeneration.waitingMessageImproved', { 
