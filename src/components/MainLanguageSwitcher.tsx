@@ -2,11 +2,38 @@
 
 // Ultra-direct language switcher - no dependencies on any context
 export default function MainLanguageSwitcher() {
-  // Get current language directly from document
-  const currentLang = typeof document !== 'undefined' 
-    ? document.documentElement.lang || 'en'
-    : 'en';
+  // Get current language directly from document - MORE ROBUST VERSION
+  const getCurrentLanguage = () => {
+    if (typeof document === 'undefined') return 'en';
+    
+    // Check multiple sources with fallbacks
+    const htmlLang = document.documentElement.lang;
+    const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
+    const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
+    const localStorageLang = localStorage.getItem('language');
+    const localStoragePrefLang = localStorage.getItem('preferred_language');
+    
+    // Debug language sources (optional, can be removed for production)
+    console.log('[Header LanguageDebug] Language sources:', {
+      html: htmlLang,
+      cookieLang,
+      cookiePrefLang,
+      localStorageLang,
+      localStoragePrefLang,
+      allCookies: document.cookie
+    });
+    
+    return htmlLang || 
+           cookieLang ||
+           cookiePrefLang ||
+           localStorageLang ||
+           localStoragePrefLang ||
+           'en';
+  };
   
+  const currentLang = getCurrentLanguage();
+  console.log('[Header LanguageDebug] Current language detected as:', currentLang);
+
   // Simplified language change with direct approach - always redirects to homepage
   const switchToLanguage = (lang: string) => {
     if (lang === currentLang) return;
@@ -59,19 +86,25 @@ export default function MainLanguageSwitcher() {
     <div className="flex space-x-2">
       <button
         onClick={() => switchToLanguage('en')} 
-        className={`px-2 py-1 rounded-md text-sm font-medium ${
-          currentLang === 'en' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+        className={`px-2 py-1 rounded-md text-sm font-medium transition-colors ${
+          currentLang === 'en' 
+            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' 
+            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
         }`}
         aria-label="Switch language to English"
+        aria-pressed={currentLang === 'en'}
       >
         🇺🇸 EN
       </button>
       <button
         onClick={() => switchToLanguage('es')}
-        className={`px-2 py-1 rounded-md text-sm font-medium ${
-          currentLang === 'es' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+        className={`px-2 py-1 rounded-md text-sm font-medium transition-colors ${
+          currentLang === 'es' 
+            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' 
+            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
         }`}
         aria-label="Switch language to Spanish"
+        aria-pressed={currentLang === 'es'}
       >
         🇪🇸 ES
       </button>
