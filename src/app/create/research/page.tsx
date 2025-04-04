@@ -895,10 +895,15 @@ export default function ResearchPage() {
       const eventSourceUrl = `/api/perplexity/research-sse?t=${Date.now()}`;
       console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
       
-      // Close any existing connection first
-      if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
-        console.log('[DEBUG] Closing existing EventSource connection');
-        window.researchEventSource.close();
+      // Create event source (SSE connection)
+      if (typeof window !== 'undefined') {
+        // Close any existing connection first
+        if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
+          console.log('[DEBUG] Closing existing EventSource connection');
+          if (window.researchEventSource) {
+            window.researchEventSource.close();
+          }
+        }
       }
       
       // Create new connection with proper error handling
@@ -970,7 +975,9 @@ Language: ${language || 'en'}`
           const data = JSON.parse(event.data);
           
           console.log('Research generation complete, closing EventSource');
-          window.researchEventSource.close();
+          if (window.researchEventSource) {
+            window.researchEventSource.close();
+          }
           
           // Check if we have valid research data
           if (!data.research) {
@@ -992,7 +999,7 @@ Language: ${language || 'en'}`
           sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
           
           // Set progress to 100% and clear status
-          setProgress(100);
+          setGenerationProgress(100);
           
           // Check if this is the Spanish version
           const urlParams = new URLSearchParams(window.location.search);
@@ -3543,55 +3550,3 @@ const callPerplexityWithRetry = async (
   }
   
   // If we've exhausted all retries, throw the last error
-  throw lastError;
-};
-
-useEffect(() => {
-  if (researchStep === 3) {
-    if (!deepResearch && !isGenerating && !error) {
-      const checkForCachedResearch = () => {
-        const cachedResearch = sessionStorage.getItem('deepResearch');
-        if (cachedResearch) {
-          console.log('[DEBUG] Found cached research, restoring');
-          setDeepResearch(cachedResearch);
-          
-          // Since we're loading cached research, mark that research is valid
-          setIsGenerating(false);
-          return true;
-        }
-        return false;
-      };
-      
-      const hasResearch = checkForCachedResearch();
-      if (!hasResearch) {
-        console.log('[DEBUG] No cached research found, generating new research');
-        const generateResearch = async () => {
-          try {
-            // Check if this is the Spanish version
-            const urlParams = new URLSearchParams(window.location.search);
-            const langParam = urlParams.get('language');
-            const isSpanishVersion = langParam === 'es';
-            
-            // Get the effective language
-            const effectiveLanguage = isSpanishVersion ? 'es' : 'en';
-            console.log(`[DEBUG] Research generation language: ${effectiveLanguage}`);
-            
-            // Store the language explicitly for debugging
-            if (isSpanishVersion) {
-              console.log('[DEBUG] Spanish version detected for research generation');
-              sessionStorage.setItem('researchLanguage', 'es');
-            }
-            
-            await generateDeepResearch();
-          } catch (error) {
-            console.error('Error generating research:', error);
-            setError(String(error));
-            setIsGenerating(false);
-          }
-        };
-        
-        generateResearch();
-      }
-    }
-  }
-}, [researchStep, deepResearch, isGenerating, error]);
