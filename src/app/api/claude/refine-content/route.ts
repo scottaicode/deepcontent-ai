@@ -12,8 +12,11 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
   try {
     console.log('Creating Anthropic client...');
     console.log('Language for Claude API:', language);
+    
+    // Create Anthropic client with timeout
     const anthropicClient = new Anthropic({
       apiKey: apiKey,
+      maxRetries: 2, // Add retries to handle transient failures
     });
     
     // Get current date for reference
@@ -21,18 +24,30 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     const currentMonth = new Date().toLocaleString(language || 'en', { month: 'long' });
     
     console.log('Calling Claude API with prompt...');
-    const response = await anthropicClient.messages.create({
+    
+    // Create a timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Claude API request timed out after 30 seconds'));
+      }, 30000); // 30 second timeout
+    });
+    
+    // Create the actual API call promise
+    const apiCallPromise = anthropicClient.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 4000,
       temperature: 0.7,
       system: `You are an expert content creator helping refine content based on user feedback. 
-You follow all current best practices for ${currentMonth} ${currentYear} and prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content refinements.
+Keep your response concise and focused on the requested changes.
 Your response MUST be in ${language === 'es' ? 'Spanish' : language || 'English'}.
-${language === 'es' ? 'IMPORTANTE: Asegúrate de que todo tu contenido esté en español natural y fluido, no una traducción literal del inglés. Escribe como un nativo de español.' : ''}`,
+${language === 'es' ? 'IMPORTANTE: Escribe en español natural y fluido.' : ''}`,
       messages: [
         { role: "user", content: promptText }
       ]
     });
+    
+    // Race the API call against the timeout
+    const response = await Promise.race([apiCallPromise, timeoutPromise]);
     
     console.log('Claude API response received');
     console.log('Response structure:', JSON.stringify(Object.keys(response)));
@@ -78,47 +93,27 @@ ${language === 'es' ? 'IMPORTANTE: Asegúrate de que todo tu contenido esté en 
     console.log('Language used for content:', language);
     console.log('First 100 chars of response:', responseText.substring(0, 100));
     
-    // Additional cleaning for Spanish content if needed
-    if (language === 'es') {
-      // Ensure any potential English phrases that might slip through are translated to Spanish
-      console.log('Applying Spanish-specific content cleaning');
-      
-      // Common English phrases that might appear in Spanish content
-      const englishToSpanish = [
-        { en: 'Please note', es: 'Ten en cuenta' },
-        { en: 'In conclusion', es: 'En conclusión' },
-        { en: 'Remember that', es: 'Recuerda que' },
-        { en: 'Based on', es: 'Basado en' },
-        { en: 'First,', es: 'Primero,' },
-        { en: 'Second,', es: 'Segundo,' },
-        { en: 'Third,', es: 'Tercero,' },
-        { en: 'Finally,', es: 'Finalmente,' },
-        { en: 'For example,', es: 'Por ejemplo,' },
-        { en: 'Additionally,', es: 'Además,' },
-        { en: 'However,', es: 'Sin embargo,' },
-        { en: 'Therefore,', es: 'Por lo tanto,' }
-      ];
-      
-      // Replace any English phrases that might be in the response
-      englishToSpanish.forEach(({ en, es }) => {
-        responseText = responseText.replace(new RegExp(en, 'gi'), es);
-      });
-    }
-    
     // Normalize line endings and clean up extra whitespace
     responseText = responseText.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
     
-    // Apply persona traits enhancement
-    const enhancedContent = enhanceWithPersonaTraits(responseText, style, 1.5); // Higher intensity for refinements
+    // Apply persona traits enhancement - reduced intensity for faster processing
+    const enhancedContent = enhanceWithPersonaTraits(responseText, style, 1.0);
     console.log(`Enhanced content with ${style} persona traits`);
     
     return enhancedContent;
   } catch (error) {
-    console.error("Error calling Claude API:", error);
+    console.error("❌ Error calling Claude API:", error);
     
     // Check for specific Anthropic API errors
     if (error instanceof Error) {
       const errorMessage = error.message;
+      
+      // Handle timeout specifically
+      if (errorMessage.includes('timed out')) {
+        throw new Error(language === 'es' 
+          ? 'La solicitud a Claude API agotó el tiempo de espera. Por favor, intenta con un texto más corto o inténtalo de nuevo más tarde.'
+          : 'Claude API request timed out. Please try with shorter text or try again later.');
+      }
       
       // Handle authentication errors specifically
       if (errorMessage.includes('apiKey') || 
@@ -277,10 +272,7 @@ WHEN REFINING CONTENT:
 
     // Build a comprehensive prompt that preserves context and emphasizes current best practices
     const prompt = `<instructions>
-You are ${personaName}, refining content based on user feedback. Below is the original content, research data, and the user's feedback. 
-Apply the feedback while maintaining the style, tone, and purpose of the original content.
-
-${personaInstructions}
+You are ${personaName}, refining content based on user feedback. 
 
 Original Content:
 ${originalContent}
@@ -290,151 +282,76 @@ ${feedback}
 
 Content Type: ${contentType || 'Not specified'}
 Platform: ${platform || 'Not specified'}
-Style: ${style || 'professional'}
-Current Date: ${currentMonth} ${currentYear}
-Language: ${language || 'en'}
 
-## CRITICAL INSTRUCTIONS
-The content MUST be written in ${language === 'es' ? 'Spanish' : language || 'English'}.
-${language === 'es' ? 'Asegúrate de que el contenido esté completamente en español y use expresiones naturales en español, no traducciones literales del inglés. Usa vocabulario y estructura de oraciones típicas del español.' : ''}
+IMPORTANT: Write in ${language === 'es' ? 'Spanish' : language || 'English'}.
+${language === 'es' ? 'Escribe en español natural y fluido.' : ''}
 
-## CRITICAL PLATFORM-SPECIFIC INSTRUCTIONS FOR ${currentMonth.toUpperCase()} ${currentYear}
-You MUST follow the current best practices for ${platform || 'digital content'} as of ${currentMonth} ${currentYear}.
-
-${researchData ? `## RESEARCH DATA (${currentMonth.toUpperCase()} ${currentYear})
-${researchData}
-
-IMPORTANT: Ensure your refinements align with the latest best practices identified in this research data.
-` : ''}
-
-${contentType && contentType.includes('google-ads') ? `## GOOGLE ADS SPECIFIC REQUIREMENTS FOR ${currentMonth.toUpperCase()} ${currentYear}
-Maintain Google Ads format with:
-- Responsive Search Ads: 15 headlines (30 character max each), 4 descriptions (90 character max each)
-- Performance Max campaign assets where applicable
-- Mobile-first optimization (75% weight)
-- Voice search optimization patterns
-- Smart bidding strategy recommendations
-- Negative keyword suggestions to prevent wasteful spend
-- Audience signal recommendations for broad match keywords
-- AI-generated assets settings guidelines
-- Current policy compliance requirements
-- Latest conversion tracking implementation advice
-- E-E-A-T 2.0 documentation requirements
-` : ''}
-
-${contentType && contentType.includes('landing-page') ? `## LANDING PAGE SPECIFIC REQUIREMENTS FOR ${currentMonth.toUpperCase()} ${currentYear}
-Maintain landing page best practices:
-- Mobile-first design requirements (75% weighting)
-- Schema markup recommendations
-- FAQ-rich content blocks optimized for voice search
-- E-E-A-T 2.0 documentation elements
-` : ''}
-
-${contentType && contentType.includes('research-report') ? `## RESEARCH REPORT SPECIFIC REQUIREMENTS FOR ${currentMonth.toUpperCase()} ${currentYear}
-Maintain research report professional standards:
-- Executive summary with key findings (limit to 250 words)
-- Clear methodology section with data collection methods and limitations
-- Data visualization descriptions with specific metrics and insights
-- Statistical validity indicators for all reported findings
-- Competitive analysis with precise market share figures
-- Citations following current academic standards
-- "Currency Notice" indicating data collection timeframe
-- Elimination of placeholder language or vague references
-- Consistent formatting of headings, subheadings and sections
-- Balanced perspective addressing potential biases in the research
-` : ''}
-
-## CONTENT QUALITY REQUIREMENTS
-DO NOT use repetitive or filler phrases. Each sentence should provide unique value and information.
-Avoid phrases like:
-- "Let's analyze what's happening here"
-- "The data points are clear"
-- "According to the latest statistics" without actually providing statistics
-- "The numbers tell an interesting story" without explaining what the story is
-- "The trend emerges when we map the data" without describing the trend
-- "Let's talk about" without adding substantive content
-
-IF you need to reference data visualization:
-- Describe SPECIFIC metrics and numbers that would be shown
-- Use precise values (X increased by 42% over Y period)
-- Explain exactly what the visualization reveals
-- Imagine you're describing a real visual to someone who cannot see it
-
-AVOID GENERIC PLACEHOLDERS like "Let's analyze what's happening here".
-Each sentence must move the content forward with new information.
-
-Make targeted changes based on the feedback while preserving the overall structure and quality.
-You MUST maintain the same persona voice and distinctive style markers that were in the original content.
-Remember that digital best practices change rapidly - what worked even a few months ago may be ineffective now.
-
-## QUALITY CHECK REQUIREMENTS BEFORE SUBMITTING
-Before submitting your final content:
-1. Review for any repetitive phrases or sentences - each sentence should provide unique value
-2. Replace any generic placeholder text with specific, substantive content
-3. If writing in Spanish, ensure ALL content is in natural Spanish with no English phrases
-4. Double-check that your content follows a logical flow without unnecessary repetition
-
-Return ONLY the revised content, ready for publication.
+TASK: Revise the content applying the user's feedback while maintaining the original style and purpose.
+Keep your response focused on the content only.
 </instructions>`;
 
     // Get the API key from environment variables
     const apiKey = process.env.ANTHROPIC_API_KEY || '';
     if (!apiKey) {
       console.error('API key is not configured');
-      return NextResponse.json(
-        { error: language === 'es' ? 'La clave API no está configurada' : 'API key is not configured' },
-        { status: 500 }
-      );
+      return new Response(JSON.stringify({ 
+        error: language === 'es' ? 'La clave API no está configurada' : 'API key is not configured' 
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    // Add before calling Claude API
-    console.log(`🕒 Time elapsed before Claude API call: ${Date.now() - startTime}ms`);
-    
-    // Modify the try-catch around Claude API call
+    console.log('Calling Claude API with language:', language || 'en');
+    // Call Claude API with style parameter and handle timeouts
     try {
-      console.log('📡 Calling Claude API...');
-      const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
-      console.log(`✅ Claude API call successful, length: ${refinedContent.length}, time: ${Date.now() - startTime}ms`);
-      
-      // Validate JSON serialization explicitly
-      let serializedResponse;
-      try {
-        const simpleResponse = { content: refinedContent };
-        serializedResponse = JSON.stringify(simpleResponse);
-        console.log(`✅ JSON serialization successful, length: ${serializedResponse.length}`);
-      } catch (serializeError) {
-        console.error('❌ JSON serialization error:', serializeError);
-        throw new Error('Failed to serialize response to JSON');
-      }
-      
-      console.log(`🏁 Total processing time: ${Date.now() - startTime}ms`);
-      console.log('⭐️ REFINE API END - SUCCESS ⭐️');
-      
-      // Return with explicit JSON formatting
-      return new Response(serializedResponse, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      // Add overall function timeout as a backup
+      const functionTimeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Function timeout after 50 seconds'));
+        }, 50000); // 50 second timeout - leave buffer before Vercel's 60s timeout
       });
       
+      // API call wrapped in a Promise.race with the timeout
+      const apiCallPromise = async () => {
+        const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
+        console.log('Content refined successfully, length:', refinedContent.length);
+        
+        // Simplify response to avoid JSON parsing issues
+        // Use a simple object with minimal nesting
+        const simpleResponse = { content: refinedContent };
+        
+        console.log('Returning response with content length:', refinedContent.length);
+        
+        return new Response(JSON.stringify(simpleResponse), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+      };
+      
+      // Race the API call against the function timeout
+      return await Promise.race([apiCallPromise(), functionTimeoutPromise]);
     } catch (claudeError) {
       console.error('❌ Claude API specific error:', claudeError);
-      console.log(`⏱ Error occurred after ${Date.now() - startTime}ms`);
       
-      const errorMessage = language === 'es' 
+      let errorMessage = language === 'es' 
         ? 'Error al comunicarse con la API de Claude. Por favor, inténtalo de nuevo.' 
         : 'Error communicating with Claude API. Please try again.';
-      
-      const errorResponse = JSON.stringify({ error: errorMessage });
-      console.log(`🚨 Returning error response: ${errorResponse}`);
-      console.log('⭐️ REFINE API END - CLAUDE ERROR ⭐️');
+        
+      // Specific error message for timeouts
+      if (claudeError instanceof Error && claudeError.message.includes('timeout')) {
+        errorMessage = language === 'es'
+          ? 'La solicitud tardó demasiado tiempo. Por favor, intenta con un texto más corto o inténtalo de nuevo.'
+          : 'Request took too long. Please try with shorter text or try again.';
+      }
       
       // Return a simple error response that can be easily parsed
-      return new Response(errorResponse, {
-        status: 500,
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: 504, // Gateway Timeout for timeout errors
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         }
       });
     }

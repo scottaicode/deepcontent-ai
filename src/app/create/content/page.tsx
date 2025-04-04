@@ -996,162 +996,206 @@ export default function ContentGenerator() {
     
     console.log('🚀 Starting content refinement process');
     const startTime = Date.now();
+    let isRetry = false;
     
     setIsRefinementLoading(true);
     setStatusMessage('');
     
-    try {
-      // Show the loading state but keep content visible
-      setStatusMessage(t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' }));
-
-      // Log language value for debugging
-      console.log(`🌐 Refinement language: "${language || 'en'}"`);
-
-      // Create a more detailed payload
-      const payload = {
-        originalContent: generatedContent,
-        feedback: refinementPrompt,
-        style: currentPersona,
-        contentType: contentDetails?.contentType || '',
-        platform: contentDetails?.platform || '',
-        language: language || 'en', // Ensure language is explicitly set with fallback
-        researchData: researchResults?.perplexityResearch || '' // Add research data if available
-      };
-      
-      console.log(`📦 Refinement payload prepared in ${Date.now() - startTime}ms`);
-
-      console.log('📡 Sending API request...');
-      const response = await fetch('/api/claude/refine-content', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept-Language': language || 'en' 
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      console.log(`📥 Received API response in ${Date.now() - startTime}ms`);
-      console.log(`🔍 Response status: ${response.status} ${response.statusText}`);
-      
-      // Log headers in a way that doesn't cause linter issues
-      const headers: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-      console.log('🔍 Response headers:', headers);
-      
-      // First try to get the response as text for diagnostic purposes
-      console.log('📄 Reading response text...');
-      const responseText = await response.text();
-      console.log(`📄 Response text received (${responseText.length} bytes) in ${Date.now() - startTime}ms`);
-      console.log(`📄 First 100 chars: "${responseText.substring(0, 100).replace(/\n/g, '\\n')}..."`);
-      
-      // Check if the response looks like JSON
-      const looksLikeJson = responseText.trim().startsWith('{') && responseText.trim().endsWith('}');
-      console.log(`🔍 Response appears to be JSON: ${looksLikeJson}`);
-      
-      // Parse the JSON response with improved error handling
-      let data;
+    const performRefinement = async (retryAttempt = false) => {
       try {
-        // Try to parse the JSON
-        console.log('🔄 Parsing JSON response...');
-        data = JSON.parse(responseText);
-        console.log('✅ JSON parsing successful');
-        console.log('📊 Parsed data:', { 
-          hasContent: Boolean(data.content),
-          contentLength: data.content?.length || 0,
-          error: data.error || 'none'
-        });
-      } catch (parseError) {
-        console.error('❌ JSON parse error:', parseError);
-        console.log(`❌ JSON parse error occurred at ${Date.now() - startTime}ms`);
-        console.log(`📄 Raw response causing parse error: "${responseText.substring(0, 200).replace(/\n/g, '\\n')}..."`);
+        // Show the loading state but keep content visible
+        setStatusMessage(
+          retryAttempt
+            ? t('contentGeneration.retryingRefinement', { defaultValue: 'Retrying with simplified request...' })
+            : t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' })
+        );
+  
+        // Log language value for debugging
+        console.log(`🌐 Refinement language: "${language || 'en'}", retry: ${retryAttempt}`);
+  
+        // Create a payload, simplified if this is a retry
+        const payload = {
+          originalContent: generatedContent,
+          feedback: retryAttempt 
+            ? `Brevemente: ${refinementPrompt}` // Simplified prompt for retry
+            : refinementPrompt,
+          style: currentPersona,
+          contentType: contentDetails?.contentType || '',
+          platform: contentDetails?.platform || '',
+          language: language || 'en',
+          researchData: retryAttempt ? '' : (researchResults?.perplexityResearch || '') // Skip research data on retry
+        };
         
-        // If parsing fails, create a simple fallback based on the raw response
-        // This is a last resort to prevent the entire flow from failing
-        if (responseText.length > 0) {
-          console.warn('⚠️ Using fallback text response handling');
-          const errorMsg = language === 'es' 
-            ? 'Error al analizar la respuesta. Usando respuesta sin formato.' 
-            : 'Error parsing response. Using raw response.';
-          
-          console.warn(errorMsg);
-          
-          // Just set content to the text response as fallback
-          data = { content: responseText };
-          
-          // Check if it's clearly an error response
-          if (responseText.includes('error') || responseText.includes('Error')) {
-            console.error('❌ Error text detected in response');
-            throw new Error(language === 'es'
-              ? 'Error en la respuesta de la API'
-              : 'Error in API response');
-          }
-        } else {
-          console.error('❌ Empty response received');
-          throw new Error(language === 'es' 
-            ? 'Respuesta vacía de la API' 
-            : 'Empty response from API');
-        }
-      }
-      
-      if (!response.ok) {
-        console.error('Refinement error response:', data);
-        throw new Error(data.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
-      }
-      
-      if (!data.content) {
-        console.error('No content in API response');
-        throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
-      }
-      
-      // Ensure the content is properly decoded for Spanish characters
-      let refinedContent = data.content;
-      
-      // Check if the content has encoding issues and try to fix them
-      if (refinedContent.includes('\\u00')) {
+        console.log(`📦 Refinement payload prepared in ${Date.now() - startTime}ms (${retryAttempt ? 'simplified' : 'full'})`);
+  
+        console.log('📡 Sending API request...');
+        
+        // Set a client-side timeout for the fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 55000); // 55-second client-side timeout
+        
         try {
-          // Try to decode any Unicode escape sequences
-          refinedContent = JSON.parse(`"${refinedContent.replace(/"/g, '\\"')}"`);
-          console.log('Fixed Unicode escape sequences in content');
-        } catch (decodeError) {
-          console.error('Failed to decode Unicode sequences:', decodeError);
-          // Continue with the original content
+          const response = await fetch('/api/claude/refine-content', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept-Language': language || 'en' 
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+          
+          // Clear the timeout since we got a response
+          clearTimeout(timeoutId);
+          
+          console.log(`📥 Received API response in ${Date.now() - startTime}ms`);
+          console.log(`🔍 Response status: ${response.status} ${response.statusText}`);
+          
+          // Log headers in a way that doesn't cause linter issues
+          const headers: Record<string, string> = {};
+          response.headers.forEach((value, key) => {
+            headers[key] = value;
+          });
+          console.log('🔍 Response headers:', headers);
+          
+          // First try to get the response as text for diagnostic purposes
+          console.log('📄 Reading response text...');
+          const responseText = await response.text();
+          console.log(`📄 Response text received (${responseText.length} bytes) in ${Date.now() - startTime}ms`);
+          
+          if (responseText.length === 0) {
+            throw new Error('Empty response received');
+          }
+          
+          // Check if response contains a timeout error message
+          const isTimeoutError = 
+            responseText.includes('timeout') || 
+            responseText.includes('timed out') || 
+            response.status === 504 ||
+            responseText.includes('FUNCTION_INVOCATION_TIMEOUT');
+          
+          if (isTimeoutError && !retryAttempt) {
+            console.log('⏱️ Timeout detected, will retry with simplified request');
+            return await performRefinement(true); // Retry with simplified request
+          }
+          
+          // Check if the response looks like JSON
+          const looksLikeJson = 
+            responseText.trim().startsWith('{') && 
+            responseText.trim().endsWith('}');
+          
+          console.log(`🔍 Response appears to be JSON: ${looksLikeJson}`);
+          
+          // Handle non-JSON responses
+          if (!looksLikeJson) {
+            if (responseText.includes('error') || responseText.includes('Error')) {
+              throw new Error(responseText);
+            }
+            
+            // If not retrying already and got a non-JSON response, try again with simplified request
+            if (!retryAttempt) {
+              console.log('⚠️ Non-JSON response detected, will retry with simplified request');
+              return await performRefinement(true);
+            } else {
+              throw new Error(language === 'es' 
+                ? 'Formato de respuesta no válido' 
+                : 'Invalid response format');
+            }
+          }
+          
+          // Parse the JSON response with improved error handling
+          let data;
+          try {
+            // Try to parse the JSON
+            console.log('🔄 Parsing JSON response...');
+            data = JSON.parse(responseText);
+            console.log('✅ JSON parsing successful');
+          } catch (parseError) {
+            console.error('❌ JSON parse error:', parseError);
+            
+            // If not retrying already and got a parse error, try again with simplified request
+            if (!retryAttempt) {
+              console.log('⚠️ JSON parse error, will retry with simplified request');
+              return await performRefinement(true);
+            } else {
+              throw new Error(language === 'es' 
+                ? 'Error al analizar la respuesta JSON' 
+                : 'Error parsing JSON response');
+            }
+          }
+          
+          if (!response.ok) {
+            // If we got an error response but it's valid JSON with an error message
+            if (data && data.error) {
+              throw new Error(data.error);
+            }
+            throw new Error(`HTTP error ${response.status}`);
+          }
+          
+          if (!data.content) {
+            throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
+          }
+          
+          // Add to version history
+          const versionEntry: ContentVersion = {
+            content: generatedContent,
+            timestamp: new Date().toISOString(),
+            persona: currentPersona
+          };
+          setContentVersions(prev => [...prev, versionEntry]);
+          
+          // Update the content
+          setGeneratedContent(data.content);
+          
+          // Try to render the content, with a fallback
+          try {
+            setPrerenderedContent(renderSimpleMarkdown(data.content));
+          } catch (renderError) {
+            console.error('Render error:', renderError);
+            // Fall back to plain text display
+            setPrerenderedContent(<pre className="whitespace-pre-wrap">{data.content}</pre>);
+          }
+          
+          setRefinementPrompt('');
+          toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
+          
+        } catch (fetchError) {
+          // Handle AbortController abort (client-side timeout)
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            console.error('⏱️ Client-side timeout occurred');
+            
+            // If not retrying already, try again with simplified request
+            if (!retryAttempt) {
+              console.log('⏱️ Client-side timeout, will retry with simplified request');
+              return await performRefinement(true);
+            } else {
+              throw new Error(language === 'es'
+                ? 'La solicitud tardó demasiado tiempo en completarse. Por favor, intenta con un texto más corto.'
+                : 'Request took too long to complete. Please try with shorter text.');
+            }
+          }
+          throw fetchError;
         }
+        
+      } catch (error) {
+        console.error('❌ Refinement error:', error);
+        
+        // Display a more user-friendly error message
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
+        
+        toast.error(errorMessage);
+        setStatusMessage('');
+        throw error; // Re-throw to be caught by the outer catch
       }
-      
-      // Add to version history
-      const versionEntry: ContentVersion = {
-        content: generatedContent,
-        timestamp: new Date().toISOString(),
-        persona: currentPersona
-      };
-      setContentVersions(prev => [...prev, versionEntry]);
-      
-      // Update the content
-      setGeneratedContent(refinedContent);
-      
-      // Try to render the content, with a fallback
-      try {
-        setPrerenderedContent(renderSimpleMarkdown(refinedContent));
-      } catch (renderError) {
-        console.error('Render error:', renderError);
-        // Fall back to plain text display
-        setPrerenderedContent(<pre className="whitespace-pre-wrap">{refinedContent}</pre>);
-      }
-      
-      setRefinementPrompt('');
-      toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
+    };
+    
+    try {
+      await performRefinement();
     } catch (error) {
-      console.error('Refinement error:', error);
-      // Display a more user-friendly error message
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
-      
-      toast.error(errorMessage);
-      // Set an error state that can be displayed in the UI
-      setStatusMessage('');
+      // The inner function already handles the error display
+      console.error('Final refinement error:', error);
     } finally {
       setIsRefinementLoading(false);
     }
