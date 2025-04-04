@@ -1079,44 +1079,72 @@ export default function ContentGenerator() {
       // Show the loading state but keep content visible
       setStatusMessage(t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' }));
 
-      // Create an enhanced feedback prompt that explicitly mentions the language
-      // This ensures Claude understands the context properly
+      // For Spanish, ensure the feedback is very concise to avoid timeouts
       let enhancedFeedback = refinementPrompt;
       
-      // Add language context for Spanish mode
+      // In Spanish mode, remind user to keep it short and trim if too long
       if (language === 'es') {
-        // Prepend an instruction to make it clear this is Spanish mode
-        enhancedFeedback = `[INSTRUCCIÓN EN ESPAÑOL] ${refinementPrompt}\n\nNota: El contenido está en español y la respuesta debe estar en español también.`;
-      }
-
-      const response = await fetch('/api/claude/refine-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          originalContent: generatedContent,
-          feedback: enhancedFeedback,
-          style: currentPersona,
-          contentType: contentDetails?.contentType || '',
-          platform: contentDetails?.platform || '',
-          language: language,
-          isSpanishMode: language === 'es' // Add explicit Spanish mode flag
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        // Check if it's a timeout error
-        if (response.status === 504 || (errorData.error && typeof errorData.error === 'string' && errorData.error.includes('timeout'))) {
-          throw new Error(language === 'es' 
-            ? 'La solicitud ha agotado el tiempo de espera. Intenta con instrucciones más simples.' 
-            : 'The request timed out. Try with simpler instructions.');
+        // If feedback is longer than 100 chars, show warning
+        if (refinementPrompt.length > 100) {
+          console.log('[Refinement] Spanish feedback is long, might cause timeout:', refinementPrompt.length);
+          toast.toast({
+            title: "Instrucción muy larga",
+            description: "Instrucciones más cortas tienen mayor probabilidad de éxito.",
+            variant: "default"
+          });
         }
         
-        throw new Error(errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
+        // Simplify the feedback to just the essential instruction
+        enhancedFeedback = `[ES] ${refinementPrompt.trim()}`;
       }
+
+      // Function to attempt refinement with retry logic
+      const attemptRefinement = async (retryCount = 0): Promise<{content: string}> => {
+        try {
+          const response = await fetch('/api/claude/refine-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              originalContent: generatedContent,
+              feedback: enhancedFeedback,
+              style: currentPersona,
+              contentType: contentDetails?.contentType || '',
+              platform: contentDetails?.platform || '',
+              language: language,
+              isSpanishMode: language === 'es'
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            
+            // For timeouts, retry once with simplified feedback
+            if ((response.status === 504 || errorData.error?.includes('timeout')) && retryCount < 1) {
+              console.log('[Refinement] Timeout detected, retrying with simplified feedback');
+              
+              // For retry, further simplify the feedback
+              if (language === 'es') {
+                enhancedFeedback = enhancedFeedback.substring(0, 80); // Truncate to 80 chars max
+              }
+              
+              // Wait 1 second before retry
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              return attemptRefinement(retryCount + 1);
+            }
+            
+            throw new Error(errorData.error || 'Failed to refine content');
+          }
+          
+          return await response.json();
+        } catch (error) {
+          console.error('Refinement attempt error:', error);
+          throw error;
+        }
+      };
       
-      const data = await response.json();
+      // Attempt refinement with retry logic
+      const data = await attemptRefinement();
+      
       if (!data.content) {
         throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
       }
@@ -1137,16 +1165,25 @@ export default function ContentGenerator() {
     } catch (error) {
       console.error('Refinement error:', error);
       
-      // Format error message
-      let errorMessage = t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
+      // Format error message - with improved Spanish messages
+      let errorMessage = '';
       
       if (error instanceof Error) {
-        errorMessage = error.message;
+        if (error.message.includes('timeout') || error.message.includes('timed out')) {
+          errorMessage = language === 'es'
+            ? 'La operación ha superado el tiempo límite. Intenta con instrucciones más breves y simples.'
+            : 'The operation timed out. Try using shorter, simpler instructions.';
+        } else {
+          errorMessage = error.message;
+        }
+      } else {
+        errorMessage = t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
       }
       
       toast.error(errorMessage);
     } finally {
       setIsRefinementLoading(false);
+      setStatusMessage('');
     }
   };
 
