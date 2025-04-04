@@ -2431,71 +2431,17 @@ If you'd like complete research, please try again later when our research servic
     return (
       <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
         <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">
-          {(() => {
-            // First try the regular translation with safeTranslate
-            const translated = safeTranslate('researchPage.results.generatedResearch', 'Generate Research');
-            
-            // If the result still has the raw key, it means translation failed
-            if (translated.includes('researchPage.results.generatedResearch')) {
-              // Return a hardcoded value based on the language
-              return language === 'es' ? 'Investigación Generada' : 'Generate Research';
-            }
-            
-            return translated;
-          })()}
+          {language === 'es' ? 'Generar Investigación (5 min)' : 'Generate Research (5 min)'}
         </h3>
         
-        <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg border border-blue-100 dark:border-blue-800">
-          <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3">
-            {language === 'es' ? 'Resumen de Investigación' : 'Research Summary'}
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Tema:' : 'Topic:'} <span className="font-normal ml-1">{safeContentDetails.researchTopic || (language === 'es' ? 'No especificado' : 'Not Specified')}</span>
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Tipo de Contenido:' : 'Content Type:'} <span className="font-normal ml-1">
-                  {(() => {
-                    // Use the display names system for consistent display
-                    const { displayContentType } = getDisplayNames(
-                      safeContentDetails.contentType || '',
-                      safeContentDetails.platform || '',
-                      safeContentDetails.subPlatform || '',
-                      language
-                    );
-                    return displayContentType;
-                  })()}
-                </span>
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Audiencia Objetivo:' : 'Target Audience:'} <span className="font-normal ml-1">{safeContentDetails.targetAudience || (language === 'es' ? 'No especificado' : 'Not Specified')}</span>
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Plataforma:' : 'Platform:'} <span className="font-normal ml-1">
-                  {(() => {
-                    // Display both platform and subPlatform when needed for clarity
-                    if (safeContentDetails.platform === 'blog' && safeContentDetails.subPlatform === 'company-blog') {
-                      return language === 'es' ? 'Blog de Empresa' : 'Company Blog';
-                    }
-                    
-                    // Use the display names system for consistent display
-                    const { displayPlatform } = getDisplayNames(
-                      safeContentDetails.contentType || '',
-                      safeContentDetails.platform || '',
-                      safeContentDetails.subPlatform || '',
-                      language
-                    );
-                    return displayPlatform;
-                  })()}
-                </span>
-              </p>
-            </div>
-          </div>
+        <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            {language === 'es' 
+              ? 'Este proceso utiliza Perplexity Deep Research para generar un análisis completo y de alta calidad. Puede tomar hasta 5 minutos en completarse.'
+              : 'This process uses Perplexity Deep Research to generate comprehensive, high-quality analysis. It can take up to 5 minutes to complete.'}
+          </p>
         </div>
-                
+        
         {error && (
           error.includes('connection error') ? (
             <ConnectionErrorMessage onRetry={() => {
@@ -2528,7 +2474,7 @@ If you'd like complete research, please try again later when our research servic
           />
         )}
                 
-        <div className="flex justify-between items-center mt-8">
+        <div className="flex justify-between items-center mt-6">
           <button 
             onClick={() => setResearchStep(2)}
             type="button"
@@ -2538,7 +2484,7 @@ If you'd like complete research, please try again later when our research servic
           </button>
           
           <div className="flex space-x-4">
-            {/* Add continue to results button for manual navigation */}
+            {/* Add continue to results button when we already have research */}
             {deepResearch && !isGenerating && (
               <button
                 onClick={() => {
@@ -2551,16 +2497,6 @@ If you'd like complete research, please try again later when our research servic
               </button>
             )}
             
-            {/* Add quick access to content creation if research is already available */}
-            {deepResearch && (
-              <button
-                onClick={proceedToContentCreation}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-              >
-                {language === 'es' ? 'Ir a Creación de Contenido' : 'Go to Content Creation'}
-              </button>
-            )}
-          
             <button
               onClick={handleDeepAnalysisClick}
               className="flex items-center justify-center px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
