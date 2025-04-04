@@ -1105,6 +1105,14 @@ export default function ContentGenerator() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        
+        // Check if it's a timeout error
+        if (response.status === 504 || (errorData.error && typeof errorData.error === 'string' && errorData.error.includes('timeout'))) {
+          throw new Error(language === 'es' 
+            ? 'La solicitud ha agotado el tiempo de espera. Intenta con instrucciones más simples.' 
+            : 'The request timed out. Try with simpler instructions.');
+        }
+        
         throw new Error(errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
       }
       
@@ -1128,7 +1136,15 @@ export default function ContentGenerator() {
       toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {
       console.error('Refinement error:', error);
-      toast.error(t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }));
+      
+      // Format error message
+      let errorMessage = t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsRefinementLoading(false);
     }
