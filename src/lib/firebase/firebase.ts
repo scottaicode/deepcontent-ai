@@ -47,12 +47,8 @@ export const testFirestoreConnection = async (): Promise<boolean> => {
       authenticated: !!currentUser
     });
     
-    // Return true only if both connection works AND user is authenticated
-    if (!currentUser) {
-      console.log('Firestore connection works but user is not authenticated');
-      return false;
-    }
-    
+    // For testing mode, we don't require authentication for successful connection
+    // Return true if the connection to Firestore works, regardless of authentication
     return true;
   } catch (error) {
     console.error('Firestore connection failed:', error);

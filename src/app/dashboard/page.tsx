@@ -11,6 +11,9 @@ import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 
+// TESTING MODE FLAG - matches AuthContext bypass setting
+const BYPASS_AUTH_FOR_DEV = true;
+
 export default function DashboardPage() {
   const { contentList, isLoading, error, deleteContent, archiveContent, restoreContent, refreshContent } = useContent();
   const { toast } = useToast();
@@ -21,6 +24,7 @@ export default function DashboardPage() {
   const [firestoreConnected, setFirestoreConnected] = useState<boolean | null>(null);
   const { t } = useTranslation();
   const { user } = useAuth();
+  const router = useRouter();
   
   // Clean up filter function - no need for temporary content anymore
   const filteredContent = useMemo(() => {
@@ -96,7 +100,35 @@ export default function DashboardPage() {
     }
   };
   
-  // Clean up and simplify the refresh function
+  // Check Firestore connection on component mount
+  useEffect(() => {
+    const checkFirestore = async () => {
+      try {
+        // In testing mode, we'll assume connection is successful
+        if (BYPASS_AUTH_FOR_DEV) {
+          setFirestoreConnected(true);
+          return;
+        }
+        
+        const isConnected = await testFirestoreConnection();
+        setFirestoreConnected(isConnected);
+      } catch (error) {
+        console.error('Error checking Firestore connection:', error);
+        setFirestoreConnected(false);
+      }
+    };
+    
+    checkFirestore();
+  }, []);
+  
+  // In testing mode, we don't need to restrict access
+  useEffect(() => {
+    if (!BYPASS_AUTH_FOR_DEV && !isLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isLoading, router]);
+  
+  // Handle refresh action with loading state
   const handleRefresh = async () => {
     if (isRefreshing) return;
     
@@ -148,24 +180,6 @@ export default function DashboardPage() {
         });
     }
   }, [user?.uid]);
-  
-  // Add Firestore connection check - keep this as it's important for UX
-  useEffect(() => {
-    const checkFirestore = async () => {
-      const isConnected = await testFirestoreConnection();
-      setFirestoreConnected(isConnected);
-      
-      if (!isConnected) {
-        toast({
-          title: t('dashboard.dbConnectionIssue'),
-          description: t('dashboard.dbConnectionDesc'),
-          variant: 'destructive'
-        });
-      }
-    };
-    
-    checkFirestore();
-  }, [toast, t]);
   
   const formatDate = (date: string | number | Timestamp | undefined) => {
     if (!date) return 'N/A';

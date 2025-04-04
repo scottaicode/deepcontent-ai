@@ -16,7 +16,7 @@ import {
 import { initializeApp, deleteApp } from "firebase/app";
 
 // DEVELOPMENT FLAG: Set to true to bypass authentication in development
-const BYPASS_AUTH_FOR_DEV = false;
+const BYPASS_AUTH_FOR_DEV = true;
 
 // Import the direct Firebase config that doesn't rely on process.env variables
 const firebaseConfig = {

@@ -1,16 +1,55 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+
+// Testing mode flag
+const TESTING_MODE = true;
 
 /**
  * Component that applies fixes for production mode display issues
  * Particularly for issues that appear after a hard refresh
  */
 export default function ProductionModeFixes() {
+  const pathname = usePathname();
+  const [showTestBanner, setShowTestBanner] = useState(TESTING_MODE);
+  
   useEffect(() => {
     // Function to apply fixes for UI elements that might not display correctly in production mode
     const applyProductionFixes = () => {
       console.log('[ProductionModeFixes] Applying targeted fixes for UI elements');
+      
+      // Add testing mode notification
+      if (TESTING_MODE && !document.getElementById('testing-mode-banner')) {
+        const banner = document.createElement('div');
+        banner.id = 'testing-mode-banner';
+        banner.style.position = 'fixed';
+        banner.style.bottom = '0';
+        banner.style.left = '0';
+        banner.style.right = '0';
+        banner.style.backgroundColor = 'rgba(255, 193, 7, 0.9)';
+        banner.style.color = '#000';
+        banner.style.padding = '10px';
+        banner.style.textAlign = 'center';
+        banner.style.zIndex = '9999';
+        banner.style.fontSize = '14px';
+        banner.style.display = showTestBanner ? 'block' : 'none';
+        
+        banner.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>TESTING MODE: Authentication bypassed for easier testing. Database access enabled for all users.</span>
+            <button id="close-test-banner" style="background: none; border: none; cursor: pointer; font-weight: bold;">✕</button>
+          </div>
+        `;
+        
+        document.body.appendChild(banner);
+        
+        // Add event listener to close button
+        document.getElementById('close-test-banner')?.addEventListener('click', () => {
+          setShowTestBanner(false);
+          banner.style.display = 'none';
+        });
+      }
       
       // APPROACH 1: Fix specific translation keys in elements with specific classes
       // Target only elements likely to have translation issues, not all text on the page
@@ -169,7 +208,7 @@ export default function ProductionModeFixes() {
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [showTestBanner, pathname]);
 
   // Component doesn't render any visible content
   return null;
