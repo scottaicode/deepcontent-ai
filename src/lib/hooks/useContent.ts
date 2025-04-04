@@ -215,6 +215,13 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
   // Refresh content data
   const refreshContent = useCallback(async () => {
     console.log('refreshContent called, user ID:', user?.uid);
+    
+    // Add safeguard against recursive calls
+    if (isLoading) {
+      console.log('Already loading content, skipping refresh');
+      return;
+    }
+    
     // Clear content lists first to avoid showing stale data
     setContent(null);
     setContentList([]);
@@ -231,7 +238,7 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
         console.log('No content found after refresh, may need to check Firebase permissions or data existence');
       }
     }, 500);
-  }, [contentId, fetchContentById, fetchContentList, user?.uid, contentList.length]);
+  }, [contentId, fetchContentById, fetchContentList, user?.uid, contentList.length, isLoading]);
 
   // Save new content
   const saveNewContent = useCallback(async (data: Omit<ContentItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {

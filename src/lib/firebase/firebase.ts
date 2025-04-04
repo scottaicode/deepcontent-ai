@@ -30,17 +30,35 @@ if (typeof window !== 'undefined') {
 // Function to test Firestore connectivity
 export const testFirestoreConnection = async (): Promise<boolean> => {
   try {
-    // Simplified test: Check if Firebase app and Auth are initialized.
-    // We avoid querying Firestore here to prevent permission errors for unverified users.
-    // The real permission check happens during content loading.
-    console.log('Running simplified Firestore connection test...');
-    const isAuthInitialized = !!auth; // Check if auth object exists
-    console.log(`Simplified test result: Auth initialized = ${isAuthInitialized}`);
-    // Consider this test passed if auth is initialized, assuming Firestore is too.
-    return isAuthInitialized;
+    console.log('Testing Firestore connection...');
+    
+    // First, check if Firebase app is initialized
+    if (!app) {
+      console.error('Firebase app not initialized');
+      return false;
+    }
+    
+    // Second, check if auth is initialized
+    if (!auth) {
+      console.error('Firebase auth not initialized');
+      return false;
+    }
+    
+    // Third, check if Firestore is initialized
+    if (!db) {
+      console.error('Firestore not initialized');
+      return false;
+    }
+    
+    // Verify the app is not in an error state
+    if (app.name && app.options) {
+      console.log('Firebase app initialized successfully');
+      return true;
+    }
+    
+    return false;
   } catch (error) {
-    // This catch block might not be strictly necessary anymore, but keep for safety.
-    console.error('Simplified Firestore connection test failed unexpectedly:', error);
+    console.error('Firestore connection test failed:', error);
     return false;
   }
 };

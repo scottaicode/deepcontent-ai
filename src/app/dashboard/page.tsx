@@ -99,7 +99,10 @@ export default function DashboardPage() {
   
   // Clean up and simplify the refresh function
   const handleRefresh = async () => {
-    if (isRefreshing) return;
+    if (isRefreshing || isLoading) {
+      console.log('Already refreshing or loading, skipping refresh');
+      return;
+    }
     
     setIsRefreshing(true);
 
@@ -133,8 +136,8 @@ export default function DashboardPage() {
   
   // Clean up useEffect - simplify initialization
   useEffect(() => {
-    // Initial content load - ONLY if user is verified
-    if (user?.uid && user.emailVerified && !isRefreshing) {
+    // Initial content load - ONLY if user is verified and not already refreshing
+    if (user?.uid && user.emailVerified && !isRefreshing && !isLoading) {
       console.log('User is verified, attempting initial content load...');
       setIsRefreshing(true);
       
@@ -156,7 +159,7 @@ export default function DashboardPage() {
       console.log('User is not verified, skipping initial content load.');
     }
     // Only re-run if user ID or verification status changes, or refresh function instance changes.
-  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, setIsRefreshing, setLastRefreshTime]);
+  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, setIsRefreshing, setLastRefreshTime, isLoading]);
   
   // Add Firestore connection check - keep this as it's important for UX
   useEffect(() => {
