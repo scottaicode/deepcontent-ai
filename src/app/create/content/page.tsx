@@ -4,11 +4,11 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useTranslation } from '@/lib/i18n';
 import { useToast } from '@/lib/hooks/useToast';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
 import { getDisplayNames } from '@/app/lib/contentTypeDetection';
 import AppShell from "@/components/AppShell";
@@ -16,6 +16,12 @@ import { useContent } from '@/lib/hooks/useContent';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { db } from "@/lib/firebase/firebase";
 import ReactMarkdown from 'react-markdown';
+import { renderSimpleMarkdown } from '@/lib/markdownUtils';
+import { saveContent } from '@/lib/firebase/contentRepository';
+import { getPersonaDisplayName } from '@/lib/personaUtils';
+import { useSearchParams } from 'next/navigation';
+import type { ContentVersion } from '@/lib/types';
+import { MDXRemote } from 'next-mdx-remote/rsc';
 
 // Enhanced research results interface
 interface ResearchResults {
@@ -1020,18 +1026,22 @@ export default function ContentGenerator() {
   const handleSaveContent = async () => {
     if (!generatedContent || !user) {
       toast.toast({
-        title: t('actions.saveToDashboardError', { defaultValue: 'Content or user information missing' }),
+        title: t('actions.saveToDashboardError', { 
+          defaultValue: language === 'es' ? 'Falta contenido o información del usuario' : 'Content or user information missing'
+        }),
         variant: "destructive"
       });
       return;
     }
     
     try {
+      console.log('Saving content to dashboard with user ID:', user.uid, 'in language:', language);
+      
       // Create a content object with all necessary metadata
       const contentToSave = {
         userId: user.uid,
         content: generatedContent,
-        title: contentDetails.researchTopic || 'Untitled Content',
+        title: contentDetails.researchTopic || (language === 'es' ? 'Contenido sin título' : 'Untitled Content'),
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
         subPlatform: contentDetails.subPlatform,
@@ -1040,14 +1050,24 @@ export default function ContentGenerator() {
         persona: currentPersona,
         length: contentSettings.length as 'short' | 'medium' | 'long',
         status: 'published' as const,
+        language: language || 'en', // Add language to the saved content
       };
+      
+      // Log the content being saved
+      console.log('Content to save:', {
+        ...contentToSave,
+        content: `${contentToSave.content.substring(0, 50)}... (${contentToSave.content.length} chars)`
+      });
       
       // Save the content using the content service
       const savedContent = await saveContent(contentToSave);
+      console.log('Content saved successfully with ID:', savedContent);
       
       // Show success message
       toast.toast({
-        title: t('actions.saveToDashboardSuccess', { defaultValue: 'Content saved to dashboard successfully!' }),
+        title: t('actions.saveToDashboardSuccess', { 
+          defaultValue: language === 'es' ? '¡Contenido guardado en el panel correctamente!' : 'Content saved to dashboard successfully!' 
+        }),
         variant: "default"
       });
       
@@ -1059,10 +1079,52 @@ export default function ContentGenerator() {
       }, 1000);
     } catch (error) {
       console.error('Error saving content:', error);
+      
+      // Show error message with language-specific text
       toast.toast({
-        title: t('actions.saveToDashboardError', { defaultValue: 'Failed to save content. Please try again.' }),
+        title: t('actions.saveToDashboardError', { 
+          defaultValue: language === 'es' ? 'Error al guardar el contenido. Por favor, inténtelo de nuevo.' : 'Failed to save content. Please try again.' 
+        }),
+        description: error instanceof Error ? error.message : undefined,
         variant: "destructive"
       });
+      
+      // Offer fallback: export content as text file
+      toast.toast({
+        title: language === 'es' 
+          ? '¿Desea descargar el contenido como archivo de texto?' 
+          : 'Would you like to download the content as a text file?',
+        description: language === 'es'
+          ? 'Hubo un problema al guardar en la base de datos. Puede guardar localmente su contenido.'
+          : 'There was a problem saving to the database. You can save your content locally.',
+        variant: "default"
+      });
+      
+      // Create a download button that doesn't require promises or dialog
+      const downloadBtn = document.createElement('button');
+      downloadBtn.innerText = language === 'es' ? 'Descargar Contenido' : 'Download Content';
+      downloadBtn.className = 'fixed bottom-4 right-4 px-4 py-2 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 z-50';
+      downloadBtn.onclick = () => {
+        // Create and download a text file
+        const element = document.createElement('a');
+        const file = new Blob([generatedContent], {type: 'text/plain'});
+        element.href = URL.createObjectURL(file);
+        element.download = `content-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+        
+        toast.success(language === 'es' ? 'Contenido descargado' : 'Content downloaded');
+        document.body.removeChild(downloadBtn);
+      };
+      document.body.appendChild(downloadBtn);
+      
+      // Auto-remove button after 10 seconds
+      setTimeout(() => {
+        if (document.body.contains(downloadBtn)) {
+          document.body.removeChild(downloadBtn);
+        }
+      }, 10000);
     }
   };
 

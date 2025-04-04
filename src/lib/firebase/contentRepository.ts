@@ -34,6 +34,7 @@ export interface ContentItem {
   mediaUrls?: string[];
   style?: string;
   length?: 'short' | 'medium' | 'long';
+  language?: string;
 }
 
 const COLLECTION = 'content';
@@ -47,31 +48,50 @@ export const saveContent = async (contentData: Omit<ContentItem, 'id' | 'created
     
     // Validate required data before saving
     if (!contentData.title || !contentData.content || !contentData.userId) {
-      throw new Error('Missing required content data: title, content, or userId');
+      const missingFields = [];
+      if (!contentData.title) missingFields.push('title');
+      if (!contentData.content) missingFields.push('content');
+      if (!contentData.userId) missingFields.push('userId');
+      
+      const errorMessage = `Missing required content data: ${missingFields.join(', ')}`;
+      console.error(errorMessage, contentData);
+      throw new Error(errorMessage);
     }
     
     // Ensure contentType has a value
     if (!contentData.contentType) {
+      console.log('No contentType provided, using default: "general"');
       contentData.contentType = 'general';
     }
     
     // Ensure platform has a value
     if (!contentData.platform) {
+      console.log('No platform provided, using default: "other"');
       contentData.platform = 'other';
     }
     
     // Ensure status has a value
     if (!contentData.status) {
+      console.log('No status provided, using default: "draft"');
       contentData.status = 'draft';
     }
-    
-    // Try to access collection first to verify permissions/existence
-    try {
-      await getDocs(query(collection(db, COLLECTION), limit(1)));
-    } catch (collectionError) {
-      console.error("Error accessing collection:", collectionError);
-      throw new Error(`Cannot access collection "${COLLECTION}". Check permissions or if collection exists.`);
+
+    // Add language if not present
+    if (!contentData.language) {
+      console.log('No language provided, using default: "en"');
+      contentData.language = 'en';
     }
+    
+    // Log data being saved for debugging
+    console.log('Saving content data:', {
+      userId: contentData.userId,
+      title: contentData.title,
+      contentType: contentData.contentType,
+      platform: contentData.platform,
+      status: contentData.status,
+      language: contentData.language,
+      contentLength: contentData.content?.length || 0
+    });
     
     // Prepare the data with timestamp fields
     const now = serverTimestamp();
@@ -81,29 +101,29 @@ export const saveContent = async (contentData: Omit<ContentItem, 'id' | 'created
       updatedAt: now
     };
     
-    console.log('Saving content with timestamps:', { 
-      hasCreatedAt: !!contentToSave.createdAt,
-      hasUpdatedAt: !!contentToSave.updatedAt,
-      status: contentToSave.status
-    });
-    
-    const docRef = await addDoc(collection(db, COLLECTION), contentToSave);
-    
-    console.log('Document created with ID:', docRef.id);
-    
-    // Verify the document was created
-    const docSnapshot = await getDoc(doc(db, COLLECTION, docRef.id));
-    if (!docSnapshot.exists()) {
-      console.warn('Document was not found immediately after creation');
-    } else {
-      const savedData = docSnapshot.data();
-      console.log('Document saved successfully with timestamps:', { 
-        hasCreatedAt: !!savedData.createdAt,
-        hasUpdatedAt: !!savedData.updatedAt
-      });
+    // Create the document with error handling
+    try {
+      const docRef = await addDoc(collection(db, COLLECTION), contentToSave);
+      console.log('Document created with ID:', docRef.id);
+      return docRef.id;
+    } catch (firestoreError) {
+      // Handle specific Firestore errors
+      console.error('Firestore error when saving content:', firestoreError);
+      
+      let errorMessage = 'Failed to save to database';
+      
+      // Check for permission denied errors
+      if (firestoreError instanceof Error) {
+        if (firestoreError.message.includes('permission-denied') || 
+            firestoreError.message.includes('Missing or insufficient permissions')) {
+          errorMessage = 'Permission denied: Check Firestore security rules';
+        } else if (firestoreError.message.includes('network')) {
+          errorMessage = 'Network error when saving content';
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
-    
-    return docRef.id;
   } catch (error) {
     console.error("Error saving content:", error);
     throw error;
