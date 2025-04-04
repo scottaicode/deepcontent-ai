@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Anthropic } from '@anthropic-ai/sdk';
 import { enhanceWithPersonaTraits, getPersonaDisplayName } from '@/app/lib/personaUtils';
 
+// Set increased route config for timeout - extending to 5 minutes max
+export const maxDuration = 300; // 5 minutes maximum (limit for Vercel Pro plan)
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0; // No revalidation
+
 // Constants - Using the correct Claude 3.7 Sonnet model identifier
 const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
 
@@ -20,7 +26,15 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
     
     console.log('Calling Claude API with prompt...');
-    const response = await anthropicClient.messages.create({
+    
+    // Set longer timeout for generation
+    const startTime = Date.now();
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Claude API request timed out after 5 minutes')), 300000); // 5 minute timeout
+    });
+    
+    // Create the API request promise
+    const apiRequestPromise = anthropicClient.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 4000,
       temperature: 0.7,
@@ -30,7 +44,11 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
       ]
     });
     
-    console.log('Claude API response received');
+    // Race the API request against the timeout
+    const response = await Promise.race([apiRequestPromise, timeoutPromise]) as Anthropic.Messages.Message;
+    
+    const responseTime = Date.now() - startTime;
+    console.log(`Claude API responded in ${responseTime}ms`);
     
     // Process the response
     let responseText = "";
@@ -61,6 +79,12 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
     return enhancedContent;
   } catch (error) {
     console.error("Error calling Claude API:", error);
+    
+    // For timeout errors, provide a more specific error message
+    if (error instanceof Error && error.message.includes('timed out')) {
+      throw new Error("Claude API request timed out. Please try refining with more concise feedback or try breaking it into smaller sections.");
+    }
+    
     throw error;
   }
 }
@@ -289,6 +313,42 @@ Before submitting your final content:
 Return ONLY the revised content, ready for publication.
 </instructions>`;
 
+    // Check if prompt is too long and truncate if needed
+    const maxPromptLength = 85000; // ~85K tokens is a safe limit
+    let processedPrompt = prompt;
+    
+    if (prompt.length > maxPromptLength) {
+      console.log('Prompt too long, truncating for optimal processing');
+      
+      // Estimate how much of the original content we can keep
+      const promptWithoutContent = prompt.replace(originalContent, '[CONTENT_PLACEHOLDER]');
+      const availableSpace = maxPromptLength - promptWithoutContent.length;
+      
+      if (availableSpace > 5000) {
+        // Keep enough of the original content to preserve context
+        const contentPreview = originalContent.substring(0, Math.floor(availableSpace * 0.5));
+        const contentSuffix = originalContent.substring(originalContent.length - Math.floor(availableSpace * 0.5));
+        
+        const truncatedContent = `${contentPreview}
+
+[... Content truncated for processing efficiency ...]
+
+${contentSuffix}`;
+        
+        processedPrompt = prompt.replace(originalContent, truncatedContent);
+        console.log('Content truncated for processing. Using partial content while preserving beginning and end.');
+      } else {
+        console.log('Very limited space for content. Using essential parts only.');
+        const truncatedContent = `${originalContent.substring(0, 2500)}
+
+[... Content significantly truncated for processing ...]
+
+${originalContent.substring(originalContent.length - 2500)}`;
+        
+        processedPrompt = prompt.replace(originalContent, truncatedContent);
+      }
+    }
+
     // Get the API key from environment variables
     const apiKey = process.env.ANTHROPIC_API_KEY || '';
     if (!apiKey) {
@@ -301,7 +361,7 @@ Return ONLY the revised content, ready for publication.
 
     console.log('Calling Claude API...');
     // Call Claude API with style parameter
-    const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional');
+    const refinedContent = await callClaudeApi(processedPrompt, apiKey, style || 'professional');
     console.log('Content refined successfully, length:', refinedContent.length);
     
     // Return the response as JSON
