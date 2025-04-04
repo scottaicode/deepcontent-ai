@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Content Collection Rules
+    match /content/{contentId} {
+      // Allow create only if logged in (email verification temporarily disabled for testing)
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Allow read, update, delete only if logged in (email verification temporarily disabled for testing)
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // === Add rules for other collections below this line if needed ===
+    // Example for user profiles (adjust as necessary):
+    // match /users/{userId} {
+    //   // Allow anyone to read profiles (if public)
+    //   allow read: if request.auth != null;
+    //   
+    //   // Allow user to write their own profile (email verification temporarily disabled for testing)
+    //   allow write: if request.auth != null && request.auth.uid == userId;
+    // }
+    // === End of other collection rules ===
+  }
+} 
