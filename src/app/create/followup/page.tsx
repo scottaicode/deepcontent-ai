@@ -182,7 +182,7 @@ export default function FollowupPage() {
       
       // Navigate to the research page and indicate to start at the Generate Research step
       // This will ensure the user goes through the Generate Research UI
-      router.push('/create/research?step=3&showGenerateUI=true');
+      router.push('/create/research?step=3');
     }
   };
 

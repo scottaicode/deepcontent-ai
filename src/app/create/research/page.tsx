@@ -543,21 +543,12 @@ export default function ResearchPage() {
       // Get the step from the URL query parameters
       const urlParams = new URLSearchParams(window.location.search);
       const stepParam = urlParams.get('step');
-      const showGenerateUI = urlParams.get('showGenerateUI');
       
       if (stepParam) {
         const parsedStep = parseInt(stepParam, 10);
         // Only set the step if it's valid (1-5)
         if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
           setResearchStep(parsedStep);
-          
-          // If we're navigating to step 3 with showGenerateUI=true,
-          // ensure we don't skip the generate UI by setting flags to prevent auto-transition
-          if (parsedStep === 3 && showGenerateUI === 'true') {
-            console.log('[DEBUG] Showing Generate Research UI as requested by URL parameter');
-            // Set any flags needed to ensure we stay on step 3
-            sessionStorage.setItem('forceShowGenerateResearch', 'true');
-          }
         }
       }
     }
@@ -1314,16 +1305,6 @@ If you'd like complete research, please try again later when our research servic
     // Add more verbose logging for debugging purposes
     console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
     
-    // Check if we should force showing the Generate Research UI
-    const forceShowGenerateResearch = sessionStorage.getItem('forceShowGenerateResearch') === 'true';
-    
-    if (forceShowGenerateResearch && researchStep === 3) {
-      console.log('[DEBUG TRANSITION] Forcing Generate Research UI to be shown - not auto-transitioning');
-      // Clear the flag so it doesn't persist for future navigations
-      sessionStorage.removeItem('forceShowGenerateResearch');
-      return;
-    }
-    
     // Check state changes that should trigger a transition
     if (deepResearch && researchStep < 4) {
       console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
@@ -1348,8 +1329,8 @@ If you'd like complete research, please try again later when our research servic
         }, 500);
         
         return () => clearTimeout(timer);
-      } else if (researchStep === 3 && !forceShowGenerateResearch) {
-        // Only auto-transition from step 3 if not forcing the Generate Research UI
+      } else if (researchStep === 3) {
+        // Auto-transition from step 3
         const timer = setTimeout(() => {
           console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
           setResearchStep(4);
