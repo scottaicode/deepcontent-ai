@@ -588,6 +588,47 @@ For TikTok, create script-style content with:
 - A strong call to action
 - Trend-aware approach
 `;
+  } else if (platform === 'google-ads' || platform === 'search-ads' || platform === 'display-ads' || platform.includes('google')) {
+    promptBuilder += `
+# GOOGLE ADS FORMAT REQUIREMENTS (STRICT)
+Create actual Google Ads content formatted exactly as follows:
+
+## RESPONSIVE SEARCH ADS FORMAT
+- Create 15 unique headlines (30 character max each)
+- Create 4 unique descriptions (90 character max each)
+- The output must be formatted in clear sections
+
+## INSTRUCTIONS
+1. Headlines must:
+   - Be exactly 30 characters or less
+   - Include compelling calls to action
+   - Incorporate target keywords
+   - Avoid repetition between headlines
+   - Target different user motivations (features, benefits, urgency, etc.)
+
+2. Descriptions must:
+   - Be exactly 90 characters or less
+   - Include specific benefits, features and at least one call to action
+   - Mention the target audience's pain points
+   - Leverage information from the research
+   - Avoid repetition between descriptions
+
+## CONTENT STRUCTURE
+Your response must follow this exact format:
+
+HEADLINES (15 total, 30 char max):
+1. [Headline 1]
+2. [Headline 2]
+...and so on through headline 15
+
+DESCRIPTIONS (4 total, 90 char max):
+1. [Description 1]
+2. [Description 2]
+3. [Description 3]
+4. [Description 4]
+
+Do NOT write an educational article about Google Ads. Create ONLY the actual ad content that could be directly copied into Google Ads Manager.
+`;
   } else if (platform === 'blog' || contentType === 'blog-post') {
     promptBuilder += `
 For a blog post, create content that:

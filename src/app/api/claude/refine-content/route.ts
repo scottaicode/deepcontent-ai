@@ -242,19 +242,44 @@ ${researchData}
 IMPORTANT: Ensure your refinements align with the latest best practices identified in this research data.
 ` : ''}
 
-${contentType && contentType.includes('google-ads') ? `## GOOGLE ADS SPECIFIC REQUIREMENTS FOR ${currentMonth.toUpperCase()} ${currentYear}
-Maintain Google Ads format with:
-- Responsive Search Ads: 15 headlines (30 character max each), 4 descriptions (90 character max each)
-- Performance Max campaign assets where applicable
-- Mobile-first optimization (75% weight)
-- Voice search optimization patterns
-- Smart bidding strategy recommendations
-- Negative keyword suggestions to prevent wasteful spend
-- Audience signal recommendations for broad match keywords
-- AI-generated assets settings guidelines
-- Current policy compliance requirements
-- Latest conversion tracking implementation advice
-- E-E-A-T 2.0 documentation requirements
+${contentType && (contentType.includes('google-ads') || platform === 'google-ads' || platform === 'search-ads' || platform.includes('google')) ? `## GOOGLE ADS FORMAT REQUIREMENTS (STRICT)
+When refining Google Ads content, maintain this exact format:
+
+## RESPONSIVE SEARCH ADS FORMAT
+- Keep/create 15 unique headlines (30 character max each)
+- Keep/create 4 unique descriptions (90 character max each)
+- Structure the output in clear sections
+
+## INSTRUCTIONS
+1. Headlines must:
+   - Be exactly 30 characters or less
+   - Include compelling calls to action
+   - Incorporate target keywords
+   - Avoid repetition between headlines
+   - Target different user motivations
+
+2. Descriptions must:
+   - Be exactly 90 characters or less
+   - Include specific benefits, features, and at least one call to action
+   - Address target audience's pain points
+   - Leverage information from the research
+   - Avoid repetition between descriptions
+
+## CONTENT STRUCTURE
+Your response must follow this exact format:
+
+HEADLINES (15 total, 30 char max):
+1. [Headline 1]
+2. [Headline 2]
+...and so on through headline 15
+
+DESCRIPTIONS (4 total, 90 char max):
+1. [Description 1]
+2. [Description 2]
+3. [Description 3]
+4. [Description 4]
+
+IMPORTANT: Do NOT write an educational article about Google Ads. Keep or refine ONLY the actual ad content that can be directly copied into Google Ads Manager.
 ` : ''}
 
 ${contentType && contentType.includes('landing-page') ? `## LANDING PAGE SPECIFIC REQUIREMENTS FOR ${currentMonth.toUpperCase()} ${currentYear}
