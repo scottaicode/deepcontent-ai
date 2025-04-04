@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 
 // TESTING MODE FLAG - matches AuthContext bypass setting
-const BYPASS_AUTH_FOR_DEV = true;
+const BYPASS_AUTH_FOR_DEV = false;
 
 export default function DashboardPage() {
   const { contentList, isLoading, error, deleteContent, archiveContent, restoreContent, refreshContent } = useContent();

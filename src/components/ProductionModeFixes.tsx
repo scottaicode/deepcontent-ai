@@ -37,7 +37,7 @@ export default function ProductionModeFixes() {
         
         banner.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>TESTING MODE: Authentication bypassed for easier testing. Database access enabled for all users.</span>
+            <span>TESTING MODE: Email login required, but database access has relaxed security for testing.</span>
             <button id="close-test-banner" style="background: none; border: none; cursor: pointer; font-weight: bold;">✕</button>
           </div>
         `;
