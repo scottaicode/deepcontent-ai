@@ -675,9 +675,17 @@ export default function ResearchPage() {
         // Check for the explicit forceStep3 flag set during Spanish navigation
         const forceStep3 = sessionStorage.getItem('forceStep3') === 'true';
         
-        // Check if this is the Spanish version
-        const langParam = urlParams.get('language');
-        const isSpanishVersion = langParam === 'es';
+        // More robust Spanish language detection
+        const urlLangParam = urlParams.get('language');
+        const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
+        const documentLang = document.documentElement.lang;
+        const isSpanishVersion = 
+          urlLangParam === 'es' || 
+          storedLanguage === 'es' || 
+          documentLang === 'es' || 
+          language === 'es';
+        
+        console.log(`[DEBUG] Auto-transition language detection: URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language}, isSpanish=${isSpanishVersion}`);
         
         // Check for permanent blocking flag to prevent infinite loops
         const permanentlyBlocked = sessionStorage.getItem('permanentlyBlockAutoAdvance') === 'true';
@@ -1012,10 +1020,18 @@ Language: ${language || 'en'}`
           // Set progress to 100% and clear status
           setGenerationProgress(100);
           
-          // Check if this is the Spanish version
+          // More robust Spanish language detection
           const urlParams = new URLSearchParams(window.location.search);
-          const langParam = urlParams.get('language');
-          const isSpanishVersion = langParam === 'es';
+          const urlLangParam = urlParams.get('language');
+          const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
+          const documentLang = document.documentElement.lang;
+          const isSpanishVersion = 
+            urlLangParam === 'es' || 
+            storedLanguage === 'es' || 
+            documentLang === 'es' || 
+            language === 'es';
+          
+          console.log(`[DEBUG] Complete handler language detection: URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language}, isSpanish=${isSpanishVersion}`);
           
           // For Spanish version, set the forceStep3 flag to prevent auto-advancing
           if (isSpanishVersion) {
@@ -2819,9 +2835,17 @@ If you'd like complete research, please try again later when our research servic
       const urlParams = new URLSearchParams(window.location.search);
       const stepParam = urlParams.get('step');
       
-      // Check language parameter
-      const langParam = urlParams.get('language');
-      const isSpanishVersion = langParam === 'es';
+      // Robust language detection using multiple sources
+      const urlLangParam = urlParams.get('language');
+      const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
+      const documentLang = document.documentElement.lang;
+      const isSpanishVersion = 
+        urlLangParam === 'es' || 
+        storedLanguage === 'es' || 
+        documentLang === 'es' || 
+        language === 'es';
+      
+      console.log(`[DEBUG] Language detection: URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language}, isSpanish=${isSpanishVersion}`);
       
       // Set or clear auto-advance blocking flags based on language
       if (isSpanishVersion) {
