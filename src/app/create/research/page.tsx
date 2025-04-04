@@ -675,27 +675,43 @@ export default function ResearchPage() {
         // Check for the explicit forceStep3 flag set during Spanish navigation
         const forceStep3 = sessionStorage.getItem('forceStep3') === 'true';
         
-        // Only auto-advance if not explicitly told to stay on step 3
-        // Add additional check for forceStep3 flag to handle Spanish version
-        if (stepParam !== '3' && !forceStep3) {
-          console.log('[DEBUG] Auto-advancing to step 3 - No URL step=3 or forceStep3 flag');
-          setResearchStep(3);
-        } else {
-          console.log('[DEBUG] Not auto-advancing - URL step=3 or forceStep3 flag is set');
+        // Check if this is the Spanish version
+        const langParam = urlParams.get('language');
+        const isSpanishVersion = langParam === 'es';
+        
+        // Stay on Generate Research step if:
+        // 1. URL explicitly states step=3, OR
+        // 2. The forceStep3 flag is set, OR 
+        // 3. We're in Spanish mode
+        if (stepParam === '3' || forceStep3 || isSpanishVersion) {
+          console.log('[DEBUG] Explicitly staying on Generate Research step (3)');
+          
+          // Clear the forceStep3 flag since we've used it
+          if (forceStep3) {
+            sessionStorage.removeItem('forceStep3');
+          }
+          
+          // Make sure we save the research results again just in case
+          const researchResults: ResearchResults = {
+            researchMethod: 'perplexity',
+            perplexityResearch: deepResearch,
+            trendingTopics: [],
+            dataSources: {
+              reddit: true,
+              rss: true
+            }
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          console.log('Research step set to 3 (complete) and data saved');
+          return;
         }
         
-        // Make sure we save the research results again just in case
-        const researchResults: ResearchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: deepResearch,
-          trendingTopics: [],
-          dataSources: {
-            reddit: true,
-            rss: true
-          }
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        console.log('Research step set to 3 (complete) and data saved');
+        // Otherwise transition to step 4
+        console.log('Auto-transitioning to research step 4');
+        setResearchStep(4);
+        
+        // Save current research step to session storage
+        sessionStorage.setItem('researchStep', '4');
       }, 500);
       
       return () => clearTimeout(timer);
@@ -948,50 +964,55 @@ Language: ${language || 'en'}`
         }
       });
       
-      eventSource.addEventListener('complete', (event: Event) => {
-        const messageEvent = event as MessageEvent;
+      // Handle completion
+      eventSource.addEventListener('complete', (event) => {
         try {
-          const data = JSON.parse(messageEvent.data);
-          console.log('[DEBUG] Research complete:', data);
+          const data = JSON.parse(event.data);
           
-          // Save the full research
-          if (data.research) {
-            // Clean the research text and store it
-            const cleanedResearch = removeThinkingTags(data.research);
-            researchText = cleanedResearch;
-            setDeepResearch(cleanedResearch);
-            
-            // Store the clean research in session storage
-            sessionStorage.setItem('deepResearch', cleanedResearch);
-            
-            // Save research results
-            const researchResults = {
-              researchMethod: 'perplexity',
-              perplexityResearch: cleanedResearch
-            };
-            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-            
-            // Move to the next step
-            setResearchStep(4);
-            
-            // Show success toast
-            toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-            
-            // Update progress to 100%
-            setGenerationProgress(100);
-            setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+          console.log('Research generation complete, closing EventSource');
+          window.researchEventSource.close();
+          
+          // Check if we have valid research data
+          if (!data.research) {
+            throw new Error('No research data returned');
           }
           
-          // Close the connection when complete
-          eventSource.close();
+          const cleanedResearch = removeThinkingTags(data.research);
+          researchText = cleanedResearch;
+          setDeepResearch(cleanedResearch);
+          
+          // Store the clean research in session storage
+          sessionStorage.setItem('deepResearch', cleanedResearch);
+          
+          // Save research results
+          const researchResults = {
+            topic,
+            perplexityResearch: cleanedResearch
+          };
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          
+          // Set progress to 100% and clear status
+          setProgress(100);
+          
+          // Check if this is the Spanish version
+          const urlParams = new URLSearchParams(window.location.search);
+          const langParam = urlParams.get('language');
+          const isSpanishVersion = langParam === 'es';
+          
+          // For Spanish version, set the forceStep3 flag to prevent auto-advancing
+          if (isSpanishVersion) {
+            console.log('[DEBUG] Spanish version detected, setting forceStep3 flag');
+            sessionStorage.setItem('forceStep3', 'true');
+          }
+          
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          
           setIsGenerating(false);
-          setIsLoading(false);
-        } catch (e) {
-          console.error('[DEBUG] Error parsing complete event data:', e);
+          setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
+        } catch (error) {
+          console.error('Error processing research results:', error);
           setError('Error processing research results. Please try again.');
-          eventSource.close();
           setIsGenerating(false);
-          setIsLoading(false);
         }
       });
       
@@ -3209,37 +3230,25 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       
       try {
         // Make the API request
-        const response = await fetch('/api/perplexity/research', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            topic: safeContentDetails?.researchTopic || '',
-            context: contextString,
-            sources: ['recent', 'scholar'],
-            language
-          })
-        });
+        const research = await generatePerplexityResearch(
+          safeContentDetails?.researchTopic || '',
+          contextString,
+          ['recent', 'scholar'],
+          // Get language from URL for Spanish support
+          new URLSearchParams(window.location.search).get('language') || 'en',
+          safeContentDetails?.businessName || ''
+        );
         
         // Clear message interval
         clearInterval(messageInterval);
         
         // Process response
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `API error: ${response.status}`);
-        }
-        
-        // Parse response
-        const data = await response.json();
-        
-        if (!data || !data.research) {
+        if (!research) {
           throw new Error('Empty response from research API');
         }
         
         // Process the research content
-        const cleanedResearch = removeThinkingTags(data.research);
+        const cleanedResearch = removeThinkingTags(research);
         
         // Save research
         setDeepResearch(cleanedResearch);
@@ -3536,3 +3545,53 @@ const callPerplexityWithRetry = async (
   // If we've exhausted all retries, throw the last error
   throw lastError;
 };
+
+useEffect(() => {
+  if (researchStep === 3) {
+    if (!deepResearch && !isGenerating && !error) {
+      const checkForCachedResearch = () => {
+        const cachedResearch = sessionStorage.getItem('deepResearch');
+        if (cachedResearch) {
+          console.log('[DEBUG] Found cached research, restoring');
+          setDeepResearch(cachedResearch);
+          
+          // Since we're loading cached research, mark that research is valid
+          setIsGenerating(false);
+          return true;
+        }
+        return false;
+      };
+      
+      const hasResearch = checkForCachedResearch();
+      if (!hasResearch) {
+        console.log('[DEBUG] No cached research found, generating new research');
+        const generateResearch = async () => {
+          try {
+            // Check if this is the Spanish version
+            const urlParams = new URLSearchParams(window.location.search);
+            const langParam = urlParams.get('language');
+            const isSpanishVersion = langParam === 'es';
+            
+            // Get the effective language
+            const effectiveLanguage = isSpanishVersion ? 'es' : 'en';
+            console.log(`[DEBUG] Research generation language: ${effectiveLanguage}`);
+            
+            // Store the language explicitly for debugging
+            if (isSpanishVersion) {
+              console.log('[DEBUG] Spanish version detected for research generation');
+              sessionStorage.setItem('researchLanguage', 'es');
+            }
+            
+            await generateDeepResearch();
+          } catch (error) {
+            console.error('Error generating research:', error);
+            setError(String(error));
+            setIsGenerating(false);
+          }
+        };
+        
+        generateResearch();
+      }
+    }
+  }
+}, [researchStep, deepResearch, isGenerating, error]);

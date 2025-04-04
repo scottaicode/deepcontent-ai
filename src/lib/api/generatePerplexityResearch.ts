@@ -19,7 +19,7 @@ export async function generatePerplexityResearch(
       topic, 
       context,
       sources: sources || [],
-      language,
+      language: language || 'en',  // Default to English if not specified
       companyName: companyName || 'N/A'
     });
     
@@ -28,6 +28,7 @@ export async function generatePerplexityResearch(
       throw new Error('Empty research topic provided to Perplexity API');
     }
     
+    console.log(`[DEBUG] Language for research: ${language || 'en'}`);
     console.log('Skipping cache check to generate fresh research');
     
     // Create a research job
@@ -41,7 +42,7 @@ export async function generatePerplexityResearch(
         topic: topic.trim(), // Ensure clean topic
         context: context.trim(),
         sources: sources || [],
-        language,
+        language: language || 'en',  // Ensure language is explicitly passed
         companyName // Pass company name to the API route
       }),
     });
