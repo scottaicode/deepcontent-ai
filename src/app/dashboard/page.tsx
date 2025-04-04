@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [showVerificationWarning, setShowVerificationWarning] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, sendVerificationEmail } = useAuth();
   const router = useRouter();
   
   // Clean up filter function - no need for temporary content anymore
@@ -187,25 +187,13 @@ export default function DashboardPage() {
   
   // Function to handle resending verification email
   const handleResendVerification = async () => {
-    if (!user || !user.email) return;
+    if (!user) return;
     
     setSendingVerification(true);
     
     try {
-      // Call Firebase auth currentUser.sendEmailVerification()
-      // We'll need to use our custom hook that has this function
-      await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          email: user.email, 
-          // We'll use a dummy password since the server endpoint needs one 
-          // but we're already authenticated on the client
-          password: 'dummy-password-not-used' 
-        }),
-      });
+      // Use the auth context function directly
+      await sendVerificationEmail();
       
       toast({
         title: 'Verification email sent',
