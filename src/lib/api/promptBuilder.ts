@@ -175,20 +175,7 @@ TODAY'S DATE IS ${formattedDate}. Your research should be tailored for ${audienc
 ADDITIONAL USER-PROVIDED DATA - MUST USE THIS INFORMATION - PRIORITY #2
 ====================
 
-`;
-
-    // Special handling for follow-up answers to highlight them more clearly
-    if (additionalContext.includes('Q:') && additionalContext.includes('A:')) {
-      prompt += `FOLLOW-UP QUESTION ANSWERS (HIGHLY IMPORTANT USER INPUT):
 ${additionalContext}
-
-These follow-up answers represent direct input from the user about their specific needs and goals. This information is critical for tailoring the research and MUST be incorporated into your analysis and recommendations.
-`;
-    } else {
-      prompt += `${additionalContext}`;
-    }
-
-    prompt += `
 
 The information above comes directly from the user and must be considered authoritative. You MUST incorporate insights from these inputs throughout your research.
 

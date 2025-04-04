@@ -10,6 +10,7 @@ import { testFirestoreConnection } from '@/lib/firebase/firebase';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
+import { sendEmailVerification } from "firebase/auth";
 
 export default function DashboardPage() {
   const { contentList, isLoading, error, deleteContent, archiveContent, restoreContent, refreshContent } = useContent();
@@ -19,11 +20,8 @@ export default function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [firestoreConnected, setFirestoreConnected] = useState<boolean | null>(null);
-  const [showVerificationWarning, setShowVerificationWarning] = useState(false);
-  const [sendingVerification, setSendingVerification] = useState(false);
   const { t } = useTranslation();
-  const { user, sendVerificationEmail } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   
   // Clean up filter function - no need for temporary content anymore
   const filteredContent = useMemo(() => {
@@ -135,38 +133,30 @@ export default function DashboardPage() {
   
   // Clean up useEffect - simplify initialization
   useEffect(() => {
-    // Initial content load
-    if (user?.uid && !isRefreshing) {
+    // Initial content load - ONLY if user is verified
+    if (user?.uid && user.emailVerified && !isRefreshing) {
+      console.log('User is verified, attempting initial content load...');
       setIsRefreshing(true);
-      
-      // Temporarily disable email verification check for testing
-      // if (!user.emailVerified) {
-      //   setShowVerificationWarning(true);
-      // }
       
       refreshContent()
         .then(() => {
           setLastRefreshTime(new Date());
         })
         .catch(error => {
-          console.error('Error loading content:', error);
-          
-          // Check if the error is a Firebase permission error
-          // Temporarily disable email verification check for testing
-          // if (error.code === 'permission-denied' && !user.emailVerified) {
-          //   setShowVerificationWarning(true);
-          //   toast({
-          //     title: 'Email verification required',
-          //     description: 'Please verify your email address to access the dashboard.',
-          //     variant: 'destructive'
-          //   });
-          // }
+          // Error from useContent will be handled by the main render block
+          console.error('Error loading content during initial load (verified user):', error);
         })
         .finally(() => {
           setIsRefreshing(false);
         });
+    } else if (user?.uid && !user.emailVerified) {
+      // User exists but is not verified - Do nothing here.
+      // The UI error display logic will handle showing the prompt based on the lack of content 
+      // and the user's verification status, or any error caught by handleRefresh if clicked.
+      console.log('User is not verified, skipping initial content load.');
     }
-  }, [user?.uid, user?.emailVerified]);
+    // Only re-run if user ID or verification status changes, or refresh function instance changes.
+  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, setIsRefreshing, setLastRefreshTime]);
   
   // Add Firestore connection check - keep this as it's important for UX
   useEffect(() => {
@@ -186,30 +176,24 @@ export default function DashboardPage() {
     checkFirestore();
   }, [toast, t]);
   
-  // Function to handle resending verification email
+  // Add handler for resending verification email
   const handleResendVerification = async () => {
-    if (!user) return;
-    
-    setSendingVerification(true);
-    
-    try {
-      // Use the auth context function directly
-      await sendVerificationEmail();
-      
-      toast({
-        title: 'Verification email sent',
-        description: 'Please check your inbox and spam folder for the verification link.',
-        variant: 'success'
-      });
-    } catch (error) {
-      console.error('Error sending verification email:', error);
-      toast({
-        title: 'Failed to send verification email',
-        description: 'Please try again later or contact support.',
-        variant: 'destructive'
-      });
-    } finally {
-      setSendingVerification(false);
+    if (user) {
+      try {
+        await sendEmailVerification(user);
+        toast({
+          title: t('auth.verificationSentTitle', { defaultValue: 'Verification Email Sent' }),
+          description: t('auth.verificationSentDesc', { defaultValue: 'A new verification email has been sent. Please check your inbox.' }),
+          variant: 'success',
+        });
+      } catch (err) {
+        console.error("Error resending verification email:", err);
+        toast({
+          title: t('common.error'),
+          description: t('auth.verificationSendError', { defaultValue: 'Failed to send verification email. Please try again later.' }),
+          variant: 'destructive',
+        });
+      }
     }
   };
   
@@ -469,50 +453,6 @@ export default function DashboardPage() {
       </div>
     );
   };
-
-  // Email verification warning banner
-  const renderVerificationWarning = () => {
-    // Temporarily disable for testing
-    return null;
-    
-    // Original code:
-    // if (!showVerificationWarning || (user && user.emailVerified)) return null;
-    
-    // return (
-    //   <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 dark:bg-yellow-900/30 dark:border-yellow-600">
-    //     <div className="flex">
-    //       <div className="flex-shrink-0">
-    //         <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-    //           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-    //         </svg>
-    //       </div>
-    //       <div className="ml-3">
-    //         <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Email verification required</h3>
-    //         <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-200">
-    //           <p>Your email address is not verified. To save content to the dashboard, please verify your email.</p>
-    //         </div>
-    //         <div className="mt-4">
-    //           <div className="flex space-x-3">
-    //             <button
-    //               onClick={handleResendVerification}
-    //               disabled={sendingVerification}
-    //               className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700"
-    //             >
-    //               {sendingVerification ? 'Sending...' : 'Resend verification email'}
-    //             </button>
-    //             <button
-    //               onClick={() => setShowVerificationWarning(false)}
-    //               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600"
-    //             >
-    //               Dismiss
-    //             </button>
-    //           </div>
-    //         </div>
-    //       </div>
-    //     </div>
-    //   </div>
-    // );
-  };
   
   return (
     <div className="container mx-auto pt-24 pb-6 px-4">
@@ -572,9 +512,6 @@ export default function DashboardPage() {
         </div>
 
         {renderStatusInfo()}
-        
-        {/* Render email verification warning */}
-        {renderVerificationWarning()}
         
         {/* Only show search and filters if we have content */}
         {!isLoading && !error && contentList.length > 0 && (
@@ -671,10 +608,27 @@ export default function DashboardPage() {
           </div>
         ) : error ? (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center shadow">
-            <p className="text-red-800 dark:text-red-300">
-              {error}
-            </p>
+            {user && !user.emailVerified && error?.toLowerCase().includes('permission') ? (
+              // Specific message for unverified users with permission errors
+              <p className="text-yellow-800 dark:text-yellow-300 mb-3">
+                {t('auth.verificationRequiredForAccess', { defaultValue: 'Please verify your email address to access your content. Check your inbox for the verification email or click below to resend it.' })}
+              </p>
+            ) : (
+              // Generic error message
+              <p className="text-red-800 dark:text-red-300">
+                {t('dashboard.errorLoadingContent', { defaultValue: 'Error loading content:' })} {error}
+              </p>
+            )}
             <div className="mt-4 space-x-3">
+              {/* Conditionally show resend button if user exists, isn't verified, and error indicates permission issue */}
+              {user && !user.emailVerified && error?.toLowerCase().includes('permission') && (
+                <button
+                  onClick={handleResendVerification}
+                  className="px-4 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-md transition-colors"
+                >
+                  {t('auth.resendVerification', { defaultValue: 'Resend Verification Email' })}
+                </button>
+              )}
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors"

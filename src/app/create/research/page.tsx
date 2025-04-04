@@ -95,10 +95,6 @@ interface ContentDetails {
       phones?: string[];
     };
   };
-  followUp?: {
-    questions: string[];
-    answers: string[];
-  };
 }
 
 // Replace the existing platformToContentType mapping with an expanded version
@@ -266,16 +262,10 @@ export default function ResearchPage() {
     // Add timestamp for tracking request duration
     const startTime = Date.now();
     
-    // Add cache busting timestamp parameter to the URL
-    const timestamp = Date.now();
-    const url = `/api/perplexity/research?timestamp=${timestamp}`;
-    
-    const response = await fetch(url, {
+    const response = await fetch('/api/perplexity/research', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        'Pragma': 'no-cache'
       },
       body: JSON.stringify({
         topic: topic.trim(),
@@ -522,7 +512,6 @@ export default function ResearchPage() {
             youtubeUrl: parsedContentDetails.youtubeUrl || '',
             businessName: parsedContentDetails.businessName || '', // Add businessName field
             websiteContent: parsedContentDetails.websiteContent || null, // Add websiteContent field
-            followUp: parsedContentDetails.followUp || { questions: [], answers: [] },
           };
           
           // Update state with validated content details
@@ -1309,47 +1298,25 @@ If you'd like complete research, please try again later when our research servic
     if (deepResearch && researchStep < 4) {
       console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
       
-      // Check if we're coming from step 2 - if so, always go to step 3 first
-      if (researchStep === 2) {
-        const timer = setTimeout(() => {
-          console.log('[DEBUG TRANSITION] Going from step 2 to step 3 (Generate Research)');
-          setResearchStep(3);
-          
-          // Save research results for redundancy
-          const researchResults: ResearchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: deepResearch,
-            trendingTopics: [],
-            dataSources: {
-              reddit: true,
-              rss: true
-            }
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        }, 500);
+      // Move to research step 4 (results) directly if we have data
+      const timer = setTimeout(() => {
+        console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
+        setResearchStep(4);
         
-        return () => clearTimeout(timer);
-      } else if (researchStep === 3) {
-        // Auto-transition from step 3
-        const timer = setTimeout(() => {
-          console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
-          setResearchStep(4);
-          
-          // Save research results for redundancy
-          const researchResults: ResearchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: deepResearch,
-            trendingTopics: [],
-            dataSources: {
-              reddit: true,
-              rss: true
-            }
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      }
+        // Save research results for redundancy
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
     
     // Also transition if generation has stopped but we're still in step 2
@@ -1358,8 +1325,8 @@ If you'd like complete research, please try again later when our research servic
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        console.log('[DEBUG TRANSITION] Moving from step 2 to step 3 with research data');
-        setResearchStep(3); // Changed from 4 to 3 to not skip the Generate Research step
+        console.log('[DEBUG TRANSITION] Moving from step 2 to step 4 with research data');
+        setResearchStep(4);
         
         // Make sure we save the research results
         const researchResults: ResearchResults = {
@@ -2499,19 +2466,6 @@ If you'd like complete research, please try again later when our research servic
           </button>
           
           <div className="flex space-x-4">
-            {/* Add continue to results button for manual navigation */}
-            {deepResearch && !isGenerating && (
-              <button
-                onClick={() => {
-                  console.log('[DEBUG] User manually requested to proceed to Research Results');
-                  setResearchStep(4);
-                }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-              >
-                {language === 'es' ? 'Continuar a Resultados' : 'Continue to Results'}
-              </button>
-            )}
-            
             {/* Add quick access to content creation if research is already available */}
             {deepResearch && (
               <button
@@ -3174,9 +3128,6 @@ ${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best p
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     
-    // Store interval IDs for cleanup
-    let progressIntervalId: ReturnType<typeof setInterval> | undefined;
-    
     try {
       // Set timeout for cancellation (3 minutes max to prevent browser timeout)
       const fetchTimeoutId = setTimeout(() => {
@@ -3186,68 +3137,53 @@ ${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best p
         }
       }, 180000); // 3 minutes
       
-      // Extract follow-up answers if they exist
-      let followUpSection = '';
-      if (safeContentDetails?.followUp?.questions && safeContentDetails?.followUp?.answers) {
-        const { questions, answers } = safeContentDetails.followUp;
-        
-        // Format only questions with actual answers
-        const answeredQuestions = questions
-          .map((q: string, i: number) => answers[i] && answers[i].trim() ? `Q: ${q}\nA: ${answers[i]}` : null)
-          .filter(Boolean);
-        
-        if (answeredQuestions.length > 0) {
-          followUpSection = "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
-          console.log('[ROBUST] Including follow-up answers in research context');
-        }
-      }
-      
       // Build context
       const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
 Platform: ${safeContentDetails?.platform || 'facebook'}, 
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
-Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}`;
-
-      // Log the context being sent (truncated for clarity)
-      console.log('[ROBUST] Research context (first 200 chars):', contextString.substring(0, 200));
-      if (followUpSection) {
-        console.log('[ROBUST] Follow-up answers included in context');
-      }
+Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
       
-      // Set up progress tracking
-      progressIntervalId = setInterval(() => {
+      // Start progress simulation
+      let progressIntervalId = setInterval(() => {
         setGenerationProgress(prev => {
-          // More gradual progress simulation up to 85%
           if (prev < 85) {
-            const increment = Math.random() * 3 + 1; // Random increment between 1-4%
-            return Math.min(85, prev + increment);
+            return prev + (Math.random() * 0.8 + 0.2); // Slower, more consistent progress
           }
           return prev;
         });
-      }, 10000); // Every 10 seconds
-
+        
+        // Update status message based on progress
+        const progress = generationProgress;
+        if (progress < 20) {
+          setStatusMessage('Starting research process...');
+        } else if (progress < 40) {
+          setStatusMessage('Analyzing information sources...');
+        } else if (progress < 60) {
+          setStatusMessage('Synthesizing research findings...');
+        } else if (progress < 80) {
+          setStatusMessage('Organizing research insights...');
+        } else {
+          setStatusMessage('Finalizing research document...');
+        }
+      }, 2000);
+      
       // Add failsafe timeout - if we reach 85% progress, start emergency fallback
       const emergencyFallbackId = setTimeout(() => {
         if (generationProgress >= 85 && isGenerating) {
           console.log('[ROBUST] Emergency fallback triggered - generating local research');
-          
-          // Clear the progress interval if it exists
-          if (progressIntervalId) {
-            clearInterval(progressIntervalId);
-            progressIntervalId = undefined;
-          }
+          clearInterval(progressIntervalId);
           
           // Generate emergency fallback and use it
-          const emergencyContent = generateEmergencyFallbackResearch();
-          setDeepResearch(emergencyContent);
-          sessionStorage.setItem('deepResearch', emergencyContent);
+          const fallbackContent = generateEmergencyFallbackResearch();
+          setDeepResearch(fallbackContent);
+          sessionStorage.setItem('deepResearch', fallbackContent);
           
           // Save as research results
-          const emergencyResults = {
+          const researchResults = {
             researchMethod: 'emergency-fallback',
-            perplexityResearch: emergencyContent
+            perplexityResearch: fallbackContent
           };
-          sessionStorage.setItem('researchResults', JSON.stringify(emergencyResults));
+          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
           
           // Complete progress
           setGenerationProgress(100);
@@ -3260,7 +3196,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           
           toast.success('Research generation completed with fallback content');
         }
-      }, 60000);
+      }, 60000); // After 1 minute, consider emergency fallback
       
       try {
         // Attempt API request with shorter timeout
@@ -3284,12 +3220,8 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         
         // Process response
         if (!response.ok) {
-          // Clear the progress interval if it exists
-          if (progressIntervalId) {
-            clearInterval(progressIntervalId);
-            progressIntervalId = undefined;
-          }
-          
+          // Clear interval and throw error for retry/fallback handling
+          clearInterval(progressIntervalId);
           throw new Error(`API error: ${response.status}`);
         }
         

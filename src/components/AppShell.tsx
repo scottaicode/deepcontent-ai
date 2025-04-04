@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import MainLanguageSwitcher from './MainLanguageSwitcher';
+// import MainLanguageSwitcher from './MainLanguageSwitcher'; // Removed language switcher from header
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import FirebaseIndexHelper from './FirebaseIndexHelper';
@@ -154,9 +154,9 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
                     )}
                   </div>
                   
-                  {/* Language switcher */}
-                  <MainLanguageSwitcher />
-                  
+                  {/* Language switcher - REMOVED from header */}
+                  {/* <MainLanguageSwitcher /> */}
+
                   {/* Hide Settings and Logout links when they're redundant with the user menu */}
                   {!user && (
                     <>

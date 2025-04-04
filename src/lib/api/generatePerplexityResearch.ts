@@ -28,7 +28,22 @@ export async function generatePerplexityResearch(
       throw new Error('Empty research topic provided to Perplexity API');
     }
     
-    console.log('Skipping cache check to generate fresh research');
+    // First check if we already have cached research for this topic
+    const cachedCheckResponse = await fetch(`/api/perplexity/research?topic=${encodeURIComponent(topic.trim())}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+    // If we found cached research, return it immediately
+    if (cachedCheckResponse.ok) {
+      const cachedData = await cachedCheckResponse.json();
+      if (cachedData.research) {
+        console.log('Found cached research for topic, using it directly');
+        return cachedData.research;
+      }
+    }
     
     // Create a research job
     console.log('Making POST request to /api/perplexity/research');

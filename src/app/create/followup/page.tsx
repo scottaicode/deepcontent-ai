@@ -180,8 +180,7 @@ export default function FollowupPage() {
       sessionStorage.setItem('preventLanguageRedirect', 'true');
       console.log('[FollowupPage] Setting preventLanguageRedirect flag for research page navigation');
       
-      // Navigate to the research page and indicate to start at the Generate Research step
-      // This will ensure the user goes through the Generate Research UI
+      // Navigate to the research page and indicate to start at step 3
       router.push('/create/research?step=3');
     }
   };

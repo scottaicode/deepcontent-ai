@@ -12,9 +12,7 @@ import {
   setPersistence, 
   browserLocalPersistence,
   getAuth,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  getIdTokenResult
+  sendEmailVerification
 } from "firebase/auth";
 import { initializeApp, deleteApp } from "firebase/app";
 
@@ -43,9 +41,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string) => Promise<void>;
   bypassAuthActive: boolean;
-  isEmailVerified: () => boolean;
-  sendVerificationEmail: () => Promise<void>;
-  sendPasswordReset: (email: string) => Promise<void>;
 }
 
 // Create a mock user for development
@@ -65,10 +60,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   signIn: async () => {},
   signUp: async () => {},
-  bypassAuthActive: BYPASS_AUTH_FOR_DEV,
-  isEmailVerified: () => false,
-  sendVerificationEmail: async () => {},
-  sendPasswordReset: async () => {},
+  bypassAuthActive: BYPASS_AUTH_FOR_DEV
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -199,45 +191,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Send verification email
-      await sendEmailVerification(userCredential.user);
-      console.log('Verification email sent to:', email);
-      
       // You can add additional user profile setup here if needed
       // Example: await updateProfile(userCredential.user, { displayName: name });
+      
+      // Send verification email
+      try {
+        await sendEmailVerification(userCredential.user);
+        console.log('Verification email sent to:', userCredential.user.email);
+      } catch (verificationError) {
+        console.error('Error sending verification email:', verificationError);
+        // Decide how to handle this - maybe log it, but don't block the signup
+      }
     } catch (error) {
       console.error("Error signing up with email/password", error);
-      throw error;
-    }
-  };
-
-  // Check if email is verified
-  const isEmailVerified = () => {
-    if (!user) return false;
-    return user.emailVerified;
-  };
-
-  // Resend verification email
-  const sendVerificationEmail = async () => {
-    if (!user) throw new Error('No user is currently signed in');
-    
-    try {
-      await sendEmailVerification(user);
-      console.log('Verification email resent to:', user.email);
-    } catch (error) {
-      console.error("Error sending verification email", error);
-      throw error;
-    }
-  };
-
-  // Send password reset email
-  const sendPasswordReset = async (email: string) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-      console.log('Password reset email sent to:', email);
-    } catch (error) {
-      console.error("Error sending password reset email", error);
       throw error;
     }
   };
@@ -251,10 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut: signOutUser,
         signIn,
         signUp,
-        bypassAuthActive: BYPASS_AUTH_FOR_DEV,
-        isEmailVerified,
-        sendVerificationEmail,
-        sendPasswordReset
+        bypassAuthActive: BYPASS_AUTH_FOR_DEV
       }}
     >
       {children}

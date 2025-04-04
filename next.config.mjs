@@ -54,20 +54,45 @@ const nextConfig = {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY
   },
+  // Add headers configuration to prevent caching
+  async headers() {
+    return [
+      {
+        // Apply to all routes
+        source: "/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, max-age=0, must-revalidate"
+          },
+          {
+            key: "Pragma",
+            value: "no-cache"
+          },
+          {
+            key: "Expires",
+            value: "0"
+          }
+        ]
+      }
+    ];
+  },
   async rewrites() {
     console.log("📋 Loading Next.js rewrites configuration");
     
     // Simplified configuration to avoid conflicts
     return [
       // Handle API routes directly with no rewrites
-      {
-        source: "/api/document-analysis/:path*",
-        destination: "/api/document-analysis/:path*",
-      },
-      {
-        source: "/api/document-analysis",
-        destination: "/api/document-analysis",
-      },
+      // REMOVED: Redundant rewrite for /api/document-analysis/:path*
+      // {
+      //   source: "/api/document-analysis/:path*",
+      //   destination: "/api/document-analysis/:path*",
+      // },
+      // REMOVED: Redundant rewrite for /api/document-analysis
+      // {
+      //   source: "/api/document-analysis",
+      //   destination: "/api/document-analysis",
+      // },
       {
         source: "/api/youtube/:path*",
         destination: "/api/youtube/:path*",
