@@ -3411,25 +3411,3 @@ const callPerplexityWithRetry = async (
   // If we've exhausted all retries, throw the last error
   throw lastError;
 };
-
-// Add an effect to handle URL parameters for step
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const urlParams = new URLSearchParams(window.location.search);
-    const stepParam = urlParams.get('step');
-    
-    console.log('[DEBUG] URL step parameter:', stepParam);
-    
-    // If step is explicitly set in URL, it takes priority over session storage
-    if (stepParam) {
-      const parsedStep = parseInt(stepParam, 10);
-      if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
-        console.log('[DEBUG] Setting research step from URL parameter:', parsedStep);
-        setResearchStep(parsedStep);
-        
-        // Ensure step is saved to session storage for consistency
-        sessionStorage.setItem('researchStep', parsedStep.toString());
-      }
-    }
-  }
-}, []);
