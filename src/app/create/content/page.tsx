@@ -861,118 +861,41 @@ export default function ContentGenerator() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `API error: ${response.status}`);
+        console.error('Refinement error response:', errorData);
+        const errorMessage = errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' });
+        throw new Error(errorMessage);
       }
       
-      // Get the raw response text first
-      const rawText = await response.text();
-      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
-      
-      // Parse the JSON carefully
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseError) {
-        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
-        console.error('[DIAGNOSTIC] Raw response:', rawText);
-        throw new Error('Failed to parse API response');
-      }
-      
+      const data = await response.json();
       if (!data.content) {
-        console.error('[DIAGNOSTIC] No content in response:', data);
-        throw new Error('No content received from API');
+        throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
       }
-      
-      // Log content details before setting state
-      console.log('[DIAGNOSTIC] Persona change content result:', {
-        rawLength: rawText.length,
-        contentLength: data.content.length,
-        newPersona: newPersona,
-        status: response.status,
-        timestamp: new Date().toISOString()
-      });
-
-      // Check if we're in Spanish mode and fix common English elements that might appear
-      let cleanedContent = data.content;
-      if (language === 'es') {
-        // Common English phrases that might appear and their Spanish translations
-        const commonEnglishPhrases = [
-          { english: "That feeling when you think you're the only one struggling? Not true.", spanish: "¿Esa sensación cuando piensas que eres el único que lucha? No es cierto." },
-          { english: "Ever notice how", spanish: "¿Alguna vez has notado cómo" },
-          { english: "Did you know that", spanish: "¿Sabías que" },
-          { english: "The key difference between", spanish: "La diferencia clave entre" },
-          { english: "feels like trying to solve a Rubik's cube blindfolded?", spanish: "¿se siente como intentar resolver un cubo de Rubik con los ojos vendados?" },
-          { english: "How frustrating is it", spanish: "Qué frustrante es" },
-          { english: "An advanced strategy I recommend is", spanish: "Una estrategia avanzada que recomiendo es" },
-          { english: "Looking for reliable", spanish: "¿Buscando" },
-          { english: "Struggling with", spanish: "¿Luchando con" },
-          { english: "Are you tired of", spanish: "¿Estás cansado de" },
-          { english: "Searching for", spanish: "¿Buscando" },
-          { english: "Having reliable", spanish: "Tener" },
-          { english: "Living in rural areas", spanish: "Vivir en zonas rurales" },
-          { english: "Rural connectivity", spanish: "La conectividad rural" },
-          { english: "Internet service", spanish: "El servicio de internet" },
-          { english: "Today,", spanish: "Hoy," },
-          { english: "Let's face it:", spanish: "Seamos sinceros:" },
-          { english: "Based on recent data,", spanish: "Según datos recientes," },
-          { english: "Picture this:", spanish: "Imagina esto:" },
-          { english: "SOLUTION:", spanish: "SOLUCIÓN:" },
-          { english: "NEWS!", spanish: "¡NOTICIA!" },
-          { english: "Current technology allows", spanish: "La tecnología actual permite" },
-          { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
-        ];
-        
-        // Replace any English phrases with their Spanish equivalents
-        commonEnglishPhrases.forEach(({english, spanish}) => {
-          cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
-        });
-
-        console.log('[DIAGNOSTIC] Applied Spanish content fixes to persona change content');
-      }
-      
-      // Store the generated content
-      setGeneratedContent(cleanedContent);
       
       // Add to version history
       const versionEntry: ContentVersion = {
-        content: cleanedContent,
+        content: generatedContent,
         timestamp: new Date().toISOString(),
         persona: newPersona
       };
       setContentVersions(prev => [...prev, versionEntry]);
       
-      // Pre-render the content with error boundary
-      try {
-        const rendered = renderSimpleMarkdown(cleanedContent);
-        setPrerenderedContent(rendered);
-      } catch (renderError) {
-        console.error('[DIAGNOSTIC] Render error:', renderError);
-        // Fall back to plain text display if markdown rendering fails
-        setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
-      }
-      
-      setStatusMessage(`Content created with ${getFormattedPersonaName(newPersona)}!`);
-      
-      // Reset content expansion
-      setIsContentExpanded(false);
-      
-      // Auto-scroll to the content
-      setTimeout(() => {
-        document.getElementById('generated-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 500);
-      
+      // Update the content
+      setGeneratedContent(data.content);
+      setPrerenderedContent(renderSimpleMarkdown(data.content));
+      setRefinementPrompt('');
+      toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {
-      console.error('[DIAGNOSTIC] Persona change error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to regenerate content with new persona');
-    } finally {
-      setIsGenerating(false);
-      setTimeout(() => {
-        setStatusMessage('');
-      }, 3000);
+      console.error('Refinement error:', error);
+      // Display a more user-friendly error message
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
       
-      // Scroll to the absolute top of the page after regeneration completes
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast.error(errorMessage);
+      // Set an error state that can be displayed in the UI
+      setStatusMessage('');
+    } finally {
+      setIsRefinementLoading(false);
     }
   };
 
@@ -1077,6 +1000,9 @@ export default function ContentGenerator() {
       // Show the loading state but keep content visible
       setStatusMessage(t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' }));
 
+      // Log language value for debugging
+      console.log("Submitting refinement with language:", language);
+
       const response = await fetch('/api/claude/refine-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1086,13 +1012,16 @@ export default function ContentGenerator() {
           style: currentPersona,
           contentType: contentDetails?.contentType || '',
           platform: contentDetails?.platform || '',
-          language: language
+          language: language || 'en', // Ensure language is explicitly set with fallback
+          researchData: researchResults?.perplexityResearch || '' // Add research data if available
         }),
       });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
+        console.error('Refinement error response:', errorData);
+        const errorMessage = errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' });
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -1115,7 +1044,14 @@ export default function ContentGenerator() {
       toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {
       console.error('Refinement error:', error);
-      toast.error(t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }));
+      // Display a more user-friendly error message
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
+      
+      toast.error(errorMessage);
+      // Set an error state that can be displayed in the UI
+      setStatusMessage('');
     } finally {
       setIsRefinementLoading(false);
     }

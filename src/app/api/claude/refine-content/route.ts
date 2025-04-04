@@ -8,23 +8,27 @@ const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
 /**
  * Call the Claude API to refine content based on feedback
  */
-async function callClaudeApi(promptText: string, apiKey: string, style: string = 'professional'): Promise<string> {
+async function callClaudeApi(promptText: string, apiKey: string, style: string = 'professional', language: string = 'en'): Promise<string> {
   try {
     console.log('Creating Anthropic client...');
+    console.log('Language for Claude API:', language);
     const anthropicClient = new Anthropic({
       apiKey: apiKey,
     });
     
     // Get current date for reference
     const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+    const currentMonth = new Date().toLocaleString(language || 'en', { month: 'long' });
     
     console.log('Calling Claude API with prompt...');
     const response = await anthropicClient.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 4000,
       temperature: 0.7,
-      system: `You are an expert content creator helping refine content based on user feedback. You follow all current best practices for ${currentMonth} ${currentYear} and prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content refinements.`,
+      system: `You are an expert content creator helping refine content based on user feedback. 
+You follow all current best practices for ${currentMonth} ${currentYear} and prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content refinements.
+Your response MUST be in ${language === 'es' ? 'Spanish' : language || 'English'}.
+${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español natural y fluido, no una traducción literal del inglés.' : ''}`,
       messages: [
         { role: "user", content: promptText }
       ]
@@ -301,16 +305,41 @@ Return ONLY the revised content, ready for publication.
 
     console.log('Calling Claude API...');
     // Call Claude API with style parameter
-    const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional');
+    const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
     console.log('Content refined successfully, length:', refinedContent.length);
     
     // Return the response as JSON
     return NextResponse.json({ content: refinedContent });
   } catch (error) {
     console.error('Error in refine-content API:', error);
+    
+    // Extract more detailed error information based on the type of error
+    let errorMessage = 'An unknown error occurred while refining the content';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Check for specific Anthropic API errors
+      if (error.message.includes('API key')) {
+        errorMessage = 'API key error - please check your API configuration';
+      } else if (error.message.includes('rate limit')) {
+        errorMessage = 'Rate limit exceeded. Please try again in a few minutes';
+        statusCode = 429;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please try again';
+        statusCode = 408;
+      } else if (error.message.includes('token')) {
+        errorMessage = 'Content too long for processing. Please try with shorter content';
+        statusCode = 413;
+      }
+    }
+    
+    console.error('Returning error response:', errorMessage, statusCode);
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'An unknown error occurred while refining the content' },
-      { status: 500 }
+      { error: errorMessage },
+      { status: statusCode }
     );
   }
 } 
