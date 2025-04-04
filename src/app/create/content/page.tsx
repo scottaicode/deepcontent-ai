@@ -1033,15 +1033,40 @@ export default function ContentGenerator() {
       const responseText = await response.text();
       console.log(`Raw API response (${response.status}):`, responseText.substring(0, 100) + '...');
       
-      // Parse the JSON response manually
+      // Parse the JSON response manually with additional error handling
       let data;
       try {
         data = JSON.parse(responseText);
+        console.log('Successfully parsed API response', { 
+          hasContent: Boolean(data.content),
+          contentLength: data.content?.length,
+          language: data.language
+        });
       } catch (parseError) {
         console.error('JSON parse error:', parseError);
-        throw new Error(language === 'es' 
-          ? 'Error al analizar la respuesta de la API' 
-          : 'Error parsing API response');
+        
+        // Check if we can salvage something from the response
+        if (responseText.includes('"content"')) {
+          try {
+            // Try to extract content using regex as a fallback
+            const contentMatch = /"content":"(.*?)","language"/.exec(responseText);
+            if (contentMatch && contentMatch[1]) {
+              console.log('Extracted content using regex fallback');
+              data = { content: contentMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') };
+            } else {
+              throw new Error('Failed to extract content from response');
+            }
+          } catch (fallbackError) {
+            console.error('Regex fallback failed:', fallbackError);
+            throw new Error(language === 'es' 
+              ? 'Error al analizar la respuesta de la API. El formato no es válido.' 
+              : 'Error parsing API response. Invalid format.');
+          }
+        } else {
+          throw new Error(language === 'es' 
+            ? 'Error al analizar la respuesta de la API' 
+            : 'Error parsing API response');
+        }
       }
       
       if (!response.ok) {
@@ -1050,7 +1075,23 @@ export default function ContentGenerator() {
       }
       
       if (!data.content) {
+        console.error('No content in API response');
         throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
+      }
+      
+      // Ensure the content is properly decoded for Spanish characters
+      let refinedContent = data.content;
+      
+      // Check if the content has encoding issues and try to fix them
+      if (refinedContent.includes('\\u00')) {
+        try {
+          // Try to decode any Unicode escape sequences
+          refinedContent = JSON.parse(`"${refinedContent.replace(/"/g, '\\"')}"`);
+          console.log('Fixed Unicode escape sequences in content');
+        } catch (decodeError) {
+          console.error('Failed to decode Unicode sequences:', decodeError);
+          // Continue with the original content
+        }
       }
       
       // Add to version history
@@ -1062,15 +1103,15 @@ export default function ContentGenerator() {
       setContentVersions(prev => [...prev, versionEntry]);
       
       // Update the content
-      setGeneratedContent(data.content);
+      setGeneratedContent(refinedContent);
       
       // Try to render the content, with a fallback
       try {
-        setPrerenderedContent(renderSimpleMarkdown(data.content));
+        setPrerenderedContent(renderSimpleMarkdown(refinedContent));
       } catch (renderError) {
         console.error('Render error:', renderError);
         // Fall back to plain text display
-        setPrerenderedContent(<pre className="whitespace-pre-wrap">{data.content}</pre>);
+        setPrerenderedContent(<pre className="whitespace-pre-wrap">{refinedContent}</pre>);
       }
       
       setRefinementPrompt('');

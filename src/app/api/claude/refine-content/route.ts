@@ -28,25 +28,43 @@ async function callClaudeApi(promptText: string, apiKey: string, style: string =
       system: `You are an expert content creator helping refine content based on user feedback. 
 You follow all current best practices for ${currentMonth} ${currentYear} and prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content refinements.
 Your response MUST be in ${language === 'es' ? 'Spanish' : language || 'English'}.
-${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español natural y fluido, no una traducción literal del inglés.' : ''}`,
+${language === 'es' ? 'IMPORTANTE: Asegúrate de que todo tu contenido esté en español natural y fluido, no una traducción literal del inglés. Escribe como un nativo de español.' : ''}`,
       messages: [
         { role: "user", content: promptText }
       ]
     });
     
     console.log('Claude API response received');
+    console.log('Response structure:', JSON.stringify(Object.keys(response)));
     
-    // Process the response
+    // Process the response with more robust error handling
     let responseText = "";
-    if (response.content && Array.isArray(response.content) && response.content.length > 0) {
-      const firstContent = response.content[0];
-      if (typeof firstContent === 'string') {
-        responseText = firstContent;
-      } else if (firstContent && typeof firstContent === 'object') {
-        if ('text' in firstContent && typeof firstContent.text === 'string') {
-          responseText = firstContent.text;
-        } else if ('type' in firstContent && firstContent.type === 'text' && 'text' in firstContent && typeof firstContent.text === 'string') {
-          responseText = firstContent.text;
+    
+    try {
+      if (response.content && Array.isArray(response.content)) {
+        console.log('Content array length:', response.content.length);
+        
+        for (const item of response.content) {
+          if (typeof item === 'string') {
+            responseText += item;
+          } else if (item && typeof item === 'object') {
+            if ('text' in item && typeof item.text === 'string') {
+              responseText += item.text;
+            } else if ('type' in item && item.type === 'text' && 'text' in item && typeof item.text === 'string') {
+              responseText += item.text;
+            }
+            // Log all keys in the item for debugging
+            console.log('Content item keys:', Object.keys(item));
+          }
+        }
+      }
+    } catch (parseError) {
+      console.error('Error parsing Claude API response content:', parseError);
+      // Attempt direct access as fallback
+      if (response.content) {
+        const content = response.content;
+        if (Array.isArray(content) && content[0] && typeof content[0] === 'object' && 'text' in content[0]) {
+          responseText = content[0].text;
         }
       }
     }
@@ -58,6 +76,7 @@ ${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español nat
     
     console.log('Response text length:', responseText.length);
     console.log('Language used for content:', language);
+    console.log('First 100 chars of response:', responseText.substring(0, 100));
     
     // Additional cleaning for Spanish content if needed
     if (language === 'es') {
@@ -86,6 +105,9 @@ ${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español nat
       });
     }
     
+    // Normalize line endings and clean up extra whitespace
+    responseText = responseText.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    
     // Apply persona traits enhancement
     const enhancedContent = enhanceWithPersonaTraits(responseText, style, 1.5); // Higher intensity for refinements
     console.log(`Enhanced content with ${style} persona traits`);
@@ -93,7 +115,33 @@ ${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español nat
     return enhancedContent;
   } catch (error) {
     console.error("Error calling Claude API:", error);
-    throw error;
+    
+    // Check for specific Anthropic API errors
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      
+      // Handle authentication errors specifically
+      if (errorMessage.includes('apiKey') || 
+          errorMessage.includes('authentication') || 
+          errorMessage.includes('401') || 
+          errorMessage.includes('auth')) {
+        throw new Error(language === 'es' 
+          ? 'Error de autenticación con la API de Claude. Por favor, verifica tu clave API.' 
+          : 'Authentication error with Claude API. Please verify your API key.');
+      }
+      
+      // Handle rate limiting
+      if (errorMessage.includes('rate') || errorMessage.includes('429')) {
+        throw new Error(language === 'es'
+          ? 'Límite de tasa excedido en la API de Claude. Por favor, inténtalo más tarde.'
+          : 'Rate limit exceeded on Claude API. Please try again later.');
+      }
+    }
+    
+    // Re-throw the original error with helpful context
+    throw new Error(language === 'es'
+      ? `Error al procesar la respuesta de Claude: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      : `Error processing Claude response: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -342,8 +390,35 @@ Return ONLY the revised content, ready for publication.
       const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
       console.log('Content refined successfully, length:', refinedContent.length);
       
-      // Return the response as JSON
-      return NextResponse.json({ content: refinedContent });
+      // Validate the content before returning it
+      if (!refinedContent || refinedContent.trim().length === 0) {
+        throw new Error(language === 'es' 
+          ? 'La API de Claude devolvió contenido vacío' 
+          : 'Claude API returned empty content');
+      }
+      
+      // Check if the response contains valid text
+      if (refinedContent.includes('[object Object]') || refinedContent.includes('undefined')) {
+        console.error('Invalid content detected in response');
+        throw new Error(language === 'es'
+          ? 'Respuesta inválida de la API de Claude'
+          : 'Invalid response from Claude API');
+      }
+      
+      // Ensure proper encoding for Spanish characters
+      const contentResponse = {
+        content: refinedContent,
+        language: language || 'en',
+        timestamp: new Date().toISOString()
+      };
+      
+      // Return the response as JSON with proper content type
+      return new NextResponse(JSON.stringify(contentResponse), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8'
+        }
+      });
     } catch (claudeError) {
       console.error('Claude API specific error:', claudeError);
       const errorMessage = language === 'es' 
