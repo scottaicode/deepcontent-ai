@@ -181,6 +181,24 @@ export default function DashboardPage() {
     }
   }, [user?.uid]);
   
+  // Add a useEffect to check for the refresh flag
+  useEffect(() => {
+    // Check if we need to refresh content after redirect from content page
+    if (typeof window !== 'undefined') {
+      const refreshNeeded = sessionStorage.getItem('dashboardRefreshNeeded');
+      if (refreshNeeded === 'true') {
+        // Clear the flag
+        sessionStorage.removeItem('dashboardRefreshNeeded');
+        
+        // Trigger a refresh with a slight delay to ensure everything is mounted
+        setTimeout(() => {
+          console.log('Refresh needed flag detected, refreshing content');
+          handleRefresh();
+        }, 500);
+      }
+    }
+  }, []);
+  
   const formatDate = (date: string | number | Timestamp | undefined) => {
     if (!date) return 'N/A';
     

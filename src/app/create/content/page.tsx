@@ -1052,9 +1052,11 @@ export default function ContentGenerator() {
       });
       
       // Optionally, redirect to the dashboard
+      // Set refresh flag so dashboard knows to reload content
+      sessionStorage.setItem('dashboardRefreshNeeded', 'true');
       setTimeout(() => {
         router.push('/dashboard');
-      }, 1500);
+      }, 1000);
     } catch (error) {
       console.error('Error saving content:', error);
       toast.toast({
