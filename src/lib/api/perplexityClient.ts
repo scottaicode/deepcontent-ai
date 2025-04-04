@@ -11,14 +11,20 @@ export class PerplexityClient {
   private model: string = 'sonar-deep-research';  // Using sonar-deep-research for Perplexity Deep Research
   
   constructor(apiKey: string) {
+    console.log('[DIAGNOSTIC] PerplexityClient constructor called');
+    
     // Validate API key
     if (!apiKey) {
       console.error('[DIAGNOSTIC] CRITICAL ERROR: Perplexity API key is missing');
       throw new Error('Perplexity API key is missing. Please add PERPLEXITY_API_KEY to your environment variables.');
     }
     
+    console.log('[DIAGNOSTIC] API key exists, length:', apiKey.length);
+    console.log('[DIAGNOSTIC] API key first 4 chars:', apiKey.substring(0, 4));
+    
     if (!apiKey.startsWith('pplx-')) {
       console.error('[DIAGNOSTIC] CRITICAL ERROR: Invalid Perplexity API key format');
+      console.error('[DIAGNOSTIC] API key prefix:', apiKey.substring(0, 5));
       throw new Error('Invalid Perplexity API key format. Key should start with "pplx-".');
     }
     
@@ -30,11 +36,22 @@ export class PerplexityClient {
    * Generate research on a specific topic using Perplexity API
    */
   async generateResearch(prompt: string, options: any = {}): Promise<string> {
+    console.log('[DIAGNOSTIC] generateResearch method called');
+    
     // Get configuration options with defaults
     const maxTokens = options.maxTokens || 4000;
     const temperature = options.temperature || 0.2;
     const timeoutMs = options.timeoutMs || 240000; // 4 minutes timeout
     const language = options.language || 'en';
+    const systemPrompt = options.systemPrompt || this.getDefaultSystemPrompt(language);
+    
+    console.log('[DIAGNOSTIC] Research options:', {
+      maxTokens,
+      temperature,
+      timeoutMs,
+      language,
+      systemPromptLength: systemPrompt.length
+    });
     
     // Create current date formatting for citations
     const currentDate = new Date();
@@ -54,7 +71,7 @@ export class PerplexityClient {
       : `Provide detailed, well-structured research in English. Include citations and current sources.`;
     
     // Create an enhanced system prompt
-    const systemPrompt = 
+    const systemPromptEnhanced = 
       `You are a research assistant that provides comprehensive, accurate, and detailed responses based on the latest available information. 
       
       ${languageSpecificInstructions}
@@ -81,7 +98,7 @@ export class PerplexityClient {
         messages: [
           {
             role: 'system',
-            content: systemPrompt
+            content: systemPromptEnhanced
           },
           {
             role: 'user',
@@ -184,5 +201,23 @@ export class PerplexityClient {
       // Re-throw the error with its original message
       throw error;
     }
+  }
+
+  /**
+   * Gets the default system prompt based on language
+   */
+  private getDefaultSystemPrompt(language: string): string {
+    console.log('[DIAGNOSTIC] Getting default system prompt for language:', language);
+    
+    // Create language-specific instructions
+    const languageSpecificInstructions = language === 'es' 
+      ? `Proporcione una investigación detallada y bien estructurada en español. Incluya citas y fuentes actuales.`
+      : `Provide detailed, well-structured research in English. Include citations and current sources.`;
+      
+    return `You are a research assistant that provides comprehensive, accurate, and detailed responses based on the latest available information.
+      
+    ${languageSpecificInstructions}
+    
+    Your research should be well-organized with clear headings and include specific, actionable insights.`;
   }
 } 
