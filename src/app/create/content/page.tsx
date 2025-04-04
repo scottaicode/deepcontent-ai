@@ -6,9 +6,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslation } from '@/lib/i18n';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useToast } from '@/lib/hooks/useToast';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '@/lib/hooks/useAuth';
 import Link from 'next/link';
 import { getDisplayNames } from '@/app/lib/contentTypeDetection';
 import AppShell from "@/components/AppShell";
@@ -16,12 +16,8 @@ import { useContent } from '@/lib/hooks/useContent';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { db } from "@/lib/firebase/firebase";
 import ReactMarkdown from 'react-markdown';
-import { renderSimpleMarkdown } from '@/lib/markdownUtils';
 import { saveContent } from '@/lib/firebase/contentRepository';
-import { getPersonaDisplayName } from '@/lib/personaUtils';
 import { useSearchParams } from 'next/navigation';
-import type { ContentVersion } from '@/lib/types';
-import { MDXRemote } from 'next-mdx-remote/rsc';
 
 // Enhanced research results interface
 interface ResearchResults {
