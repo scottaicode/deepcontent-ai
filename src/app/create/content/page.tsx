@@ -995,6 +995,7 @@ export default function ContentGenerator() {
     }
     
     setIsRefinementLoading(true);
+    setStatusMessage('');
     
     try {
       // Show the loading state but keep content visible
@@ -1003,28 +1004,51 @@ export default function ContentGenerator() {
       // Log language value for debugging
       console.log("Submitting refinement with language:", language);
 
+      // Create a more detailed payload
+      const payload = {
+        originalContent: generatedContent,
+        feedback: refinementPrompt,
+        style: currentPersona,
+        contentType: contentDetails?.contentType || '',
+        platform: contentDetails?.platform || '',
+        language: language || 'en', // Ensure language is explicitly set with fallback
+        researchData: researchResults?.perplexityResearch || '' // Add research data if available
+      };
+      
+      console.log("Refinement payload:", JSON.stringify({
+        ...payload,
+        originalContent: payload.originalContent.substring(0, 50) + '...' // Only log part of content for brevity
+      }));
+
       const response = await fetch('/api/claude/refine-content', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          originalContent: generatedContent,
-          feedback: refinementPrompt,
-          style: currentPersona,
-          contentType: contentDetails?.contentType || '',
-          platform: contentDetails?.platform || '',
-          language: language || 'en', // Ensure language is explicitly set with fallback
-          researchData: researchResults?.perplexityResearch || '' // Add research data if available
-        }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept-Language': language || 'en' 
+        },
+        body: JSON.stringify(payload),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Refinement error response:', errorData);
-        const errorMessage = errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' });
-        throw new Error(errorMessage);
+      // First try to get the response as text for diagnostic purposes
+      const responseText = await response.text();
+      console.log(`Raw API response (${response.status}):`, responseText.substring(0, 100) + '...');
+      
+      // Parse the JSON response manually
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error(language === 'es' 
+          ? 'Error al analizar la respuesta de la API' 
+          : 'Error parsing API response');
       }
       
-      const data = await response.json();
+      if (!response.ok) {
+        console.error('Refinement error response:', data);
+        throw new Error(data.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
+      }
+      
       if (!data.content) {
         throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
       }
@@ -1039,7 +1063,16 @@ export default function ContentGenerator() {
       
       // Update the content
       setGeneratedContent(data.content);
-      setPrerenderedContent(renderSimpleMarkdown(data.content));
+      
+      // Try to render the content, with a fallback
+      try {
+        setPrerenderedContent(renderSimpleMarkdown(data.content));
+      } catch (renderError) {
+        console.error('Render error:', renderError);
+        // Fall back to plain text display
+        setPrerenderedContent(<pre className="whitespace-pre-wrap">{data.content}</pre>);
+      }
+      
       setRefinementPrompt('');
       toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {

@@ -57,6 +57,34 @@ ${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español nat
     }
     
     console.log('Response text length:', responseText.length);
+    console.log('Language used for content:', language);
+    
+    // Additional cleaning for Spanish content if needed
+    if (language === 'es') {
+      // Ensure any potential English phrases that might slip through are translated to Spanish
+      console.log('Applying Spanish-specific content cleaning');
+      
+      // Common English phrases that might appear in Spanish content
+      const englishToSpanish = [
+        { en: 'Please note', es: 'Ten en cuenta' },
+        { en: 'In conclusion', es: 'En conclusión' },
+        { en: 'Remember that', es: 'Recuerda que' },
+        { en: 'Based on', es: 'Basado en' },
+        { en: 'First,', es: 'Primero,' },
+        { en: 'Second,', es: 'Segundo,' },
+        { en: 'Third,', es: 'Tercero,' },
+        { en: 'Finally,', es: 'Finalmente,' },
+        { en: 'For example,', es: 'Por ejemplo,' },
+        { en: 'Additionally,', es: 'Además,' },
+        { en: 'However,', es: 'Sin embargo,' },
+        { en: 'Therefore,', es: 'Por lo tanto,' }
+      ];
+      
+      // Replace any English phrases that might be in the response
+      englishToSpanish.forEach(({ en, es }) => {
+        responseText = responseText.replace(new RegExp(en, 'gi'), es);
+      });
+    }
     
     // Apply persona traits enhancement
     const enhancedContent = enhanceWithPersonaTraits(responseText, style, 1.5); // Higher intensity for refinements
@@ -70,20 +98,26 @@ ${language === 'es' ? 'Asegúrate de que todo tu contenido esté en español nat
 }
 
 export async function POST(req: NextRequest) {
+  // Declare language variable at the top scope so it's available in the catch block
+  let language = 'en';
+  
   try {
     console.log('Refine content API called');
     const body = await req.json();
     console.log('Request body received:', Object.keys(body));
     
-    const { originalContent, feedback, contentType, platform, style, researchData, language } = body;
+    const { originalContent, feedback, contentType, platform, style, researchData } = body;
+    
+    // Assign to outer language variable so it's available in catch blocks
+    language = body.language || 'en';
     
     // Log language parameter for debugging
-    console.log('Language parameter received:', language || 'not specified, defaulting to English');
+    console.log('Language parameter received:', language);
     
     if (!originalContent) {
       console.error('Missing originalContent in request');
       return NextResponse.json(
-        { error: 'Missing originalContent in request' },
+        { error: language === 'es' ? 'Falta el contenido original en la solicitud' : 'Missing originalContent in request' },
         { status: 400 }
       );
     }
@@ -91,7 +125,7 @@ export async function POST(req: NextRequest) {
     if (!feedback) {
       console.error('Missing feedback in request');
       return NextResponse.json(
-        { error: 'Missing feedback in request' },
+        { error: language === 'es' ? 'Faltan comentarios en la solicitud' : 'Missing feedback in request' },
         { status: 400 }
       );
     }
@@ -211,12 +245,12 @@ Language: ${language || 'en'}
 
 ## CRITICAL INSTRUCTIONS
 The content MUST be written in ${language === 'es' ? 'Spanish' : language || 'English'}.
-${language === 'es' ? 'Asegúrate de que el contenido esté completamente en español y use expresiones naturales en español, no traducciones literales del inglés.' : ''}
+${language === 'es' ? 'Asegúrate de que el contenido esté completamente en español y use expresiones naturales en español, no traducciones literales del inglés. Usa vocabulario y estructura de oraciones típicas del español.' : ''}
 
 ## CRITICAL PLATFORM-SPECIFIC INSTRUCTIONS FOR ${currentMonth.toUpperCase()} ${currentYear}
 You MUST follow the current best practices for ${platform || 'digital content'} as of ${currentMonth} ${currentYear}.
 
-${researchData ? `## RESEARCH DATA (MARCH ${currentYear})
+${researchData ? `## RESEARCH DATA (${currentMonth.toUpperCase()} ${currentYear})
 ${researchData}
 
 IMPORTANT: Ensure your refinements align with the latest best practices identified in this research data.
@@ -282,13 +316,12 @@ Make targeted changes based on the feedback while preserving the overall structu
 You MUST maintain the same persona voice and distinctive style markers that were in the original content.
 Remember that digital best practices change rapidly - what worked even a few months ago may be ineffective now.
 
-## QUALITY CHECK REQUIREMENTS
+## QUALITY CHECK REQUIREMENTS BEFORE SUBMITTING
 Before submitting your final content:
 1. Review for any repetitive phrases or sentences - each sentence should provide unique value
 2. Replace any generic placeholder text with specific, substantive content
-3. Ensure all data references include actual numbers or percentages
-4. Check that visualization descriptions include specific metrics and trends
-5. Verify that your content follows a logical flow without unnecessary repetition
+3. If writing in Spanish, ensure ALL content is in natural Spanish with no English phrases
+4. Double-check that your content follows a logical flow without unnecessary repetition
 
 Return ONLY the revised content, ready for publication.
 </instructions>`;
@@ -298,39 +331,57 @@ Return ONLY the revised content, ready for publication.
     if (!apiKey) {
       console.error('API key is not configured');
       return NextResponse.json(
-        { error: 'API key is not configured' },
+        { error: language === 'es' ? 'La clave API no está configurada' : 'API key is not configured' },
         { status: 500 }
       );
     }
 
-    console.log('Calling Claude API...');
+    console.log('Calling Claude API with language:', language || 'en');
     // Call Claude API with style parameter
-    const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
-    console.log('Content refined successfully, length:', refinedContent.length);
-    
-    // Return the response as JSON
-    return NextResponse.json({ content: refinedContent });
+    try {
+      const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
+      console.log('Content refined successfully, length:', refinedContent.length);
+      
+      // Return the response as JSON
+      return NextResponse.json({ content: refinedContent });
+    } catch (claudeError) {
+      console.error('Claude API specific error:', claudeError);
+      const errorMessage = language === 'es' 
+        ? 'Error al comunicarse con la API de Claude. Por favor, inténtalo de nuevo.' 
+        : 'Error communicating with Claude API. Please try again.';
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
+    }
   } catch (error) {
     console.error('Error in refine-content API:', error);
     
     // Extract more detailed error information based on the type of error
-    let errorMessage = 'An unknown error occurred while refining the content';
+    let errorMessage = language === 'es' 
+      ? 'Ocurrió un error desconocido al refinar el contenido' 
+      : 'An unknown error occurred while refining the content';
     let statusCode = 500;
     
     if (error instanceof Error) {
       errorMessage = error.message;
       
-      // Check for specific Anthropic API errors
+      // Check for specific API errors and provide localized messages
       if (error.message.includes('API key')) {
-        errorMessage = 'API key error - please check your API configuration';
+        errorMessage = language === 'es'
+          ? 'Error de clave API - verifica tu configuración de API'
+          : 'API key error - please check your API configuration';
       } else if (error.message.includes('rate limit')) {
-        errorMessage = 'Rate limit exceeded. Please try again in a few minutes';
+        errorMessage = language === 'es'
+          ? 'Límite de velocidad excedido. Por favor, inténtalo de nuevo en unos minutos'
+          : 'Rate limit exceeded. Please try again in a few minutes';
         statusCode = 429;
       } else if (error.message.includes('timeout')) {
-        errorMessage = 'Request timed out. Please try again';
+        errorMessage = language === 'es'
+          ? 'La solicitud agotó el tiempo de espera. Por favor, inténtalo de nuevo'
+          : 'Request timed out. Please try again';
         statusCode = 408;
       } else if (error.message.includes('token')) {
-        errorMessage = 'Content too long for processing. Please try with shorter content';
+        errorMessage = language === 'es'
+          ? 'Contenido demasiado largo para procesar. Por favor, intenta con contenido más corto'
+          : 'Content too long for processing. Please try with shorter content';
         statusCode = 413;
       }
     }
