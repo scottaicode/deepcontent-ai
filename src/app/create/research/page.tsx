@@ -647,50 +647,50 @@ export default function ResearchPage() {
     }
   };
   
-  // Add a useEffect to automatically transition to step 3 when research is complete
+  // Add a useEffect to handle automatic transitions based on deepResearch
   useEffect(() => {
     if (deepResearch && !isGenerating) {
-      console.log('Auto-transitioning to research complete step');
+      console.log('Checking whether to auto-transition based on research data...');
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        // Get the step from the URL query parameters to ensure we respect manual navigation
+        // Get the step from the URL query parameters
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const stepParam = urlParams.get('step');
           
-          // Only auto-transition if the URL doesn't explicitly request a different step
-          // This allows the user to explicitly navigate to step 3 from the follow-up page
-          if (!stepParam || stepParam === '4') {
+          // If URL explicitly requests step 3, respect that and stay there
+          if (stepParam === '3') {
+            console.log('URL explicitly requests step 3 (Generate Research) - not auto-transitioning');
+            return;
+          }
+          
+          // In all other cases, transition normally based on current step
+          console.log(`Current step is ${researchStep} with research data available`);
+          
+          // Only transition if we're in step 3 (Generate Research) or below
+          if (researchStep <= 3) {
+            console.log('Auto-transitioning to Research Results (step 4)');
             setResearchStep(4);
-            console.log('Auto-transitioning to research results (step 4)');
-          } else if (stepParam === '3') {
-            // If URL explicitly requested step 3, stay there
-            console.log('Staying at step 3 (Generate Research) as specified in URL');
-            setResearchStep(3);
+            
+            // Save research results to session storage
+            const researchResults: ResearchResults = {
+              researchMethod: 'perplexity',
+              perplexityResearch: deepResearch,
+              trendingTopics: [],
+              dataSources: {
+                reddit: true,
+                rss: true
+              }
+            };
+            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
           }
-        } else {
-          // Default behavior if window is not defined (SSR context)
-          setResearchStep(3);
         }
-        
-        // Make sure we save the research results again just in case
-        const researchResults: ResearchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: deepResearch,
-          trendingTopics: [],
-          dataSources: {
-            reddit: true,
-            rss: true
-          }
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        console.log('Research data saved to session storage');
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [deepResearch, isGenerating]);
+  }, [deepResearch, isGenerating, researchStep]);
   
   // Update the handleGenerateDeepResearch function to use Perplexity instead of Claude
   const handleGenerateDeepResearch = async () => {
@@ -1458,6 +1458,18 @@ If you'd like complete research, please try again later when our research servic
       setContentDetails(updatedDetails);
       sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
     }
+    
+    // Clear any existing research results to force fresh generation
+    setDeepResearch('');
+    sessionStorage.removeItem('deepResearch');
+    sessionStorage.removeItem('researchResults');
+    
+    // Reset loading and error states
+    setError(null);
+    setIsGenerating(false);
+    setGenerationProgress(0);
+    
+    console.log('[DEBUG] Cleared cached research data to force fresh generation');
     
     // Move to research generation step
     setResearchStep(3);
@@ -2666,6 +2678,16 @@ If you'd like complete research, please try again later when our research servic
       return;
     }
     
+    // Get URL parameters first to guide our behavior
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    const parsedStep = stepParam ? parseInt(stepParam, 10) : null;
+    
+    // If we're specifically requesting step 3 (Generate Research), 
+    // do not auto-load and show cached research results
+    const shouldSkipCache = parsedStep === 3;
+    console.log(`[DEBUG] URL step parameter: ${stepParam}, Should skip cache: ${shouldSkipCache}`);
+    
     // Try to load content details from session storage
     try {
       const storedContentDetails = sessionStorage.getItem('contentDetails');
@@ -2675,63 +2697,60 @@ If you'd like complete research, please try again later when our research servic
         setContentDetails(JSON.parse(storedContentDetails));
       }
       
-      // Load research results if they exist
-      const storedResearchResults = sessionStorage.getItem('researchResults');
-      if (storedResearchResults) {
-        console.log('Loaded research results from session storage');
-        const parsedResults = JSON.parse(storedResearchResults);
-        
-        // Clean any research content that exists in the results
-        if (parsedResults.perplexityResearch) {
-          parsedResults.perplexityResearch = cleanResearchContent(parsedResults.perplexityResearch);
-        }
-        if (parsedResults.claudeResearch) {
-          parsedResults.claudeResearch = cleanResearchContent(parsedResults.claudeResearch);
-        }
-        
-        setResearchResults(parsedResults);
-      }
-      
-      // MODIFY THIS: Load deep research if it exists, but don't auto-advance to a different step
-      const storedDeepResearch = sessionStorage.getItem('deepResearch');
-      if (storedDeepResearch) {
-        console.log('Loaded deep research from session storage');
-        // Clean the research content before setting it
-        setDeepResearch(cleanResearchContent(storedDeepResearch));
-        // DO NOT auto-advance - let the user explicitly go through the research process
-        // Comment out or remove: setResearchStep(3);
-      }
-      
-      // Load basic research if it exists
-      const storedBasicResearch = sessionStorage.getItem('basicResearch');
-      if (storedBasicResearch) {
-        console.log('Loaded basic research from session storage');
-        // Clean the basic research content before setting it
-        setBasicResearch(cleanResearchContent(storedBasicResearch));
-      }
-      
-      // Load research step if it exists - but only if the step is explicitly in the URL
-      const storedResearchStep = sessionStorage.getItem('researchStep');
-      if (storedResearchStep) {
-        console.log('Loaded research step from session storage:', storedResearchStep);
-        
-        // Check if there's an explicit step in the URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const stepParam = urlParams.get('step');
-        
-        // Only set the step from session storage if it's not in the URL
-        if (!stepParam) {
-          // If we're loading previous research, make sure to show the Generate Research step
-          // instead of automatically jumping to results
-          const parsedStep = parseInt(storedResearchStep, 10);
+      // Only load research results if we're not explicitly skipping cache
+      if (!shouldSkipCache) {
+        // Load research results if they exist
+        const storedResearchResults = sessionStorage.getItem('researchResults');
+        if (storedResearchResults) {
+          console.log('Loaded research results from session storage');
+          const parsedResults = JSON.parse(storedResearchResults);
           
-          // If step would be 4 (results), set it to 3 (generate) instead
-          // so the user can explicitly generate new research
-          if (parsedStep === 4 && storedDeepResearch) {
-            setResearchStep(3);
-          } else {
-            setResearchStep(parsedStep);
+          // Clean any research content that exists in the results
+          if (parsedResults.perplexityResearch) {
+            parsedResults.perplexityResearch = cleanResearchContent(parsedResults.perplexityResearch);
           }
+          if (parsedResults.claudeResearch) {
+            parsedResults.claudeResearch = cleanResearchContent(parsedResults.claudeResearch);
+          }
+          
+          setResearchResults(parsedResults);
+        }
+        
+        // Load deep research if it exists, but don't auto-advance to a different step
+        const storedDeepResearch = sessionStorage.getItem('deepResearch');
+        if (storedDeepResearch) {
+          console.log('Loaded deep research from session storage');
+          // Clean the research content before setting it
+          setDeepResearch(cleanResearchContent(storedDeepResearch));
+        }
+        
+        // Load basic research if it exists
+        const storedBasicResearch = sessionStorage.getItem('basicResearch');
+        if (storedBasicResearch) {
+          console.log('Loaded basic research from session storage');
+          // Clean the basic research content before setting it
+          setBasicResearch(cleanResearchContent(storedBasicResearch));
+        }
+      } else {
+        console.log('Skipping cached research results since we are on step 3 (Generate Research)');
+        // Clear research data when explicitly requesting step 3
+        setDeepResearch('');
+        setResearchResults({});
+      }
+      
+      // Handle research step
+      if (parsedStep !== null && !isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
+        // If URL has a step parameter, it takes highest priority
+        setResearchStep(parsedStep);
+        console.log(`Setting research step to ${parsedStep} from URL parameter`);
+        sessionStorage.setItem('researchStep', parsedStep.toString());
+      } else {
+        // If no URL step parameter, try to use saved step
+        const storedResearchStep = sessionStorage.getItem('researchStep');
+        if (storedResearchStep) {
+          console.log('Loaded research step from session storage:', storedResearchStep);
+          const storedStep = parseInt(storedResearchStep, 10);
+          setResearchStep(storedStep);
         }
       }
       
