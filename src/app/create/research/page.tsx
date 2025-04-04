@@ -2646,14 +2646,14 @@ If you'd like complete research, please try again later when our research servic
         setResearchResults(parsedResults);
       }
       
-      // Load deep research if it exists
+      // MODIFY THIS: Load deep research if it exists, but don't auto-advance to a different step
       const storedDeepResearch = sessionStorage.getItem('deepResearch');
       if (storedDeepResearch) {
         console.log('Loaded deep research from session storage');
         // Clean the research content before setting it
         setDeepResearch(cleanResearchContent(storedDeepResearch));
-        // Auto-advance to step 3
-        setResearchStep(3);
+        // DO NOT auto-advance - let the user explicitly go through the research process
+        // Comment out or remove: setResearchStep(3);
       }
       
       // Load basic research if it exists
@@ -2664,11 +2664,29 @@ If you'd like complete research, please try again later when our research servic
         setBasicResearch(cleanResearchContent(storedBasicResearch));
       }
       
-      // Load research step if it exists
+      // Load research step if it exists - but only if the step is explicitly in the URL
       const storedResearchStep = sessionStorage.getItem('researchStep');
       if (storedResearchStep) {
         console.log('Loaded research step from session storage:', storedResearchStep);
-        setResearchStep(parseInt(storedResearchStep, 10));
+        
+        // Check if there's an explicit step in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const stepParam = urlParams.get('step');
+        
+        // Only set the step from session storage if it's not in the URL
+        if (!stepParam) {
+          // If we're loading previous research, make sure to show the Generate Research step
+          // instead of automatically jumping to results
+          const parsedStep = parseInt(storedResearchStep, 10);
+          
+          // If step would be 4 (results), set it to 3 (generate) instead
+          // so the user can explicitly generate new research
+          if (parsedStep === 4 && storedDeepResearch) {
+            setResearchStep(3);
+          } else {
+            setResearchStep(parsedStep);
+          }
+        }
       }
       
     } catch (error) {
@@ -2771,10 +2789,10 @@ If you'd like complete research, please try again later when our research servic
           setStatusMessage('Research complete!');
           
           // Show success toast
-          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully! Click "Continue to Results" to view.'));
           
-          // Move to the next step
-          setResearchStep(4);
+          // Don't auto-advance - let the user click the continue button
+          // Remove: setResearchStep(4);
           
           // Reset states
           setIsGenerating(false);
@@ -2860,10 +2878,12 @@ If you'd like complete research, please try again later when our research servic
           setGenerationProgress(100);
           setStatusMessage('Research recovered from cache!');
           setError(null);
-          setResearchStep(4);
+          
+          // Don't auto-advance - let the user click the continue button
+          // Remove: setResearchStep(4);
           
           // Show success toast
-          toast.success('Research was recovered successfully! Your results are ready.');
+          toast.success('Research was recovered successfully! Click "Continue to Results" to view.');
           
           return true;
         }
@@ -3090,11 +3110,11 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         setGenerationProgress(100);
         setStatusMessage('Research complete!');
         
-        // Move to results
-        setResearchStep(4);
+        // IMPORTANT: Don't auto-advance to step 4, stay on step 3 and show "Continue to Results" button
+        // Remove this line: setResearchStep(4);
         
-        // Success notification
-        toast.success('Research completed successfully!');
+        // Success notification with instructions
+        toast.success('Research completed successfully! Click "Continue to Results" to view your research.');
       } catch (error: any) {
         // Clear interval
         clearInterval(messageInterval);
