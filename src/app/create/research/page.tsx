@@ -3516,7 +3516,7 @@ const callPerplexityWithRetry = async (
   language: string = 'en', 
   companyName?: string,
   maxRetries: number = 2
-): Promise<string> => {
+): Promise<string | never> => {
   let retryCount = 0;
   let lastError: Error | null = null;
   
@@ -3550,3 +3550,5 @@ const callPerplexityWithRetry = async (
   }
   
   // If we've exhausted all retries, throw the last error
+  throw lastError;
+};
