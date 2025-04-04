@@ -1,0 +1,1 @@
+// auth.ts without the email restriction function 
