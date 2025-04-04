@@ -2213,7 +2213,7 @@ If you'd like complete research, please try again later when our research servic
               </div>
               <div>
                 <span className="font-medium">{safeTranslate('researchPage.results.targetAudience', 'Target Audience:')} </span>
-                <span>{safeContentDetails.targetAudience || 'Not specified'}</span>
+                <span>{safeContentDetails.targetAudience || (language === 'es' ? 'No especificado' : 'Not specified')}</span>
               </div>
               <div>
                 <span className="font-medium">{safeTranslate('researchPage.results.platform', 'Platform:')} </span>
@@ -2253,7 +2253,7 @@ If you'd like complete research, please try again later when our research servic
           </div>
           
           {/* Display loading state if needed */}
-          {!research && <p className="text-gray-500">Loading research results...</p>}
+          {!research && <p className="text-gray-500">{language === 'es' ? 'Cargando resultados de investigación...' : 'Loading research results...'}</p>}
           
           {/* Display the actual research content with improved formatting */}
           {research && (
