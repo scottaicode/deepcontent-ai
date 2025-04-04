@@ -1,97 +1,92 @@
 'use client';
 
-/**
- * MainLanguageSwitcher - Direct language switching implementation
- * Uses the same approach as the middle-page language switcher
- */
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+// Language switcher using Next.js routing
+// IMPORTANT: This component switches language by navigating to the corresponding
+// locale-prefixed path (e.g., /en/page or /es/page) using router.push().
+// This is the standard approach for Next.js App Router i18n and avoids
+// conflicts caused by direct DOM manipulation or full page reloads.
 export default function MainLanguageSwitcher() {
-  // Detect current language from document or default to English
-  const getCurrentLanguage = () => {
-    if (typeof document === 'undefined') return 'en';
-    
-    // Check multiple sources with fallbacks
-    const htmlLang = document.documentElement.lang;
-    const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
-    const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
-    const localStorageLang = localStorage.getItem('language');
-    const localStoragePrefLang = localStorage.getItem('preferred_language');
-    
-    // Debug language sources
-    console.log('[LanguageDebug] Language sources:', {
-      html: htmlLang,
-      cookieLang,
-      cookiePrefLang,
-      localStorageLang,
-      localStoragePrefLang,
-      allCookies: document.cookie
-    });
-    
-    return htmlLang || 
-           cookieLang ||
-           cookiePrefLang ||
-           localStorageLang ||
-           localStoragePrefLang ||
-           'en';
-  };
-  
-  // Get language code
-  const currentLang = getCurrentLanguage();
-  console.log('[LanguageDebug] Current language detected as:', currentLang);
-  
-  // Direct language change with hard redirect
+  const router = useRouter();
+  const pathname = usePathname(); // Gets the current path *including* any locale prefix
+  const [currentLang, setCurrentLang] = useState('en');
+
+  // Determine current language preference on client-side mount
+  // Reads persisted cookie preference or falls back to document lang / default
+  useEffect(() => {
+    const getLanguagePreference = () => {
+      if (typeof document === 'undefined') return 'en';
+      
+      // Prioritize cookie over document lang for consistency
+      const cookieLang = document.cookie.match(/(?:^|;\s*)language=([^;]*)/)?.pop();
+      const cookiePrefLang = document.cookie.match(/(?:^|;\s*)preferred_language=([^;]*)/)?.pop();
+      const htmlLang = document.documentElement.lang;
+      
+      console.log('[Header LanguageDebug] Sources on mount:', {
+        html: htmlLang,
+        cookieLang,
+        cookiePrefLang
+      });
+      
+      // Set the state based on the determined preference
+      return cookieLang || cookiePrefLang || htmlLang || 'en';
+    };
+    setCurrentLang(getLanguagePreference());
+  }, [pathname]); // Re-check if pathname changes (e.g., after navigation)
+
+  console.log('[Header LanguageDebug] Current language state:', currentLang);
+
+  // Switch language using Next.js router
   const switchToLanguage = (lang: string) => {
-    if (lang === currentLang) {
-      console.log(`[LanguageDebug] Language already set to ${lang}, no change needed`);
-      return;
-    }
+    if (lang === currentLang) return; // Avoid unnecessary navigation
     
-    // Check for redirect loop by looking at URL
-    const url = new URL(window.location.href);
-    const redirectCount = parseInt(url.searchParams.get('redirect_count') || '0');
-    
-    // Prevent redirect loops by limiting redirect count
-    if (redirectCount > 2) {
-      console.error(`[LanguageDebug] Too many redirects detected (${redirectCount}). Stopping redirect chain.`);
-      alert('Error: Too many language redirects. Please refresh the page and try again.');
-      return;
-    }
-    
-    console.log(`[LanguageDebug] Switching language from ${currentLang} to: ${lang} (redirect #${redirectCount + 1})`);
+    console.log(`[NextJsSwitcher] Attempting to switch language to: ${lang}`);
     
     try {
-      // Set all possible storage locations
-      localStorage.setItem('language', lang);
-      localStorage.setItem('preferred_language', lang);
-      console.log('[LanguageDebug] Updated localStorage values');
-      
-      // Set cookies with maximum reliability
+      // Set cookies to persist preference across reloads/sessions
+      // This ensures the preference is remembered even if the user closes the browser
       document.cookie = `language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
       document.cookie = `preferred_language=${lang}; path=/; max-age=${60*60*24*365}; SameSite=Lax`;
-      console.log('[LanguageDebug] Set cookies:', document.cookie);
+      console.log('[LanguageDebug] Set cookies for preference:', document.cookie);
+
+      // Ensure pathname is valid before pushing
+      if (!pathname) {
+        console.error('[NextJsSwitcher] Pathname is not available. Cannot switch language.');
+        return;
+      }
+
+      // --- Core Logic for App Router Locale Change ---
+      // 1. Get the base path by removing any existing locale prefix (/en or /es)
+      const basePathname = pathname.startsWith('/en/') ? pathname.substring(3) : 
+                         pathname.startsWith('/es/') ? pathname.substring(3) : 
+                         pathname;
       
-      // Set HTML lang
-      document.documentElement.lang = lang;
-      console.log('[LanguageDebug] Set HTML lang attribute to:', document.documentElement.lang);
+      // 2. Construct the new target URL with the desired locale prefix
+      // Ensure basePathname starts with a slash if it's not empty to form a valid path
+      const targetPath = lang === 'en' ? `/en${basePathname.startsWith('/') ? '' : '/'}${basePathname}` 
+                                    : `/es${basePathname.startsWith('/') ? '' : '/'}${basePathname}`;
+
+      console.log(`[NextJsSwitcher] Navigating to new locale path: ${targetPath}`);
       
-      // Force hard reload with URL parameters to bypass caching
-      // Clear any existing redirect-related params
-      url.searchParams.delete('t');
-      url.searchParams.delete('lang');
+      // 3. Use router.push with the new locale-prefixed path.
+      // Next.js handles the rest (re-rendering with correct locale content).
+      router.push(targetPath);
+      // --- End Core Logic ---
+
+      // Update state immediately for responsive UI highlighting on the button
+      setCurrentLang(lang);
       
-      // Set language and redirect counter parameters
-      url.searchParams.set('lang', lang);
-      url.searchParams.set('redirect_count', (redirectCount + 1).toString());
-      url.searchParams.set('t', Date.now().toString());
-      
-      const redirectUrl = url.toString();
-      console.log('[LanguageDebug] Redirecting to URL with lang parameter:', redirectUrl);
-      window.location.href = redirectUrl;
-    } catch (error) {
-      console.error('[LanguageDebug] Error switching language:', error);
+      console.log(`[NextJsSwitcher] router.push initiated for locale: ${lang}`);
+
+    } catch (err) {
+      console.error('Error in language switch using router:', err);
     }
   };
 
   return (
+    // UI remains the same, driven by currentLang state
     <div className="flex space-x-2">
       <button
         onClick={() => switchToLanguage('en')} 
@@ -102,11 +97,9 @@ export default function MainLanguageSwitcher() {
         }`}
         aria-label="Switch language to English"
         aria-pressed={currentLang === 'en'}
-        data-testid="en-lang-button"
       >
         🇺🇸 EN
       </button>
-      
       <button
         onClick={() => switchToLanguage('es')}
         className={`px-2 py-1 rounded-md text-sm font-medium transition-colors ${
@@ -116,10 +109,9 @@ export default function MainLanguageSwitcher() {
         }`}
         aria-label="Switch language to Spanish"
         aria-pressed={currentLang === 'es'}
-        data-testid="es-lang-button"
       >
         🇪🇸 ES
       </button>
     </div>
   );
-} // Force redeploy Thu Apr  3 10:54:45 PDT 2025
+} 

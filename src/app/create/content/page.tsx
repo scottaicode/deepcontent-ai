@@ -135,9 +135,6 @@ export default function ContentGenerator() {
   // Add heartbeat management
   const [heartbeatInterval, setHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // New state for triggering generation
-  const [triggerGeneration, setTriggerGeneration] = useState(false);
-
   // Helper to safely update state without blocking UI
   const safeUpdate = useCallback(() => {
     // Use a queue of microtasks to avoid blocking the main thread
@@ -571,88 +568,62 @@ export default function ContentGenerator() {
     return styles;
   }, [t]);
 
-  // Helper function to format persona name for display (Moved before startGeneration)
-  const getFormattedPersonaName = (personaId: string) => {
-    switch (personaId) {
-      case 'ariastar':
-        return 'AriaStar';
-      case 'specialist_mentor':
-        return 'MentorPro';
-      case 'ai_collaborator':
-        return 'AIInsight';
-      case 'sustainable_advocate':
-        return 'EcoEssence';
-      case 'data_visualizer':
-        return 'DataStory';
-      case 'multiverse_curator':
-        return 'NexusVerse';
-      case 'ethical_tech':
-        return 'TechTranslate';
-      case 'niche_community':
-        return 'CommunityForge';
-      case 'synthesis_maker':
-        return 'SynthesisSage';
-      default:
-        return personaId;
-    }
-  };
-
-  // Wrap startGeneration in useCallback
-  const startGeneration = useCallback(async () => {
+  // Update the startGeneration function
+  const startGeneration = async () => {
     if (isGenerating) {
       console.log("[DIAGNOSTIC] Generation already in progress");
       return;
     }
+
     if (!contentDetails?.contentType || !contentDetails?.platform) {
       console.error('[DIAGNOSTIC] Missing required content details');
       setError('Missing content type or platform. Please go back to the previous step.');
       return;
     }
+
     if (!researchResults?.perplexityResearch) {
       console.error('[DIAGNOSTIC] Missing research data');
       setError('Missing research data. Please go back to the research step.');
       return;
     }
 
-    // Make sure we have a persona selected
-    if (!currentPersona) {
-        console.error('[DIAGNOSTIC] No persona selected');
-        setError('Please select an AI Persona before generating content.'); // Or use translation key
-        return; 
-    }
-    
     try {
       setIsGenerating(true);
       setError(null);
       setStatusMessage(t('contentGeneration.preparingContent', { defaultValue: 'Preparing your content...' }));
+      
+      // Scroll to the absolute top of the page when generation starts
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
+      // Log the request details
       console.log('[DIAGNOSTIC] Content generation request:', {
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
-        persona: currentPersona, // Use currentPersona state
-        style: currentPersona, // Ensure style also uses currentPersona
+        persona: currentPersona,
+        style: contentSettings.style,
         researchLength: researchResults.perplexityResearch.length,
         timestamp: new Date().toISOString()
       });
 
       const response = await fetch('/api/claude/content', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           contentType: contentDetails.contentType,
           platform: contentDetails.platform,
           audience: contentDetails.targetAudience,
           researchData: researchResults.perplexityResearch,
-          style: currentPersona, // Pass the reliable currentPersona state
+          style: currentPersona || contentSettings.style,
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
-          persona: currentPersona, // Pass the reliable currentPersona state
+          persona: currentPersona,
           businessType: contentDetails.businessType,
           businessName: contentDetails.businessName,
           researchTopic: contentDetails.researchTopic,
-          language: language
+          language: language // Explicitly pass the language to the API
         }),
       });
 
@@ -766,18 +737,8 @@ export default function ContentGenerator() {
       // Scroll to the absolute top of the page after generation completes
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [isGenerating, contentDetails, researchResults, currentPersona, contentSettings, language, t, setGeneratedContent, setContentVersions, setStatusMessage, setPrerenderedContent, setError, setIsGenerating, renderSimpleMarkdown]);
-
-  // --- New useEffect hook to trigger generation --- 
-  useEffect(() => {
-    // Only run if triggerGeneration is true and not already generating
-    if (triggerGeneration && !isGenerating) {
-      console.log('[DIAGNOSTIC] useEffect triggering startGeneration...');
-      startGeneration();
-      setTriggerGeneration(false); // Reset the trigger
-    }
-  }, [triggerGeneration, isGenerating, startGeneration]);
-
+  };
+  
   // Function to regenerate with a new persona
   const changePersonaAndRegenerate = async (newPersona: string) => {
     if (isGenerating) return;
@@ -1044,6 +1005,32 @@ export default function ContentGenerator() {
         title: t('actions.saveToDashboardError', { defaultValue: 'Failed to save content. Please try again.' }),
         variant: "destructive"
       });
+    }
+  };
+
+  // Helper function to format persona name for display
+  const getFormattedPersonaName = (personaId: string) => {
+    switch (personaId) {
+      case 'ariastar':
+        return 'AriaStar';
+      case 'specialist_mentor':
+        return 'MentorPro';
+      case 'ai_collaborator':
+        return 'AIInsight';
+      case 'sustainable_advocate':
+        return 'EcoEssence';
+      case 'data_visualizer':
+        return 'DataStory';
+      case 'multiverse_curator':
+        return 'NexusVerse';
+      case 'ethical_tech':
+        return 'TechTranslate';
+      case 'niche_community':
+        return 'CommunityForge';
+      case 'synthesis_maker':
+        return 'SynthesisSage';
+      default:
+        return personaId;
     }
   };
 
@@ -1327,10 +1314,9 @@ export default function ContentGenerator() {
                             <button
                               key={`initial-${persona.id}-${index}`}
                               onClick={() => {
-                                console.log(`[DIAGNOSTIC] Persona button clicked: ${persona.id}`);
                                 setContentSettings(prev => ({ ...prev, style: persona.id }));
                                 setCurrentPersona(persona.id);
-                                setTriggerGeneration(true);
+                                startGeneration();
                               }}
                               className={`p-6 border rounded-lg text-left transition-all hover:border-blue-500 hover:shadow-md h-full ${
                                 currentPersona === persona.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'

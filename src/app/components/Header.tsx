@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from './LanguageProvider';
-import DirectLanguageSwitcher from '@/components/DirectLanguageSwitcher';
+import MainLanguageSwitcher from '@/components/MainLanguageSwitcher';
 // import DirectLanguageSwitcher from '@/components/DirectLanguageSwitcher';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePathname } from 'next/navigation';
@@ -164,7 +164,7 @@ const Header: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="flex items-center space-x-4"
           >
-            <DirectLanguageSwitcher />
+            {isHomepage && <MainLanguageSwitcher />}
             
             {user ? (
               <div className="hidden md:flex items-center space-x-4 relative" ref={userMenuRef}>
