@@ -71,7 +71,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log('Request body received:', Object.keys(body));
     
-    const { originalContent, feedback, contentType, platform, style, researchData } = body;
+    const { originalContent, feedback, contentType, platform, style, researchData, language } = body;
+    
+    // Log language parameter for debugging
+    console.log('Language parameter received:', language || 'not specified, defaulting to English');
     
     if (!originalContent) {
       console.error('Missing originalContent in request');
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest) {
     
     // Get current date for reference
     const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+    const currentMonth = new Date().toLocaleString(language || 'en', { month: 'long' });
 
     // Add persona-specific instructions
     let personaInstructions = '';
@@ -200,6 +203,11 @@ Content Type: ${contentType || 'Not specified'}
 Platform: ${platform || 'Not specified'}
 Style: ${style || 'professional'}
 Current Date: ${currentMonth} ${currentYear}
+Language: ${language || 'en'}
+
+## CRITICAL INSTRUCTIONS
+The content MUST be written in ${language === 'es' ? 'Spanish' : language || 'English'}.
+${language === 'es' ? 'Asegúrate de que el contenido esté completamente en español y use expresiones naturales en español, no traducciones literales del inglés.' : ''}
 
 ## CRITICAL PLATFORM-SPECIFIC INSTRUCTIONS FOR ${currentMonth.toUpperCase()} ${currentYear}
 You MUST follow the current best practices for ${platform || 'digital content'} as of ${currentMonth} ${currentYear}.
