@@ -1015,11 +1015,13 @@ Language: ${language || 'en'}`
         }
         
         // If we've exceeded retry attempts, give up and close the connection
-        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please try refreshing the page to check for results or try again.';
+        const errorMessage = language === 'es' 
+          ? 'Error de conexión en la generación de investigación. El proceso puede seguir ejecutándose en segundo plano. Por favor, actualice la página para verificar los resultados o inténtelo de nuevo.' 
+          : 'Research generation connection error. The process may still be running in the background. Please try refreshing the page to check for results or try again.';
         
         // Set error message
         setError(errorMessage);
-        setStatusMessage('Connection error');
+        setStatusMessage(language === 'es' ? 'Error de conexión' : 'Connection error');
         
         // Close the SSE connection
         eventSource.close();
@@ -2549,7 +2551,7 @@ If you'd like complete research, please try again later when our research servic
               
               <div className="mb-6 text-center">
                 <p className="text-gray-600 mb-2">
-                  {statusMessage || (language === 'es' ? 'Generando investigación profunda...' : 'Generating deep research...')}
+                  {statusMessage || (language === 'es' ? 'Analizando datos de investigación...' : 'Analyzing research data...')}
                 </p>
                 <p className="text-gray-500 text-sm italic">
                   {language === 'es' 
@@ -2741,13 +2743,31 @@ If you'd like complete research, please try again later when our research servic
             </svg>
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Connection Issue</h3>
+            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
+              {language === 'es' ? 'Problema de Conexión' : 'Connection Issue'}
+            </h3>
             <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-              <p>The research generation process takes about 6 minutes to complete. With your Pro plan, we're able to process complex requests up to 5 minutes.</p>
-              <p className="mt-2">Your connection was interrupted, but you have two options:</p>
+              <p>
+                {language === 'es' 
+                  ? 'El proceso de generación de investigación toma aproximadamente 6 minutos en completarse. Con su plan Pro, podemos procesar solicitudes complejas de hasta 5 minutos.' 
+                  : 'The research generation process takes about 6 minutes to complete. With your Pro plan, we\'re able to process complex requests up to 5 minutes.'}
+              </p>
+              <p className="mt-2">
+                {language === 'es'
+                  ? 'Su conexión fue interrumpida, pero tiene dos opciones:'
+                  : 'Your connection was interrupted, but you have two options:'}
+              </p>
               <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Wait a few minutes and refresh the page to check if your results are ready</li>
-                <li>Try generating the research again</li>
+                <li>
+                  {language === 'es'
+                    ? 'Espere unos minutos y actualice la página para verificar si sus resultados están listos'
+                    : 'Wait a few minutes and refresh the page to check if your results are ready'}
+                </li>
+                <li>
+                  {language === 'es'
+                    ? 'Intente generar la investigación nuevamente'
+                    : 'Try generating the research again'}
+                </li>
               </ul>
             </div>
             <div className="mt-4">
@@ -2755,7 +2775,7 @@ If you'd like complete research, please try again later when our research servic
                 onClick={onRetry}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700"
               >
-                Try Again
+                {language === 'es' ? 'Intentar de Nuevo' : 'Try Again'}
               </button>
             </div>
           </div>

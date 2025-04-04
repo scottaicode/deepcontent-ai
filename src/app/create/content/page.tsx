@@ -1148,17 +1148,27 @@ export default function ContentGenerator() {
         }
         setGenerationProgress(Math.floor(progress));
         
-        // Update status message based on progress
+        // Update status message based on progress with proper translations
         if (progress < 20) {
-          setStatusMessage('Analyzing research data...');
+          setStatusMessage(language === 'es' 
+            ? 'Analizando datos de investigación...' 
+            : 'Analyzing research data...');
         } else if (progress < 40) {
-          setStatusMessage('Structuring content with persona voice...');
+          setStatusMessage(language === 'es' 
+            ? 'Estructurando contenido con voz de persona...' 
+            : 'Structuring content with persona voice...');
         } else if (progress < 60) {
-          setStatusMessage('Developing key points and insights...');
+          setStatusMessage(language === 'es' 
+            ? 'Desarrollando puntos clave e ideas...' 
+            : 'Developing key points and insights...');
         } else if (progress < 80) {
-          setStatusMessage('Optimizing for platform and audience...');
+          setStatusMessage(language === 'es' 
+            ? 'Optimizando para plataforma y audiencia...' 
+            : 'Optimizing for platform and audience...');
         } else {
-          setStatusMessage('Finalizing content generation...');
+          setStatusMessage(language === 'es' 
+            ? 'Finalizando generación de contenido...' 
+            : 'Finalizing content generation...');
         }
       }, 2000);
       
@@ -1166,7 +1176,7 @@ export default function ContentGenerator() {
     } else {
       setGenerationProgress(0);
     }
-  }, [isGenerating]);
+  }, [isGenerating, language]);
 
   return (
     <AppShell hideHeader={true}>
