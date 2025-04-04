@@ -1300,83 +1300,33 @@ If you'd like complete research, please try again later when our research servic
     }
   };
 
-  // Update this useEffect to handle empty research results
+  // Modify the debug transition useEffect to not skip steps
   useEffect(() => {
-    // Add more verbose logging for debugging purposes
-    console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
+    // Simplified transition logging
+    console.log(`Current research step: ${researchStep}, isGenerating: ${isGenerating}, has research data: ${!!deepResearch}`);
     
-    // Check state changes that should trigger a transition
-    if (deepResearch && researchStep < 4) {
-      console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
+    // IMPORTANT: We're removing the auto-transition logic that was skipping steps
+    // This ensures the user must manually go through each step
+    
+    // Only save research results when they're available, but don't change steps automatically
+    if (deepResearch && !sessionStorage.getItem('researchResults')) {
+      console.log('Saving research results to session storage');
       
-      // Check if we're coming from step 2 - if so, always go to step 3 first
-      if (researchStep === 2) {
-        const timer = setTimeout(() => {
-          console.log('[DEBUG TRANSITION] Going from step 2 to step 3 (Generate Research)');
-          setResearchStep(3);
-          
-          // Save research results for redundancy
-          const researchResults: ResearchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: deepResearch,
-            trendingTopics: [],
-            dataSources: {
-              reddit: true,
-              rss: true
-            }
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      } else if (researchStep === 3) {
-        // Auto-transition from step 3
-        const timer = setTimeout(() => {
-          console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
-          setResearchStep(4);
-          
-          // Save research results for redundancy
-          const researchResults: ResearchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: deepResearch,
-            trendingTopics: [],
-            dataSources: {
-              reddit: true,
-              rss: true
-            }
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      }
+      // Save research results for later retrieval
+      const researchResults: ResearchResults = {
+        researchMethod: 'perplexity',
+        perplexityResearch: deepResearch,
+        trendingTopics: [],
+        dataSources: {
+          reddit: true,
+          rss: true
+        }
+      };
+      sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
     }
     
-    // Also transition if generation has stopped but we're still in step 2
-    if ((isGenerating === false) && deepResearch && researchStep === 2) {
-      console.log('[DEBUG TRANSITION] Generation complete but still in step 2');
-      
-      // Use a slight delay to ensure UI is updated
-      const timer = setTimeout(() => {
-        console.log('[DEBUG TRANSITION] Moving from step 2 to step 3 with research data');
-        setResearchStep(3); // Changed from 4 to 3 to not skip the Generate Research step
-        
-        // Make sure we save the research results
-        const researchResults: ResearchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: deepResearch,
-          trendingTopics: [],
-          dataSources: {
-            reddit: true,
-            rss: true
-          }
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-      }, 500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [deepResearch, isGenerating, researchStep]);
+    // No automatic transitions between steps
+  }, [deepResearch, researchStep, isGenerating]);
 
   // Add handler for follow-up answer changes
   const handleFollowUpChange = (index: number, value: string) => {
@@ -1433,12 +1383,33 @@ If you'd like complete research, please try again later when our research servic
   const handleDeepAnalysisClick = async () => {
     // Ensure content details are available
     if (!contentDetails?.researchTopic) {
-      setError('Please enter a research topic');
+      setError(language === 'es' ? 'Por favor ingrese un tema de investigación' : 'Please enter a research topic');
       return;
     }
     
+    console.log(`[DEBUG] Starting research generation in ${language} mode`);
+    
+    // Set loading state but don't change research step yet
+    setIsLoading(true);
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setStatusMessage(language === 'es' 
+      ? 'Generando análisis profundo con Perplexity Deep Research...' 
+      : 'Generating deep analysis with Perplexity Deep Research...');
+    
+    // We stay on step 3 (Generate Research) until research is complete
+    // This prevents skipping to Research Results prematurely
+    
     // Use our new robust research generation function with automatic fallbacks
-    generateResearchWithFallbacks();
+    try {
+      await generateResearchWithFallbacks();
+      
+      // Only proceed to step 4 after research is done, which happens in generateResearchWithFallbacks()
+      console.log(`[DEBUG] Research generation complete, proceeding to results in ${language} mode`);
+    } catch (error) {
+      console.error(`[DEBUG] Research generation failed in ${language} mode:`, error);
+      // Error handling is done in generateResearchWithFallbacks()
+    }
   };
 
   // Add a useEffect to load saved trending topics on initial load
@@ -3164,7 +3135,7 @@ ${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best p
     setIsLoading(true);
     setIsGenerating(true);
     setGenerationProgress(0);
-    setStatusMessage('Preparing research request...');
+    setStatusMessage(language === 'es' ? 'Preparando la solicitud de investigación...' : 'Preparing research request...');
     
     // Track retry count
     let currentRetryCount = 0;
@@ -3202,14 +3173,15 @@ ${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best p
         }
       }
       
-      // Build context
+      // Build context - include language in the context to ensure it processes correctly
       const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
 Platform: ${safeContentDetails?.platform || 'facebook'}, 
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
-Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}`;
+Target Audience: ${safeContentDetails?.targetAudience || 'general'}
+Language: ${language || 'en'}${followUpSection}`;
 
       // Log the context being sent (truncated for clarity)
-      console.log('[ROBUST] Research context (first 200 chars):', contextString.substring(0, 200));
+      console.log(`[ROBUST] Research context in ${language} mode (first 200 chars):`, contextString.substring(0, 200));
       if (followUpSection) {
         console.log('[ROBUST] Follow-up answers included in context');
       }
@@ -3251,22 +3223,22 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           
           // Complete progress
           setGenerationProgress(100);
-          setStatusMessage('Research completed (fallback content)');
+          setStatusMessage(language === 'es' ? 'Investigación completada (contenido alternativo)' : 'Research completed (fallback content)');
           
-          // Move to results
+          // Move to results step ONLY AFTER research is done
           setResearchStep(4);
           setIsGenerating(false);
           setIsLoading(false);
           
-          toast.success('Research generation completed with fallback content');
+          toast.success(language === 'es' ? 'Investigación completada con contenido alternativo' : 'Research generation completed with fallback content');
         }
       }, 60000);
       
       try {
         // Attempt API request with shorter timeout
-        console.log('[ROBUST] Making research API request with 45-second timeout');
+        console.log(`[ROBUST] Making research API request in ${language} mode with 45-second timeout`);
         
-        // Make the API request
+        // Make the API request - explicitly pass language parameter
         const response = await fetch('/api/perplexity/research', {
           method: 'POST',
           headers: {
@@ -3276,7 +3248,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
             topic: safeContentDetails?.researchTopic || '',
             context: contextString,
             sources: ['recent', 'scholar'],
-            language,
+            language: language || 'en', // Explicitly pass language parameter
             signal: abortController.signal
           }),
           // We don't pass the signal to avoid duplicate aborts
@@ -3320,13 +3292,13 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         
         // Complete progress
         setGenerationProgress(100);
-        setStatusMessage('Research complete!');
+        setStatusMessage(language === 'es' ? '¡Investigación completa!' : 'Research complete!');
         
-        // Move to results
+        // NOW move to results AFTER research is complete
         setResearchStep(4);
         
         // Success notification
-        toast.success('Research completed successfully!');
+        toast.success(language === 'es' ? '¡Investigación completada exitosamente!' : 'Research completed successfully!');
         
       } catch (apiError: any) {
         // Clear interval
@@ -3340,7 +3312,9 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           console.log(`[ROBUST] Retrying (${currentRetryCount}/${MAX_RETRIES})`);
           
           // Show retry status
-          setStatusMessage(`Retrying (attempt ${currentRetryCount}/${MAX_RETRIES})...`);
+          setStatusMessage(language === 'es' 
+            ? `Reintentando (intento ${currentRetryCount}/${MAX_RETRIES})...` 
+            : `Retrying (attempt ${currentRetryCount}/${MAX_RETRIES})...`);
           
           // Restart progress simulation for retry
           progressIntervalId = setInterval(() => {
@@ -3366,7 +3340,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
                 topic: safeContentDetails?.researchTopic || '',
                 context: contextString,
                 sources: ['recent'],
-                language
+                language: language || 'en' // Explicitly set language for retry
               })
             });
             
