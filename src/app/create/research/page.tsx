@@ -639,8 +639,6 @@ export default function ResearchPage() {
   // Add a useEffect to automatically transition to step 4 when research is complete
   useEffect(() => {
     if (deepResearch && !isGenerating && researchStep === 3) {
-      console.log('Auto-transitioning to research complete step');
-      
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
         setResearchStep(4);
@@ -655,7 +653,6 @@ export default function ResearchPage() {
           }
         };
         sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        console.log('Research step set to 4 (complete) and data saved');
       }, 500);
       
       return () => clearTimeout(timer);
@@ -1291,16 +1288,10 @@ If you'd like complete research, please try again later when our research servic
 
   // Update this useEffect to handle empty research results
   useEffect(() => {
-    // Add more verbose logging for debugging purposes
-    console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
-    
     // Check state changes that should trigger a transition
     if (deepResearch && researchStep < 4 && researchStep !== 3) {
-      console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
-      
       // Move to research step 4 (results) directly if we have data
       const timer = setTimeout(() => {
-        console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
         setResearchStep(4);
         
         // Save research results for redundancy
@@ -2605,14 +2596,12 @@ If you'd like complete research, please try again later when our research servic
       const storedContentDetails = sessionStorage.getItem('contentDetails');
       
       if (storedContentDetails) {
-        console.log('Loaded content details from session storage');
         setContentDetails(JSON.parse(storedContentDetails));
       }
       
       // Load research results if they exist
       const storedResearchResults = sessionStorage.getItem('researchResults');
       if (storedResearchResults) {
-        console.log('Loaded research results from session storage');
         const parsedResults = JSON.parse(storedResearchResults);
         
         // Clean any research content that exists in the results
@@ -2626,29 +2615,21 @@ If you'd like complete research, please try again later when our research servic
         setResearchResults(parsedResults);
       }
       
-      // Load deep research if it exists
-      const storedDeepResearch = sessionStorage.getItem('deepResearch');
-      if (storedDeepResearch) {
-        console.log('Loaded deep research from session storage');
-        // Clean the research content before setting it
-        setDeepResearch(cleanResearchContent(storedDeepResearch));
-        // Auto-advance to step 3
-        setResearchStep(3);
-      }
-      
       // Load basic research if it exists
       const storedBasicResearch = sessionStorage.getItem('basicResearch');
       if (storedBasicResearch) {
-        console.log('Loaded basic research from session storage');
-        // Clean the basic research content before setting it
         setBasicResearch(cleanResearchContent(storedBasicResearch));
       }
       
-      // Load research step if it exists
-      const storedResearchStep = sessionStorage.getItem('researchStep');
-      if (storedResearchStep) {
-        console.log('Loaded research step from session storage:', storedResearchStep);
-        setResearchStep(parseInt(storedResearchStep, 10));
+      // Only load the research step from storage if specified in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const stepParam = urlParams.get('step');
+      
+      if (stepParam) {
+        const parsedStep = parseInt(stepParam, 10);
+        if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
+          setResearchStep(parsedStep);
+        }
       }
       
     } catch (error) {
@@ -2709,8 +2690,6 @@ If you'd like complete research, please try again later when our research servic
   useEffect(() => {
     // Only run the fallback when actively generating and progress seems stuck
     if (isGenerating && generationProgress <= 25) {
-      console.log('[DEBUG] Starting progress simulation fallback');
-      
       // Start a timer that will increment progress if we don't get real updates
       const simulationTimer = setTimeout(() => {
         // Start a simulation interval that slowly increases progress
@@ -2718,7 +2697,8 @@ If you'd like complete research, please try again later when our research servic
           setGenerationProgress(prev => {
             // Slowly increase up to 90% maximum (leave room for the real completion)
             if (prev < 90) {
-              const increment = Math.max(0.5, (90 - prev) / 50); // Faster at start, slower as it approaches 90%
+              // Use a much slower increment to spread progress over ~5 minutes
+              const increment = Math.max(0.2, (90 - prev) / 150);
               return prev + increment;
             }
             return prev;
@@ -2735,11 +2715,11 @@ If you'd like complete research, please try again later when our research servic
               
               // Choose progress message based on current progress level
               const progress = generationProgress;
-              if (progress < 40) {
+              if (progress < 30) {
                 return 'Querying knowledge databases...';
-              } else if (progress < 60) {
+              } else if (progress < 50) {
                 return 'Analyzing information sources...';
-              } else if (progress < 75) {
+              } else if (progress < 70) {
                 return 'Synthesizing research findings...';
               } else if (progress < 85) {
                 return 'Organizing research insights...';
@@ -2749,13 +2729,13 @@ If you'd like complete research, please try again later when our research servic
             }
             return prevStatus;
           });
-        }, 3000); // Update every 3 seconds
+        }, 5000); // Update every 5 seconds instead of 3
         
         // Cleanup function for the interval
         return () => {
           clearInterval(simulationInterval);
         };
-      }, 15000); // Wait 15 seconds to see if real progress updates come in
+      }, 20000); // Wait 20 seconds to see if real progress updates come in
       
       // Clean up the simulation timer if the component unmounts
       return () => {
@@ -2767,7 +2747,6 @@ If you'd like complete research, please try again later when our research servic
   // Function to check if research has completed on the server
   const checkForCompletedResearch = async () => {
     try {
-      console.log('[DEBUG] Checking for completed research on server');
       const response = await fetch('/api/perplexity/check-research', {
         method: 'POST',
         headers: {
@@ -2780,12 +2759,9 @@ If you'd like complete research, please try again later when our research servic
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[DEBUG] Research check result:', data);
         
         // If research is found, display it
         if (data.research) {
-          console.log('[DEBUG] Research was found on server!');
-          
           // Clean the research content
           const cleanedResearch = removeThinkingTags(data.research);
           
@@ -2820,7 +2796,6 @@ If you'd like complete research, please try again later when our research servic
       
       return false;
     } catch (error) {
-      console.error('[DEBUG] Error checking for completed research:', error);
       return false;
     }
   };
@@ -2829,8 +2804,6 @@ If you'd like complete research, please try again later when our research servic
   useEffect(() => {
     // Only run when research is generating and we haven't received updates for a while
     if (isGenerating && generationProgress > 30 && error?.includes('connection')) {
-      console.log('[DEBUG] Starting periodic research result check due to connection error');
-      
       // Check immediately
       checkForCompletedResearch();
       
@@ -2853,10 +2826,9 @@ If you'd like complete research, please try again later when our research servic
 
   // Function to check if research has completed after a timeout or error
   const checkForCompletedResearchAfterTimeout = async (topic: string) => {
-    if (!topic) return;
+    if (!topic) return false;
     
     try {
-      console.log('[RECOVERY] Checking for completed research after timeout:', topic);
       setStatusMessage('Checking for completed research...');
       
       const response = await fetch('/api/perplexity/check-research', {
@@ -2877,8 +2849,6 @@ If you'd like complete research, please try again later when our research servic
         const data = await response.json();
         
         if (data.research) {
-          console.log('[RECOVERY] Found completed research in cache!');
-          
           // Clean and save the research
           const cleanedResearch = removeThinkingTags(data.research);
           setDeepResearch(cleanedResearch);
@@ -2904,10 +2874,8 @@ If you'd like complete research, please try again later when our research servic
         }
       }
       
-      console.log('[RECOVERY] No completed research found in cache');
       return false;
     } catch (error) {
-      console.error('[RECOVERY] Error checking for completed research:', error);
       return false;
     }
   };
@@ -2946,8 +2914,6 @@ If you'd like complete research, please try again later when our research servic
 
   // Function to handle network timeouts more gracefully
   const handleNetworkTimeout = async (topic: string): Promise<boolean> => {
-    console.log('[RECOVERY] Handling network timeout for topic:', topic);
-    
     // Show a more informative status message
     setStatusMessage('The research request is taking longer than expected. Attempting recovery...');
     
@@ -2956,11 +2922,9 @@ If you'd like complete research, please try again later when our research servic
       await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Check if we have any results stored on the server
-      console.log('[RECOVERY] Checking for any research results after timeout');
       const recovered = await checkForCompletedResearchAfterTimeout(topic);
       
       if (recovered) {
-        console.log('[RECOVERY] Successfully recovered research after timeout');
         return true;
       }
       
@@ -3003,7 +2967,6 @@ If you'd like complete research, please try again later when our research servic
       
       return false;
     } catch (error) {
-      console.error('[RECOVERY] Error during timeout recovery:', error);
       return false;
     }
   };
@@ -3154,7 +3117,6 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
       // Add failsafe timeout - if we reach 85% progress, start emergency fallback
       const emergencyFallbackId = setTimeout(() => {
         if (generationProgress >= 85 && isGenerating) {
-          console.log('[ROBUST] Emergency fallback triggered - generating local research');
           clearInterval(progressIntervalId);
           
           // Generate emergency fallback and use it
@@ -3180,7 +3142,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}`;
           
           toast.success('Research generation completed with fallback content');
         }
-      }, 60000); // After 1 minute, consider emergency fallback
+      }, 300000); // After 5 minutes, consider emergency fallback
       
       try {
         // Attempt API request with shorter timeout
