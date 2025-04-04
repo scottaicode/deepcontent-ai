@@ -180,6 +180,10 @@ export default function FollowupPage() {
       sessionStorage.setItem('preventLanguageRedirect', 'true');
       console.log('[FollowupPage] Setting preventLanguageRedirect flag for research page navigation');
       
+      // Force step=3 specifically to ensure the Generate Research step is shown
+      // and not skipped in any language version
+      sessionStorage.setItem('researchStep', '3');
+      
       // Navigate to the research page and indicate to start at the Generate Research step
       // This will ensure the user goes through the Generate Research UI
       router.push('/create/research?step=3');

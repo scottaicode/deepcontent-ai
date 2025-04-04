@@ -544,11 +544,24 @@ export default function ResearchPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const stepParam = urlParams.get('step');
       
+      console.log(`[DEBUG] URL step parameter: ${stepParam}`);
+      
       if (stepParam) {
         const parsedStep = parseInt(stepParam, 10);
         // Only set the step if it's valid (1-5)
         if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
+          console.log(`[DEBUG] Setting research step from URL parameter: ${parsedStep}`);
           setResearchStep(parsedStep);
+          
+          // Also save to session storage for consistency
+          sessionStorage.setItem('researchStep', parsedStep.toString());
+          
+          // When explicitly directed to step 3, make sure we don't auto-advance
+          if (parsedStep === 3) {
+            // Clear any flag that might cause auto-advancement
+            sessionStorage.setItem('skipResearchGeneration', 'false');
+            console.log('[DEBUG] Explicitly staying on Generate Research step (3)');
+          }
         }
       }
     }
@@ -654,7 +667,16 @@ export default function ResearchPage() {
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        setResearchStep(3);
+        // Check if we should explicitly stay on step 3 (Generate Research)
+        // This happens when coming from followup page with step=3 in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const stepParam = urlParams.get('step');
+        
+        // Only auto-advance if not explicitly told to stay on step 3
+        if (stepParam !== '3') {
+          setResearchStep(3);
+        }
+        
         // Make sure we save the research results again just in case
         const researchResults: ResearchResults = {
           researchMethod: 'perplexity',
@@ -2450,6 +2472,29 @@ If you'd like complete research, please try again later when our research servic
             </div>
           </div>
         </div>
+        
+        {/* Show message when research data is already available */}
+        {deepResearch && (
+          <div className="p-4 mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800 dark:text-green-300">
+                  {language === 'es' ? 'Investigación disponible' : 'Research Available'}
+                </h3>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                  {language === 'es' 
+                    ? 'Ya tienes investigación generada para este tema. Puedes continuar a los resultados o generar nueva investigación.' 
+                    : 'You already have research generated for this topic. You can proceed to results or generate new research.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
                 
         {error && (
           error.includes('connection error') ? (
