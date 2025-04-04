@@ -5,7 +5,7 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['pdf-parse'],
     // Force include chromium-min bin files for the scraping API route
-    outputFileTracingRoot: process.cwd(),
+    outputFileTracing: true, 
     outputFileTracingIncludes: {
       '/api/scrape-website': ['./node_modules/@sparticuz/chromium-min/bin/**'],
     },
