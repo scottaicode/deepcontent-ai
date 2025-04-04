@@ -679,16 +679,27 @@ export default function ResearchPage() {
         const langParam = urlParams.get('language');
         const isSpanishVersion = langParam === 'es';
         
+        // Check for permanent blocking flag to prevent infinite loops
+        const permanentlyBlocked = sessionStorage.getItem('permanentlyBlockAutoAdvance') === 'true';
+        
         // Stay on Generate Research step if:
         // 1. URL explicitly states step=3, OR
         // 2. The forceStep3 flag is set, OR 
-        // 3. We're in Spanish mode
-        if (stepParam === '3' || forceStep3 || isSpanishVersion) {
+        // 3. We're in Spanish mode, OR
+        // 4. We have a permanent block flag set
+        if (stepParam === '3' || forceStep3 || isSpanishVersion || permanentlyBlocked) {
           console.log('[DEBUG] Explicitly staying on Generate Research step (3)');
           
           // Clear the forceStep3 flag since we've used it
           if (forceStep3) {
             sessionStorage.removeItem('forceStep3');
+          }
+          
+          // Set a permanent flag to prevent future auto-transitions for this session
+          // This prevents infinite loops of storing/restoring research data
+          if (isSpanishVersion) {
+            console.log('[DEBUG] Setting permanent flag to block auto-advancing for Spanish version');
+            sessionStorage.setItem('permanentlyBlockAutoAdvance', 'true');
           }
           
           // Make sure we save the research results again just in case
@@ -1010,6 +1021,14 @@ Language: ${language || 'en'}`
           if (isSpanishVersion) {
             console.log('[DEBUG] Spanish version detected, setting forceStep3 flag');
             sessionStorage.setItem('forceStep3', 'true');
+            
+            // Also set the permanent blocking flag to prevent infinite loops
+            console.log('[DEBUG] Setting permanent flag to block auto-advancing for Spanish version');
+            sessionStorage.setItem('permanentlyBlockAutoAdvance', 'true');
+          } else {
+            // If not Spanish, ensure the flags are cleared to prevent issues if language is changed
+            sessionStorage.removeItem('forceStep3');
+            sessionStorage.removeItem('permanentlyBlockAutoAdvance');
           }
           
           toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
@@ -2800,6 +2819,20 @@ If you'd like complete research, please try again later when our research servic
       const urlParams = new URLSearchParams(window.location.search);
       const stepParam = urlParams.get('step');
       
+      // Check language parameter
+      const langParam = urlParams.get('language');
+      const isSpanishVersion = langParam === 'es';
+      
+      // Set or clear auto-advance blocking flags based on language
+      if (isSpanishVersion) {
+        console.log('[DEBUG] Spanish version detected on initial load - setting blocking flags');
+        sessionStorage.setItem('permanentlyBlockAutoAdvance', 'true');
+      } else {
+        // If we're not in Spanish mode, clean up any leftover flags
+        console.log('[DEBUG] Non-Spanish version detected - clearing blocking flags');
+        sessionStorage.removeItem('permanentlyBlockAutoAdvance');
+      }
+      
       // If step is explicitly set in URL, it takes priority over everything else
       if (stepParam) {
         const parsedStep = parseInt(stepParam, 10);
@@ -2838,7 +2871,11 @@ If you'd like complete research, please try again later when our research servic
     if (typeof window !== 'undefined' && researchStep === 3) {
       // If we're in step 3 and we have temporarily stored research data, restore it
       const tempResearch = sessionStorage.getItem('tempDeepResearch');
-      if (tempResearch && !deepResearch) {
+      
+      // Check if we have the permanent block flag set - if so, skip restoration to prevent loops
+      const permanentlyBlocked = sessionStorage.getItem('permanentlyBlockAutoAdvance') === 'true';
+      
+      if (tempResearch && !deepResearch && !permanentlyBlocked) {
         console.log('[DEBUG] Restoring temporarily stored research data');
         // Delay the restoration slightly to ensure step is fully respected
         setTimeout(() => {
@@ -2846,6 +2883,10 @@ If you'd like complete research, please try again later when our research servic
           // Clean up the temporary storage
           sessionStorage.removeItem('tempDeepResearch');
         }, 500);
+      } else if (permanentlyBlocked && tempResearch) {
+        console.log('[DEBUG] Skipping research data restoration due to permanent block flag');
+        // Still clean up the temporary storage to prevent future issues
+        sessionStorage.removeItem('tempDeepResearch');
       }
     }
   }, [researchStep, deepResearch]);
