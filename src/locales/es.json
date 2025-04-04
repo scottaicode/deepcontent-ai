@@ -181,6 +181,11 @@
     "subPlatformSection": {
       "title": "Elige Específico"
     },
+    "steps": {
+      "step1": "Tipo de Contenido",
+      "step2": "Investigación",
+      "step3": "Generación de Contenido"
+    },
     "contentAnalysisTitle": "Herramientas de Análisis de Contenido",
     "contentAnalysisDescription": "Enriquece tu contenido analizando medios existentes para obtener perspectivas.",
     "youtubeTranscriptTitle": "Análisis de Transcripción de YouTube",
@@ -1050,8 +1055,8 @@
     "defineDetails": "Define los detalles de tu contenido"
   },
   "contentCreationSteps": {
-    "researchDescription": "Recopila información y tendencias",
-    "contentDescription": "Crea y edita contenido"
+    "researchDescription": "Recopilar información y tendencias",
+    "contentDescription": "Crear y editar contenido"
   },
   "languageSwitcher": {
     "improveTranslations": "Ayúdanos a mejorar las traducciones"
