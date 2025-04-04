@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, getDocs, limit, query } from "firebase/firestore";
+import { getFirestore, collection, getDocs, limit, query, doc, getDoc, where } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from 'firebase/functions';
 import { createRequiredIndexes } from './firebaseUtils';
@@ -36,22 +36,40 @@ export const testFirestoreConnection = async (): Promise<boolean> => {
     const currentUser = auth.currentUser;
     console.log('Current user during Firestore test:', currentUser?.uid || 'No user authenticated');
     
-    // Try to fetch a single document from any collection
-    const testQuery = query(collection(db, 'content'), limit(1));
-    const snapshot = await getDocs(testQuery);
+    if (!currentUser) {
+      console.log('No authenticated user found during Firestore test');
+      return false;
+    }
     
-    // Log more details about the connection status
-    console.log('Firestore connection successful!', {
-      empty: snapshot.empty,
-      size: snapshot.size,
-      authenticated: !!currentUser
-    });
-    
-    // For testing mode, we don't require authentication for successful connection
-    // Return true if the connection to Firestore works, regardless of authentication
-    return true;
+    // First try to check connectivity using a simple exists() check
+    // which doesn't require read permission on documents
+    try {
+      // Try to check if any document exists in system collection (which should always be accessible)
+      const systemDocRef = doc(db, 'system', 'status');
+      await getDoc(systemDocRef);
+      console.log('Firestore connection successful via system check');
+      return true;
+    } catch (systemCheckError) {
+      console.log('System document check failed, trying fallback test', systemCheckError);
+      
+      // Fallback: Try to fetch user's own content
+      try {
+        const userContentQuery = query(
+          collection(db, 'content'),
+          where('userId', '==', currentUser.uid),
+          limit(1)
+        );
+        
+        await getDocs(userContentQuery);
+        console.log('Firestore connection successful via user content check');
+        return true;
+      } catch (userContentError) {
+        console.error('All Firestore connection tests failed:', userContentError);
+        return false;
+      }
+    }
   } catch (error) {
-    console.error('Firestore connection failed:', error);
+    console.error('Firestore connection test error:', error);
     return false;
   }
 };

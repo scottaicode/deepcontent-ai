@@ -59,7 +59,16 @@
     "showLess": "Show Less",
     "whatToDo": "What to do:",
     "comingSoon": "Coming Soon",
-    "yes": "Yes"
+    "yes": "Yes",
+    "no": "No",
+    "warning": "Warning",
+    "info": "Info",
+    "authenticated": "Authenticated",
+    "notAuthenticated": "Not Authenticated",
+    "connected": "Connected",
+    "connectionFailed": "Connection Failed",
+    "checking": "Checking...",
+    "never": "Never"
   },
   "navigation": {
     "home": "Home",

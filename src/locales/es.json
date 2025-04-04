@@ -25,7 +25,15 @@
     "showMore": "Mostrar Más",
     "showLess": "Mostrar Menos",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "warning": "Advertencia",
+    "info": "Información",
+    "authenticated": "Autenticado",
+    "notAuthenticated": "No Autenticado",
+    "connected": "Conectado",
+    "connectionFailed": "Conexión Fallida",
+    "checking": "Verificando...",
+    "never": "Nunca"
   },
   "navigation": {
     "home": "Inicio",
