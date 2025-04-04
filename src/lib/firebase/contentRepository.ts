@@ -66,12 +66,12 @@ export const saveContent = async (contentData: Omit<ContentItem, 'id' | 'created
     }
     
     // Try to access collection first to verify permissions/existence
-    try {
-      await getDocs(query(collection(db, COLLECTION), limit(1)));
-    } catch (collectionError) {
-      console.error("Error accessing collection:", collectionError);
-      throw new Error(`Cannot access collection "${COLLECTION}". Check permissions or if collection exists.`);
-    }
+    // try {
+    //   await getDocs(query(collection(db, COLLECTION), limit(1)));
+    // } catch (collectionError) {
+    //   console.error("Error accessing collection:", collectionError);
+    //   throw new Error(`Cannot access collection "${COLLECTION}". Check permissions or if collection exists.`);
+    // }
     
     // Prepare the data with timestamp fields
     const now = serverTimestamp();
