@@ -3193,6 +3193,9 @@ ${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best p
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     
+    // Store interval IDs for cleanup
+    let progressIntervalId: ReturnType<typeof setInterval> | undefined;
+    
     try {
       // Set timeout for cancellation (3 minutes max to prevent browser timeout)
       const fetchTimeoutId = setTimeout(() => {
@@ -3231,7 +3234,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       }
       
       // Set up progress tracking
-      const progressIntervalId = setInterval(() => {
+      progressIntervalId = setInterval(() => {
         setGenerationProgress(prev => {
           // More gradual progress simulation up to 85%
           if (prev < 85) {
@@ -3241,24 +3244,29 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           return prev;
         });
       }, 10000); // Every 10 seconds
-      
+
       // Add failsafe timeout - if we reach 85% progress, start emergency fallback
       const emergencyFallbackId = setTimeout(() => {
         if (generationProgress >= 85 && isGenerating) {
           console.log('[ROBUST] Emergency fallback triggered - generating local research');
-          clearInterval(progressIntervalId);
+          
+          // Clear the progress interval if it exists
+          if (progressIntervalId) {
+            clearInterval(progressIntervalId);
+            progressIntervalId = undefined;
+          }
           
           // Generate emergency fallback and use it
-          const fallbackContent = generateEmergencyFallbackResearch();
-          setDeepResearch(fallbackContent);
-          sessionStorage.setItem('deepResearch', fallbackContent);
+          const emergencyContent = generateEmergencyFallbackResearch();
+          setDeepResearch(emergencyContent);
+          sessionStorage.setItem('deepResearch', emergencyContent);
           
           // Save as research results
-          const researchResults = {
+          const emergencyResults = {
             researchMethod: 'emergency-fallback',
-            perplexityResearch: fallbackContent
+            perplexityResearch: emergencyContent
           };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+          sessionStorage.setItem('researchResults', JSON.stringify(emergencyResults));
           
           // Complete progress
           setGenerationProgress(100);
@@ -3271,7 +3279,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           
           toast.success('Research generation completed with fallback content');
         }
-      }, 60000); // After 1 minute, consider emergency fallback
+      }, 60000);
       
       try {
         // Attempt API request with shorter timeout
@@ -3295,8 +3303,12 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         
         // Process response
         if (!response.ok) {
-          // Clear interval and throw error for retry/fallback handling
-          clearInterval(progressIntervalId);
+          // Clear the progress interval if it exists
+          if (progressIntervalId) {
+            clearInterval(progressIntervalId);
+            progressIntervalId = undefined;
+          }
+          
           throw new Error(`API error: ${response.status}`);
         }
         
