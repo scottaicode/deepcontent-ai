@@ -647,50 +647,31 @@ export default function ResearchPage() {
     }
   };
   
-  // Add a useEffect to handle automatic transitions based on deepResearch
+  // Add a useEffect to automatically transition to step 3 when research is complete
   useEffect(() => {
     if (deepResearch && !isGenerating) {
-      console.log('Checking whether to auto-transition based on research data...');
+      console.log('Auto-transitioning to research complete step');
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        // Get the step from the URL query parameters
-        if (typeof window !== 'undefined') {
-          const urlParams = new URLSearchParams(window.location.search);
-          const stepParam = urlParams.get('step');
-          
-          // If URL explicitly requests step 3, respect that and stay there
-          if (stepParam === '3') {
-            console.log('URL explicitly requests step 3 (Generate Research) - not auto-transitioning');
-            return;
+        setResearchStep(3);
+        // Make sure we save the research results again just in case
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
           }
-          
-          // In all other cases, transition normally based on current step
-          console.log(`Current step is ${researchStep} with research data available`);
-          
-          // Only transition if we're in step 3 (Generate Research) or below
-          if (researchStep <= 3) {
-            console.log('Auto-transitioning to Research Results (step 4)');
-            setResearchStep(4);
-            
-            // Save research results to session storage
-            const researchResults: ResearchResults = {
-              researchMethod: 'perplexity',
-              perplexityResearch: deepResearch,
-              trendingTopics: [],
-              dataSources: {
-                reddit: true,
-                rss: true
-              }
-            };
-            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          }
-        }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+        console.log('Research step set to 3 (complete) and data saved');
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [deepResearch, isGenerating, researchStep]);
+  }, [deepResearch, isGenerating]);
   
   // Update the handleGenerateDeepResearch function to use Perplexity instead of Claude
   const handleGenerateDeepResearch = async () => {
@@ -961,19 +942,8 @@ Language: ${language || 'en'}`
             };
             sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
             
-            // Check URL parameters before deciding which step to show
-            const urlParams = new URLSearchParams(window.location.search);
-            const stepParam = urlParams.get('step');
-            
-            // Only move to step 4 if the URL doesn't explicitly request step 3
-            if (stepParam === '3') {
-              console.log('[DEBUG] Staying at step 3 (Generate Research) as specified in URL');
-              setResearchStep(3);
-            } else {
-              // Default behavior - move to results
-              console.log('[DEBUG] Moving to step 4 (Research Results)');
-              setResearchStep(4);
-            }
+            // Move to the next step
+            setResearchStep(4);
             
             // Show success toast
             toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
@@ -1429,47 +1399,21 @@ If you'd like complete research, please try again later when our research servic
           ? `${enrichedDetails}. ${additionalContext}` 
           : additionalContext;
             
-        // Create updated details with enriched information AND follow-up Q&A
-        const updatedDetails = {
+        // Update content details with enriched information
+        setContentDetails({
           ...safeContentDetails,
           primarySubject: enrichedSubject,
-          subjectDetails: enrichedDetails,
-          followUp: {
-            questions: followUpQuestions,
-            answers: followUpAnswers
-          }
-        };
+          subjectDetails: enrichedDetails
+        });
         
-        // Update state and save to session storage
-        setContentDetails(updatedDetails);
-        sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
+        // Save to session storage
+        sessionStorage.setItem('contentDetails', JSON.stringify({
+          ...safeContentDetails,
+          primarySubject: enrichedSubject,
+          subjectDetails: enrichedDetails
+        }));
       }
-    } else {
-      // Even if no answers, still save the questions
-      const updatedDetails = {
-        ...safeContentDetails,
-        followUp: {
-          questions: followUpQuestions,
-          answers: []
-        }
-      };
-      
-      // Update state and save to session storage
-      setContentDetails(updatedDetails);
-      sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
     }
-    
-    // Clear any existing research results to force fresh generation
-    setDeepResearch('');
-    sessionStorage.removeItem('deepResearch');
-    sessionStorage.removeItem('researchResults');
-    
-    // Reset loading and error states
-    setError(null);
-    setIsGenerating(false);
-    setGenerationProgress(0);
-    
-    console.log('[DEBUG] Cleared cached research data to force fresh generation');
     
     // Move to research generation step
     setResearchStep(3);
@@ -2678,16 +2622,6 @@ If you'd like complete research, please try again later when our research servic
       return;
     }
     
-    // Get URL parameters first to guide our behavior
-    const urlParams = new URLSearchParams(window.location.search);
-    const stepParam = urlParams.get('step');
-    const parsedStep = stepParam ? parseInt(stepParam, 10) : null;
-    
-    // If we're specifically requesting step 3 (Generate Research), 
-    // do not auto-load and show cached research results
-    const shouldSkipCache = parsedStep === 3;
-    console.log(`[DEBUG] URL step parameter: ${stepParam}, Should skip cache: ${shouldSkipCache}`);
-    
     // Try to load content details from session storage
     try {
       const storedContentDetails = sessionStorage.getItem('contentDetails');
@@ -2697,60 +2631,63 @@ If you'd like complete research, please try again later when our research servic
         setContentDetails(JSON.parse(storedContentDetails));
       }
       
-      // Only load research results if we're not explicitly skipping cache
-      if (!shouldSkipCache) {
-        // Load research results if they exist
-        const storedResearchResults = sessionStorage.getItem('researchResults');
-        if (storedResearchResults) {
-          console.log('Loaded research results from session storage');
-          const parsedResults = JSON.parse(storedResearchResults);
-          
-          // Clean any research content that exists in the results
-          if (parsedResults.perplexityResearch) {
-            parsedResults.perplexityResearch = cleanResearchContent(parsedResults.perplexityResearch);
-          }
-          if (parsedResults.claudeResearch) {
-            parsedResults.claudeResearch = cleanResearchContent(parsedResults.claudeResearch);
-          }
-          
-          setResearchResults(parsedResults);
+      // Load research results if they exist
+      const storedResearchResults = sessionStorage.getItem('researchResults');
+      if (storedResearchResults) {
+        console.log('Loaded research results from session storage');
+        const parsedResults = JSON.parse(storedResearchResults);
+        
+        // Clean any research content that exists in the results
+        if (parsedResults.perplexityResearch) {
+          parsedResults.perplexityResearch = cleanResearchContent(parsedResults.perplexityResearch);
+        }
+        if (parsedResults.claudeResearch) {
+          parsedResults.claudeResearch = cleanResearchContent(parsedResults.claudeResearch);
         }
         
-        // Load deep research if it exists, but don't auto-advance to a different step
-        const storedDeepResearch = sessionStorage.getItem('deepResearch');
-        if (storedDeepResearch) {
-          console.log('Loaded deep research from session storage');
-          // Clean the research content before setting it
-          setDeepResearch(cleanResearchContent(storedDeepResearch));
-        }
-        
-        // Load basic research if it exists
-        const storedBasicResearch = sessionStorage.getItem('basicResearch');
-        if (storedBasicResearch) {
-          console.log('Loaded basic research from session storage');
-          // Clean the basic research content before setting it
-          setBasicResearch(cleanResearchContent(storedBasicResearch));
-        }
-      } else {
-        console.log('Skipping cached research results since we are on step 3 (Generate Research)');
-        // Clear research data when explicitly requesting step 3
-        setDeepResearch('');
-        setResearchResults({});
+        setResearchResults(parsedResults);
       }
       
-      // Handle research step
-      if (parsedStep !== null && !isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
-        // If URL has a step parameter, it takes highest priority
-        setResearchStep(parsedStep);
-        console.log(`Setting research step to ${parsedStep} from URL parameter`);
-        sessionStorage.setItem('researchStep', parsedStep.toString());
-      } else {
-        // If no URL step parameter, try to use saved step
-        const storedResearchStep = sessionStorage.getItem('researchStep');
-        if (storedResearchStep) {
-          console.log('Loaded research step from session storage:', storedResearchStep);
-          const storedStep = parseInt(storedResearchStep, 10);
-          setResearchStep(storedStep);
+      // MODIFY THIS: Load deep research if it exists, but don't auto-advance to a different step
+      const storedDeepResearch = sessionStorage.getItem('deepResearch');
+      if (storedDeepResearch) {
+        console.log('Loaded deep research from session storage');
+        // Clean the research content before setting it
+        setDeepResearch(cleanResearchContent(storedDeepResearch));
+        // DO NOT auto-advance - let the user explicitly go through the research process
+        // Comment out or remove: setResearchStep(3);
+      }
+      
+      // Load basic research if it exists
+      const storedBasicResearch = sessionStorage.getItem('basicResearch');
+      if (storedBasicResearch) {
+        console.log('Loaded basic research from session storage');
+        // Clean the basic research content before setting it
+        setBasicResearch(cleanResearchContent(storedBasicResearch));
+      }
+      
+      // Load research step if it exists - but only if the step is explicitly in the URL
+      const storedResearchStep = sessionStorage.getItem('researchStep');
+      if (storedResearchStep) {
+        console.log('Loaded research step from session storage:', storedResearchStep);
+        
+        // Check if there's an explicit step in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const stepParam = urlParams.get('step');
+        
+        // Only set the step from session storage if it's not in the URL
+        if (!stepParam) {
+          // If we're loading previous research, make sure to show the Generate Research step
+          // instead of automatically jumping to results
+          const parsedStep = parseInt(storedResearchStep, 10);
+          
+          // If step would be 4 (results), set it to 3 (generate) instead
+          // so the user can explicitly generate new research
+          if (parsedStep === 4 && storedDeepResearch) {
+            setResearchStep(3);
+          } else {
+            setResearchStep(parsedStep);
+          }
         }
       }
       
@@ -3126,40 +3063,23 @@ If you'd like complete research, please try again later when our research servic
         
         // Format only questions with actual answers
         const answeredQuestions = questions
-          .map((q: string, i: number) => answers[i] && answers[i].trim() ? 
-            language === 'es' ? 
-              `Pregunta: ${q}\nRespuesta: ${answers[i]}` : 
-              `Q: ${q}\nA: ${answers[i]}`
-          : null)
+          .map((q: string, i: number) => answers[i] && answers[i].trim() ? `Q: ${q}\nA: ${answers[i]}` : null)
           .filter(Boolean);
         
         if (answeredQuestions.length > 0) {
-          followUpSection = language === 'es' ? 
-            "\n\nRespuestas de Seguimiento:\n" + answeredQuestions.join("\n\n") :
-            "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
+          followUpSection = "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
         }
       }
       
       // Build context
-      const contextString = language === 'es' ?
-        `Tema: "${safeContentDetails?.researchTopic || ''}"
-Plataforma: ${safeContentDetails?.platform || 'facebook'}, 
-Tipo de Contenido: ${safeContentDetails?.contentType || 'social-post'},
-Audiencia Objetivo: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}` :
-        `Topic: "${safeContentDetails?.researchTopic || ''}"
+      const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
 Platform: ${safeContentDetails?.platform || 'facebook'}, 
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
 Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}`;
       
       // Update status message periodically with informative messages
       let messageIndex = 0;
-      const statusMessages = language === 'es' ? [
-        'Consultando bases de datos de conocimiento...',
-        'Analizando fuentes de información...',
-        'Sintetizando resultados de investigación...',
-        'Organizando hallazgos clave...',
-        'Finalizando documento de investigación...'
-      ] : [
+      const statusMessages = [
         'Querying knowledge databases...',
         'Analyzing information sources...',
         'Synthesizing research findings...',
@@ -3167,10 +3087,19 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         'Finalizing research document...'
       ];
       
+      const spanishStatusMessages = [
+        'Consultando bases de conocimiento...',
+        'Analizando fuentes de información...',
+        'Sintetizando hallazgos de la investigación...',
+        'Organizando información clave...',
+        'Finalizando documento de investigación...'
+      ];
+      
       // Update status message every 30 seconds
       const messageInterval = setInterval(() => {
-        messageIndex = (messageIndex + 1) % statusMessages.length;
-        setStatusMessage(statusMessages[messageIndex]);
+        const messages = language === 'es' ? spanishStatusMessages : statusMessages;
+        messageIndex = (messageIndex + 1) % messages.length;
+        setStatusMessage(messages[messageIndex]);
       }, 30000);
       
       try {

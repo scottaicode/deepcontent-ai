@@ -754,11 +754,11 @@ export const ContentForm: React.FC<ContentFormProps> = ({
   const renderPlatformSelection = () => (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow transition-all duration-300 p-5">
       <label className="block text-lg font-medium text-gray-800 dark:text-gray-200 mb-3">
-        {t('createPage.platformSectionTitle', { defaultValue: 'Select your target platform' })} <span className="text-red-500">*</span>
+        {t('createPage.platformSection.title')} <span className="text-red-500">*</span>
       </label>
       
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        {t('createPage.platformSection.info', { defaultValue: 'Select the primary platform for your content. This will determine the appropriate content format and optimization.' })}
+        {t('createPage.platformSection.info')}
       </p>
       
       <div className="mt-4 space-y-3">
@@ -781,7 +781,7 @@ export const ContentForm: React.FC<ContentFormProps> = ({
                   {getPlatformIcon(key)}
                 </div>
                 <div className="font-medium">
-                  {getPlatformDisplayName(key)}
+                  {t(`platformOptions.${key}`, { defaultValue: key.charAt(0).toUpperCase() + key.slice(1).replace('-', ' ') })}
                 </div>
               </div>
               <div className={`text-sm transition-transform duration-300 ${expandedPlatform === key ? 'rotate-180 text-blue-500' : 'text-gray-400'}`}>▼</div>
@@ -792,35 +792,23 @@ export const ContentForm: React.FC<ContentFormProps> = ({
               )}
             </div>
             
-            {/* Expandable section with sub-platform options */}
-            {expandedPlatform === key && (
-              <div className="bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 p-4">
-                {PLATFORM_OPTIONS[key] && PLATFORM_OPTIONS[key].length > 0 ? (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                      {t('createPage.subPlatformSection.title', { defaultValue: 'Choose Specific' })}
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {PLATFORM_OPTIONS[key].map((option) => (
-                        <button
-                          key={option.id}
-                          onClick={() => handleSubPlatformSelect(option.id)}
-                          className={`text-sm px-3 py-2 rounded-lg transition-colors ${
-                            subPlatform === option.id
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
-                              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-650'
-                          }`}
-                        >
-                          {option.name}
-                        </button>
-                      ))}
+            {expandedPlatform === key && PLATFORM_OPTIONS[key] && (
+              <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-2">
+                  {PLATFORM_OPTIONS[key].map((option) => (
+                    <div
+                      key={option.id}
+                      className={`p-3 border rounded-lg text-center cursor-pointer transition-all duration-200 transform hover:scale-[1.02] ${
+                        subPlatform === option.id 
+                          ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300 shadow-sm dark:from-blue-900/40 dark:to-indigo-900/40 dark:border-blue-600' 
+                          : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 dark:border-gray-700'
+                      }`}
+                      onClick={() => handleSubPlatformSelect(option.id)}
+                    >
+                      {t(`subPlatformOptions.${option.id}`, { defaultValue: option.name })}
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                    No specific options available for this platform
-                  </p>
-                )}
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1192,38 +1180,6 @@ export const ContentForm: React.FC<ContentFormProps> = ({
     // you could store them in an array instead of replacing the previous one
     // For example:
     // setDocumentContents(prev => [...prev, result]);
-  };
-
-  // For each platform card, get the display name from the platform translation
-  const getPlatformDisplayName = (platformId: string) => {
-    // First try using the translation system
-    const translationKey = `createPage.platforms.${platformId.toLowerCase()}`;
-    const translated = t(translationKey);
-    
-    // If we got back a real translation (not just the key)
-    if (typeof translated === 'string' && !translated.includes(translationKey)) {
-      return translated;
-    }
-    
-    // As a fallback, use default platform names with capitalization
-    return language === 'es' ? 
-      translatePlatformToSpanish(platformId) : 
-      platformId.charAt(0).toUpperCase() + platformId.slice(1);
-  };
-
-  // Function to manually translate platform names to Spanish as a fallback
-  const translatePlatformToSpanish = (platformId: string) => {
-    const spanishPlatforms: Record<string, string> = {
-      'blog': 'Blog',
-      'social': 'Redes Sociales',
-      'email': 'Correo Electrónico',
-      'youtube': 'YouTube',
-      'presentation': 'Presentación',
-      'google-ads': 'Anuncios de Google',
-      'research-report': 'Informe de Investigación'
-    };
-    
-    return spanishPlatforms[platformId] || platformId.charAt(0).toUpperCase() + platformId.slice(1);
   };
 
   return (

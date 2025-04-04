@@ -181,11 +181,6 @@
     "subPlatformSection": {
       "title": "Elige Específico"
     },
-    "steps": {
-      "step1": "Tipo de Contenido",
-      "step2": "Investigación",
-      "step3": "Generación de Contenido"
-    },
     "contentAnalysisTitle": "Herramientas de Análisis de Contenido",
     "contentAnalysisDescription": "Enriquece tu contenido analizando medios existentes para obtener perspectivas.",
     "youtubeTranscriptTitle": "Análisis de Transcripción de YouTube",
@@ -1055,8 +1050,8 @@
     "defineDetails": "Define los detalles de tu contenido"
   },
   "contentCreationSteps": {
-    "researchDescription": "Recopilar información y tendencias",
-    "contentDescription": "Crear y editar contenido"
+    "researchDescription": "Recopila información y tendencias",
+    "contentDescription": "Crea y edita contenido"
   },
   "languageSwitcher": {
     "improveTranslations": "Ayúdanos a mejorar las traducciones"
@@ -1336,19 +1331,9 @@
   },
   "refineContent": {
     "title": "Refinar Contenido",
-    "promptInstructions": "Proporciona comentarios o instrucciones específicas para mejorar tu contenido",
-    "placeholder": "Ej., Hazlo más conciso, añade más datos, cambia el tono para que sea más profesional...",
-    "refineButton": "Refinar",
-    "error": "Error al refinar contenido",
-    "success": "Contenido refinado con éxito",
-    "saving": "Guardando cambios...",
-    "instructionsLabel": "Instrucciones de refinamiento",
-    "feedbackLabel": "Tus comentarios",
-    "submitButton": "Enviar feedback",
-    "cancelButton": "Cancelar",
-    "processingFeedback": "Procesando tus comentarios...",
-    "refiningInProgress": "Refinamiento en progreso...",
-    "specificDirections": "Proporciona direcciones específicas para mejorar el contenido"
+    "promptInstructions": "Instrucciones de Refinamiento",
+    "placeholder": "Ingresa tus instrucciones de refinamiento aquí...",
+    "refineButton": "Refinar"
   },
   "personas": {
     "ariastar": {

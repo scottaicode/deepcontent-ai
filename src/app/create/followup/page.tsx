@@ -176,12 +176,6 @@ export default function FollowupPage() {
       
       sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
       
-      // Clear any cached research to force fresh generation
-      sessionStorage.removeItem('deepResearch');
-      sessionStorage.removeItem('researchResults');
-      sessionStorage.removeItem('basicResearch');
-      console.log('[FollowupPage] Cleared cached research to ensure fresh generation');
-      
       // Set the preventLanguageRedirect flag to avoid language redirect issues
       sessionStorage.setItem('preventLanguageRedirect', 'true');
       console.log('[FollowupPage] Setting preventLanguageRedirect flag for research page navigation');

@@ -34,7 +34,6 @@ export interface ContentItem {
   mediaUrls?: string[];
   style?: string;
   length?: 'short' | 'medium' | 'long';
-  language?: string;
 }
 
 const COLLECTION = 'content';
@@ -48,50 +47,23 @@ export const saveContent = async (contentData: Omit<ContentItem, 'id' | 'created
     
     // Validate required data before saving
     if (!contentData.title || !contentData.content || !contentData.userId) {
-      const missingFields = [];
-      if (!contentData.title) missingFields.push('title');
-      if (!contentData.content) missingFields.push('content');
-      if (!contentData.userId) missingFields.push('userId');
-      
-      const errorMessage = `Missing required content data: ${missingFields.join(', ')}`;
-      console.error(errorMessage, contentData);
-      throw new Error(errorMessage);
+      throw new Error('Missing required content data: title, content, or userId');
     }
     
     // Ensure contentType has a value
     if (!contentData.contentType) {
-      console.log('No contentType provided, using default: "general"');
       contentData.contentType = 'general';
     }
     
     // Ensure platform has a value
     if (!contentData.platform) {
-      console.log('No platform provided, using default: "other"');
       contentData.platform = 'other';
     }
     
     // Ensure status has a value
     if (!contentData.status) {
-      console.log('No status provided, using default: "draft"');
       contentData.status = 'draft';
     }
-
-    // Add language if not present
-    if (!contentData.language) {
-      console.log('No language provided, using default: "en"');
-      contentData.language = 'en';
-    }
-    
-    // Log data being saved for debugging
-    console.log('Saving content data:', {
-      userId: contentData.userId,
-      title: contentData.title,
-      contentType: contentData.contentType,
-      platform: contentData.platform,
-      status: contentData.status,
-      language: contentData.language,
-      contentLength: contentData.content?.length || 0
-    });
     
     // Prepare the data with timestamp fields
     const now = serverTimestamp();
@@ -101,29 +73,11 @@ export const saveContent = async (contentData: Omit<ContentItem, 'id' | 'created
       updatedAt: now
     };
     
-    // Create the document with error handling
-    try {
-      const docRef = await addDoc(collection(db, COLLECTION), contentToSave);
-      console.log('Document created with ID:', docRef.id);
-      return docRef.id;
-    } catch (firestoreError) {
-      // Handle specific Firestore errors
-      console.error('Firestore error when saving content:', firestoreError);
-      
-      let errorMessage = 'Failed to save to database';
-      
-      // Check for permission denied errors
-      if (firestoreError instanceof Error) {
-        if (firestoreError.message.includes('permission-denied') || 
-            firestoreError.message.includes('Missing or insufficient permissions')) {
-          errorMessage = 'Permission denied: Check Firestore security rules';
-        } else if (firestoreError.message.includes('network')) {
-          errorMessage = 'Network error when saving content';
-        }
-      }
-      
-      throw new Error(errorMessage);
-    }
+    // Create the document
+    const docRef = await addDoc(collection(db, COLLECTION), contentToSave);
+    console.log('Document created with ID:', docRef.id);
+    
+    return docRef.id;
   } catch (error) {
     console.error("Error saving content:", error);
     throw error;

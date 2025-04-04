@@ -4,7 +4,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useToast } from '@/lib/hooks/useToast';
@@ -16,8 +16,6 @@ import { useContent } from '@/lib/hooks/useContent';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { db } from "@/lib/firebase/firebase";
 import ReactMarkdown from 'react-markdown';
-import { saveContent } from '@/lib/firebase/contentRepository';
-import { useSearchParams } from 'next/navigation';
 
 // Enhanced research results interface
 interface ResearchResults {
@@ -1022,22 +1020,18 @@ export default function ContentGenerator() {
   const handleSaveContent = async () => {
     if (!generatedContent || !user) {
       toast.toast({
-        title: t('actions.saveToDashboardError', { 
-          defaultValue: language === 'es' ? 'Falta contenido o información del usuario' : 'Content or user information missing'
-        }),
+        title: t('actions.saveToDashboardError', { defaultValue: 'Content or user information missing' }),
         variant: "destructive"
       });
       return;
     }
     
     try {
-      console.log('Saving content to dashboard with user ID:', user.uid, 'in language:', language);
-      
       // Create a content object with all necessary metadata
       const contentToSave = {
         userId: user.uid,
         content: generatedContent,
-        title: contentDetails.researchTopic || (language === 'es' ? 'Contenido sin título' : 'Untitled Content'),
+        title: contentDetails.researchTopic || 'Untitled Content',
         contentType: contentDetails.contentType,
         platform: contentDetails.platform,
         subPlatform: contentDetails.subPlatform,
@@ -1046,24 +1040,14 @@ export default function ContentGenerator() {
         persona: currentPersona,
         length: contentSettings.length as 'short' | 'medium' | 'long',
         status: 'published' as const,
-        language: language || 'en', // Add language to the saved content
       };
-      
-      // Log the content being saved
-      console.log('Content to save:', {
-        ...contentToSave,
-        content: `${contentToSave.content.substring(0, 50)}... (${contentToSave.content.length} chars)`
-      });
       
       // Save the content using the content service
       const savedContent = await saveContent(contentToSave);
-      console.log('Content saved successfully with ID:', savedContent);
       
       // Show success message
       toast.toast({
-        title: t('actions.saveToDashboardSuccess', { 
-          defaultValue: language === 'es' ? '¡Contenido guardado en el panel correctamente!' : 'Content saved to dashboard successfully!' 
-        }),
+        title: t('actions.saveToDashboardSuccess', { defaultValue: 'Content saved to dashboard successfully!' }),
         variant: "default"
       });
       
@@ -1075,52 +1059,10 @@ export default function ContentGenerator() {
       }, 1000);
     } catch (error) {
       console.error('Error saving content:', error);
-      
-      // Show error message with language-specific text
       toast.toast({
-        title: t('actions.saveToDashboardError', { 
-          defaultValue: language === 'es' ? 'Error al guardar el contenido. Por favor, inténtelo de nuevo.' : 'Failed to save content. Please try again.' 
-        }),
-        description: error instanceof Error ? error.message : undefined,
+        title: t('actions.saveToDashboardError', { defaultValue: 'Failed to save content. Please try again.' }),
         variant: "destructive"
       });
-      
-      // Offer fallback: export content as text file
-      toast.toast({
-        title: language === 'es' 
-          ? '¿Desea descargar el contenido como archivo de texto?' 
-          : 'Would you like to download the content as a text file?',
-        description: language === 'es'
-          ? 'Hubo un problema al guardar en la base de datos. Puede guardar localmente su contenido.'
-          : 'There was a problem saving to the database. You can save your content locally.',
-        variant: "default"
-      });
-      
-      // Create a download button that doesn't require promises or dialog
-      const downloadBtn = document.createElement('button');
-      downloadBtn.innerText = language === 'es' ? 'Descargar Contenido' : 'Download Content';
-      downloadBtn.className = 'fixed bottom-4 right-4 px-4 py-2 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 z-50';
-      downloadBtn.onclick = () => {
-        // Create and download a text file
-        const element = document.createElement('a');
-        const file = new Blob([generatedContent], {type: 'text/plain'});
-        element.href = URL.createObjectURL(file);
-        element.download = `content-${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(element);
-        element.click();
-        document.body.removeChild(element);
-        
-        toast.success(language === 'es' ? 'Contenido descargado' : 'Content downloaded');
-        document.body.removeChild(downloadBtn);
-      };
-      document.body.appendChild(downloadBtn);
-      
-      // Auto-remove button after 10 seconds
-      setTimeout(() => {
-        if (document.body.contains(downloadBtn)) {
-          document.body.removeChild(downloadBtn);
-        }
-      }, 10000);
     }
   };
 
@@ -1137,72 +1079,25 @@ export default function ContentGenerator() {
       // Show the loading state but keep content visible
       setStatusMessage(t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' }));
 
-      // For Spanish, ensure the feedback is very concise to avoid timeouts
-      let enhancedFeedback = refinementPrompt;
+      const response = await fetch('/api/claude/refine-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          originalContent: generatedContent,
+          feedback: refinementPrompt,
+          style: currentPersona,
+          contentType: contentDetails?.contentType || '',
+          platform: contentDetails?.platform || '',
+          language: language
+        }),
+      });
       
-      // In Spanish mode, remind user to keep it short and trim if too long
-      if (language === 'es') {
-        // If feedback is longer than 100 chars, show warning
-        if (refinementPrompt.length > 100) {
-          console.log('[Refinement] Spanish feedback is long, might cause timeout:', refinementPrompt.length);
-          toast.toast({
-            title: "Instrucción muy larga",
-            description: "Instrucciones más cortas tienen mayor probabilidad de éxito.",
-            variant: "default"
-          });
-        }
-        
-        // Simplify the feedback to just the essential instruction
-        enhancedFeedback = `[ES] ${refinementPrompt.trim()}`;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
       }
-
-      // Function to attempt refinement with retry logic
-      const attemptRefinement = async (retryCount = 0): Promise<{content: string}> => {
-        try {
-          const response = await fetch('/api/claude/refine-content', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              originalContent: generatedContent,
-              feedback: enhancedFeedback,
-              style: currentPersona,
-              contentType: contentDetails?.contentType || '',
-              platform: contentDetails?.platform || '',
-              language: language,
-              isSpanishMode: language === 'es'
-            }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            
-            // For timeouts, retry once with simplified feedback
-            if ((response.status === 504 || errorData.error?.includes('timeout')) && retryCount < 1) {
-              console.log('[Refinement] Timeout detected, retrying with simplified feedback');
-              
-              // For retry, further simplify the feedback
-              if (language === 'es') {
-                enhancedFeedback = enhancedFeedback.substring(0, 80); // Truncate to 80 chars max
-              }
-              
-              // Wait 1 second before retry
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              return attemptRefinement(retryCount + 1);
-            }
-            
-            throw new Error(errorData.error || 'Failed to refine content');
-          }
-          
-          return await response.json();
-        } catch (error) {
-          console.error('Refinement attempt error:', error);
-          throw error;
-        }
-      };
       
-      // Attempt refinement with retry logic
-      const data = await attemptRefinement();
-      
+      const data = await response.json();
       if (!data.content) {
         throw new Error(t('contentGeneration.noRefinedContent', { defaultValue: 'No refined content received' }));
       }
@@ -1222,26 +1117,9 @@ export default function ContentGenerator() {
       toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {
       console.error('Refinement error:', error);
-      
-      // Format error message - with improved Spanish messages
-      let errorMessage = '';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('timeout') || error.message.includes('timed out')) {
-          errorMessage = language === 'es'
-            ? 'La operación ha superado el tiempo límite. Intenta con instrucciones más breves y simples.'
-            : 'The operation timed out. Try using shorter, simpler instructions.';
-        } else {
-          errorMessage = error.message;
-        }
-      } else {
-        errorMessage = t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' });
-      }
-      
-      toast.error(errorMessage);
+      toast.error(t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }));
     } finally {
       setIsRefinementLoading(false);
-      setStatusMessage('');
     }
   };
 
@@ -1709,7 +1587,7 @@ export default function ContentGenerator() {
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
-                              <span>{t('refineContent.refiningInProgress', { defaultValue: 'Refining Content...' })}</span>
+                              <span>{t('contentGeneration.refining', { defaultValue: 'Refining Content...' })}</span>
                             </>
                           ) : (
                             <span>{t('refineContent.refineButton', { defaultValue: 'Refine' })}</span>
