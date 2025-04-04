@@ -1079,16 +1079,27 @@ export default function ContentGenerator() {
       // Show the loading state but keep content visible
       setStatusMessage(t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' }));
 
+      // Create an enhanced feedback prompt that explicitly mentions the language
+      // This ensures Claude understands the context properly
+      let enhancedFeedback = refinementPrompt;
+      
+      // Add language context for Spanish mode
+      if (language === 'es') {
+        // Prepend an instruction to make it clear this is Spanish mode
+        enhancedFeedback = `[INSTRUCCIÓN EN ESPAÑOL] ${refinementPrompt}\n\nNota: El contenido está en español y la respuesta debe estar en español también.`;
+      }
+
       const response = await fetch('/api/claude/refine-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           originalContent: generatedContent,
-          feedback: refinementPrompt,
+          feedback: enhancedFeedback,
           style: currentPersona,
           contentType: contentDetails?.contentType || '',
           platform: contentDetails?.platform || '',
-          language: language
+          language: language,
+          isSpanishMode: language === 'es' // Add explicit Spanish mode flag
         }),
       });
       
@@ -1587,7 +1598,7 @@ export default function ContentGenerator() {
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
-                              <span>{t('contentGeneration.refining', { defaultValue: 'Refining Content...' })}</span>
+                              <span>{t('refineContent.refiningInProgress', { defaultValue: 'Refining Content...' })}</span>
                             </>
                           ) : (
                             <span>{t('refineContent.refineButton', { defaultValue: 'Refine' })}</span>

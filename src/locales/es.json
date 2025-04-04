@@ -1331,9 +1331,19 @@
   },
   "refineContent": {
     "title": "Refinar Contenido",
-    "promptInstructions": "Instrucciones de Refinamiento",
-    "placeholder": "Ingresa tus instrucciones de refinamiento aquí...",
-    "refineButton": "Refinar"
+    "promptInstructions": "Proporciona comentarios o instrucciones específicas para mejorar tu contenido",
+    "placeholder": "Ej., Hazlo más conciso, añade más datos, cambia el tono para que sea más profesional...",
+    "refineButton": "Refinar",
+    "error": "Error al refinar contenido",
+    "success": "Contenido refinado con éxito",
+    "saving": "Guardando cambios...",
+    "instructionsLabel": "Instrucciones de refinamiento",
+    "feedbackLabel": "Tus comentarios",
+    "submitButton": "Enviar feedback",
+    "cancelButton": "Cancelar",
+    "processingFeedback": "Procesando tus comentarios...",
+    "refiningInProgress": "Refinamiento en progreso...",
+    "specificDirections": "Proporciona direcciones específicas para mejorar el contenido"
   },
   "personas": {
     "ariastar": {

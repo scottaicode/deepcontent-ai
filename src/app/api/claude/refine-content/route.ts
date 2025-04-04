@@ -71,10 +71,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log('Request body received:', Object.keys(body));
     
-    const { originalContent, feedback, contentType, platform, style, researchData, language } = body;
+    const { originalContent, feedback, contentType, platform, style, researchData, language, isSpanishMode } = body;
     
     // Log language parameter for debugging
     console.log('Language parameter received:', language || 'not specified, defaulting to English');
+    console.log('Is Spanish mode:', isSpanishMode ? 'Yes' : 'No');
     
     if (!originalContent) {
       console.error('Missing originalContent in request');
@@ -185,38 +186,57 @@ WHEN REFINING CONTENT:
 - Incorporate "together" language to create connection with the reader
 `;
     }
+    
+    // Add style instructions for Spanish mode
+    if (isSpanishMode && style === 'ariastar') {
+      personaInstructions += `
 
-    // Build a comprehensive prompt that preserves context and emphasizes current best practices
+## ADAPTACIÓN ESPAÑOLA DE ARIASTAR
+En español, mantén los mismos elementos estructurales pero con estas adaptaciones:
+- Adapta tus expresiones de marca como "Aquí está mi verdad" o "El cambio de juego que hace todo lo demás parecer ordinario"
+- Usa expresiones coloquiales españolas naturales, evitando traducciones literales del inglés
+- Mantén un tono cálido, cercano y conversacional con el lector
+- Incluye preguntas retóricas que invitan a la reflexión: "¿Te suena familiar?" o "¿Alguna vez has sentido que...?"
+- Usa diminutivos ocasionales para crear cercanía cuando sea apropiado
+- Termina con un P.D. memorable en español que refuerce el mensaje principal
+
+### FRASES DE TRANSICIÓN EN ESPAÑOL
+- Nuevas secciones: "✨ Hablemos de [tema] ✨"
+- Ideas clave: "Aquí está mi verdad:"
+- Puntos principales: "¿El cambio de juego aquí?"
+- Pasos a seguir: "Tu próximo pequeño cambio:"
+- Ejemplos: "Imagina este escenario:"
+
+Recuerda que no se trata solo de traducir, sino de adaptar el contenido para que suene natural y auténtico en español.`;
+    }
+
+    // Create the custom prompt template
     const prompt = `<instructions>
-You are ${personaName}, refining content based on user feedback. Below is the original content, research data, and the user's feedback. 
-Apply the feedback while maintaining the style, tone, and purpose of the original content.
+${isSpanishMode ? '# IMPORTANTE: ESTA ES UNA SOLICITUD DE REFINAMIENTO EN ESPAÑOL\nEl contenido original está en español y la respuesta también debe estar en español.\n' : ''}
+You are refining an existing piece of content based on user feedback. The user has provided the original content and specific feedback on what changes they would like to see.
 
-${personaInstructions}
-
-Original Content:
+## ORIGINAL CONTENT
 ${originalContent}
 
-User Feedback:
+## USER FEEDBACK
 ${feedback}
 
-Content Type: ${contentType || 'Not specified'}
-Platform: ${platform || 'Not specified'}
-Style: ${style || 'professional'}
-Current Date: ${currentMonth} ${currentYear}
-Language: ${language || 'en'}
+## REFINEMENT INSTRUCTIONS
+${isSpanishMode ? 'INSTRUCCIONES DE REFINAMIENTO EN ESPAÑOL:' : 'REFINEMENT INSTRUCTIONS:'}
+${isSpanishMode ? 
+'1. El contenido original está en español y tu respuesta DEBE estar en español\n' +
+'2. Mantén el mismo estilo y tono del contenido original\n' +
+'3. Aplica ÚNICAMENTE los cambios solicitados por el usuario en su feedback\n' +
+'4. Si el usuario solicita cambios específicos, concéntrate en ellos\n' +
+'5. Asegúrate de que el contenido suene natural en español, no como una traducción\n'
+:
+'1. Maintain the same style and tone as the original content\n' +
+'2. Apply ONLY the changes requested in the user feedback\n' +
+'3. If the user requests specific changes, focus on those\n' +
+'4. Ensure the content flows naturally and maintains consistency\n'
+}
 
-## CRITICAL INSTRUCTIONS
-The content MUST be written in ${language === 'es' ? 'Spanish' : language || 'English'}.
-${language === 'es' ? 'Asegúrate de que el contenido esté completamente en español y use expresiones naturales en español, no traducciones literales del inglés.' : ''}
-
-## CRITICAL PLATFORM-SPECIFIC INSTRUCTIONS FOR ${currentMonth.toUpperCase()} ${currentYear}
-You MUST follow the current best practices for ${platform || 'digital content'} as of ${currentMonth} ${currentYear}.
-
-${researchData ? `## RESEARCH DATA (MARCH ${currentYear})
-${researchData}
-
-IMPORTANT: Ensure your refinements align with the latest best practices identified in this research data.
-` : ''}
+${personaInstructions}
 
 ${contentType && contentType.includes('google-ads') ? `## GOOGLE ADS SPECIFIC REQUIREMENTS FOR ${currentMonth.toUpperCase()} ${currentYear}
 Maintain Google Ads format with:
@@ -256,37 +276,72 @@ Maintain research report professional standards:
 ` : ''}
 
 ## CONTENT QUALITY REQUIREMENTS
-DO NOT use repetitive or filler phrases. Each sentence should provide unique value and information.
-Avoid phrases like:
-- "Let's analyze what's happening here"
-- "The data points are clear"
-- "According to the latest statistics" without actually providing statistics
-- "The numbers tell an interesting story" without explaining what the story is
-- "The trend emerges when we map the data" without describing the trend
-- "Let's talk about" without adding substantive content
+${isSpanishMode ? 
+'NO uses frases repetitivas o relleno. Cada frase debe proporcionar valor único e información.\n' +
+'Evita frases como:\n' +
+'- "Analicemos lo que está sucediendo aquí"\n' +
+'- "Los datos son claros"\n' +
+'- "Según las últimas estadísticas" sin proporcionar estadísticas reales\n' +
+'- "Los números cuentan una historia interesante" sin explicar cuál es la historia\n' +
+'- "La tendencia emerge cuando mapeamos los datos" sin describir la tendencia\n' +
+'- "Hablemos de" sin añadir contenido sustancial'
+:
+'DO NOT use repetitive or filler phrases. Each sentence should provide unique value and information.\n' +
+'Avoid phrases like:\n' +
+'- "Let\'s analyze what\'s happening here"\n' +
+'- "The data points are clear"\n' +
+'- "According to the latest statistics" without actually providing statistics\n' +
+'- "The numbers tell an interesting story" without explaining what the story is\n' +
+'- "The trend emerges when we map the data" without describing the trend\n' +
+'- "Let\'s talk about" without adding substantive content'
+}
 
-IF you need to reference data visualization:
-- Describe SPECIFIC metrics and numbers that would be shown
-- Use precise values (X increased by 42% over Y period)
-- Explain exactly what the visualization reveals
-- Imagine you're describing a real visual to someone who cannot see it
+${isSpanishMode ?
+'SI necesitas hacer referencia a visualización de datos:\n' +
+'- Describe métricas y números ESPECÍFICOS que se mostrarían\n' +
+'- Usa valores precisos (X aumentó un 42% en el período Y)\n' +
+'- Explica exactamente lo que revela la visualización\n' +
+'- Imagina que estás describiendo un visual real a alguien que no puede verlo'
+:
+'IF you need to reference data visualization:\n' +
+'- Describe SPECIFIC metrics and numbers that would be shown\n' +
+'- Use precise values (X increased by 42% over Y period)\n' +
+'- Explain exactly what the visualization reveals\n' +
+'- Imagine you\'re describing a real visual to someone who cannot see it'
+}
 
-AVOID GENERIC PLACEHOLDERS like "Let's analyze what's happening here".
-Each sentence must move the content forward with new information.
-
-Make targeted changes based on the feedback while preserving the overall structure and quality.
-You MUST maintain the same persona voice and distinctive style markers that were in the original content.
-Remember that digital best practices change rapidly - what worked even a few months ago may be ineffective now.
+${isSpanishMode ?
+'EVITA MARCADORES DE POSICIÓN GENÉRICOS como "Analicemos lo que está sucediendo aquí".\n' +
+'Cada frase debe hacer avanzar el contenido con nueva información.\n\n' +
+'Realiza cambios específicos basados en el feedback manteniendo la estructura general y la calidad.\n' +
+'DEBES mantener la misma voz de persona y los marcadores de estilo distintivos que estaban en el contenido original.\n' +
+'Recuerda que las mejores prácticas digitales cambian rápidamente - lo que funcionaba hace unos meses puede ser ineficaz ahora.'
+:
+'AVOID GENERIC PLACEHOLDERS like "Let\'s analyze what\'s happening here".\n' +
+'Each sentence must move the content forward with new information.\n\n' +
+'Make targeted changes based on the feedback while preserving the overall structure and quality.\n' +
+'You MUST maintain the same persona voice and distinctive style markers that were in the original content.\n' +
+'Remember that digital best practices change rapidly - what worked even a few months ago may be ineffective now.'
+}
 
 ## QUALITY CHECK REQUIREMENTS
-Before submitting your final content:
-1. Review for any repetitive phrases or sentences - each sentence should provide unique value
-2. Replace any generic placeholder text with specific, substantive content
-3. Ensure all data references include actual numbers or percentages
-4. Check that visualization descriptions include specific metrics and trends
-5. Verify that your content follows a logical flow without unnecessary repetition
-
-Return ONLY the revised content, ready for publication.
+${isSpanishMode ?
+'Antes de enviar tu contenido final:\n' +
+'1. Revisa si hay frases o oraciones repetitivas - cada oración debe proporcionar un valor único\n' +
+'2. Reemplaza cualquier texto genérico con contenido específico y sustancial\n' +
+'3. Asegúrate de que todas las referencias a datos incluyan números o porcentajes reales\n' +
+'4. Comprueba que las descripciones de visualización incluyan métricas y tendencias específicas\n' +
+'5. Verifica que tu contenido siga un flujo lógico sin repeticiones innecesarias\n\n' +
+'Devuelve SOLO el contenido revisado, listo para publicación.'
+:
+'Before submitting your final content:\n' +
+'1. Review for any repetitive phrases or sentences - each sentence should provide unique value\n' +
+'2. Replace any generic placeholder text with specific, substantive content\n' +
+'3. Ensure all data references include actual numbers or percentages\n' +
+'4. Check that visualization descriptions include specific metrics and trends\n' +
+'5. Verify that your content follows a logical flow without unnecessary repetition\n\n' +
+'Return ONLY the revised content, ready for publication.'
+}
 </instructions>`;
 
     // Get the API key from environment variables
@@ -299,9 +354,14 @@ Return ONLY the revised content, ready for publication.
       );
     }
 
+    // Create system message based on language
+    const systemMessage = isSpanishMode ?
+      `Eres un experto creador de contenido que ayuda a refinar contenido en español basado en comentarios del usuario. Sigues todas las mejores prácticas actuales para ${currentMonth} ${currentYear} y priorizas el diseño mobile-first (75% de peso), la optimización para búsqueda por voz y los requisitos de documentación E-E-A-T 2.0 en todos los refinamientos de contenido. TODAS TUS RESPUESTAS DEBEN ESTAR EN ESPAÑOL.` :
+      `You are an expert content creator helping refine content based on user feedback. You follow all current best practices for ${currentMonth} ${currentYear} and prioritize mobile-first design (75% weighting), voice search optimization, and E-E-A-T 2.0 documentation requirements in all content refinements.`;
+
     console.log('Calling Claude API...');
-    // Call Claude API with style parameter
-    const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional');
+    // Update callClaudeApi function to pass the system message
+    const refinedContent = await callClaudeWithLanguage(prompt, apiKey, systemMessage, style || 'professional');
     console.log('Content refined successfully, length:', refinedContent.length);
     
     // Return the response as JSON
@@ -312,5 +372,66 @@ Return ONLY the revised content, ready for publication.
       { error: error instanceof Error ? error.message : 'An unknown error occurred while refining the content' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Call the Claude API to refine content based on feedback with language support
+ */
+async function callClaudeWithLanguage(
+  promptText: string, 
+  apiKey: string, 
+  systemMessage: string,
+  style: string = 'professional'
+): Promise<string> {
+  try {
+    console.log('Creating Anthropic client...');
+    const anthropicClient = new Anthropic({
+      apiKey: apiKey,
+    });
+    
+    console.log('Calling Claude API with prompt...');
+    const response = await anthropicClient.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 4000,
+      temperature: 0.7,
+      system: systemMessage,
+      messages: [
+        { role: "user", content: promptText }
+      ]
+    });
+    
+    console.log('Claude API response received');
+    
+    // Process the response
+    let responseText = "";
+    if (response.content && Array.isArray(response.content) && response.content.length > 0) {
+      const firstContent = response.content[0];
+      if (typeof firstContent === 'string') {
+        responseText = firstContent;
+      } else if (firstContent && typeof firstContent === 'object') {
+        if ('text' in firstContent && typeof firstContent.text === 'string') {
+          responseText = firstContent.text;
+        } else if ('type' in firstContent && firstContent.type === 'text' && 'text' in firstContent && typeof firstContent.text === 'string') {
+          responseText = firstContent.text;
+        }
+      }
+    }
+    
+    if (!responseText) {
+      console.error('No response text found in Claude API response:', JSON.stringify(response));
+      throw new Error('No response text found in Claude API response');
+    }
+    
+    console.log('Response text length:', responseText.length);
+    
+    // Apply persona traits enhancement
+    const enhancedContent = enhanceWithPersonaTraits(responseText, style, 1.5); // Higher intensity for refinements
+    console.log(`Enhanced content with ${style} persona traits`);
+    
+    return enhancedContent;
+  } catch (error) {
+    console.error("Error calling Claude API:", error);
+    throw error;
   }
 } 
