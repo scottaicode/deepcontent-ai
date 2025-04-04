@@ -146,6 +146,9 @@ ${language === 'es' ? 'IMPORTANTE: Asegúrate de que todo tu contenido esté en 
 }
 
 export async function POST(req: NextRequest) {
+  console.log('⭐️ REFINE API START ⭐️');
+  const startTime = Date.now();
+  
   // Declare language variable at the top scope so it's available in the catch block
   let language = 'en';
   
@@ -384,56 +387,60 @@ Return ONLY the revised content, ready for publication.
       );
     }
 
-    console.log('Calling Claude API with language:', language || 'en');
-    // Call Claude API with style parameter
+    // Add before calling Claude API
+    console.log(`🕒 Time elapsed before Claude API call: ${Date.now() - startTime}ms`);
+    
+    // Modify the try-catch around Claude API call
     try {
+      console.log('📡 Calling Claude API...');
       const refinedContent = await callClaudeApi(prompt, apiKey, style || 'professional', language || 'en');
-      console.log('Content refined successfully, length:', refinedContent.length);
+      console.log(`✅ Claude API call successful, length: ${refinedContent.length}, time: ${Date.now() - startTime}ms`);
       
-      // Validate the content before returning it
-      if (!refinedContent || refinedContent.trim().length === 0) {
-        throw new Error(language === 'es' 
-          ? 'La API de Claude devolvió contenido vacío' 
-          : 'Claude API returned empty content');
+      // Validate JSON serialization explicitly
+      let serializedResponse;
+      try {
+        const simpleResponse = { content: refinedContent };
+        serializedResponse = JSON.stringify(simpleResponse);
+        console.log(`✅ JSON serialization successful, length: ${serializedResponse.length}`);
+      } catch (serializeError) {
+        console.error('❌ JSON serialization error:', serializeError);
+        throw new Error('Failed to serialize response to JSON');
       }
       
-      // Check if the response contains valid text
-      if (refinedContent.includes('[object Object]') || refinedContent.includes('undefined')) {
-        console.error('Invalid content detected in response');
-        throw new Error(language === 'es'
-          ? 'Respuesta inválida de la API de Claude'
-          : 'Invalid response from Claude API');
-      }
+      console.log(`🏁 Total processing time: ${Date.now() - startTime}ms`);
+      console.log('⭐️ REFINE API END - SUCCESS ⭐️');
       
-      // Simplify response to avoid JSON parsing issues
-      // Use a simple object with minimal nesting
-      const simpleResponse = { content: refinedContent };
-      
-      console.log('Returning response with content length:', refinedContent.length);
-      
-      // Return a simple JSON response to avoid parsing issues
-      return new Response(JSON.stringify(simpleResponse), {
+      // Return with explicit JSON formatting
+      return new Response(serializedResponse, {
         status: 200,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         }
       });
+      
     } catch (claudeError) {
-      console.error('Claude API specific error:', claudeError);
+      console.error('❌ Claude API specific error:', claudeError);
+      console.log(`⏱ Error occurred after ${Date.now() - startTime}ms`);
+      
       const errorMessage = language === 'es' 
         ? 'Error al comunicarse con la API de Claude. Por favor, inténtalo de nuevo.' 
         : 'Error communicating with Claude API. Please try again.';
       
+      const errorResponse = JSON.stringify({ error: errorMessage });
+      console.log(`🚨 Returning error response: ${errorResponse}`);
+      console.log('⭐️ REFINE API END - CLAUDE ERROR ⭐️');
+      
       // Return a simple error response that can be easily parsed
-      return new Response(JSON.stringify({ error: errorMessage }), {
+      return new Response(errorResponse, {
         status: 500,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         }
       });
     }
-  } catch (error) {
-    console.error('Error in refine-content API:', error);
+  } catch (outerError) {
+    console.error('❌ Outer error in refine-content API:', outerError);
+    console.log(`⏱ Outer error occurred after ${Date.now() - startTime}ms`);
     
     // Extract more detailed error information based on the type of error
     let errorMessage = language === 'es' 
@@ -441,25 +448,25 @@ Return ONLY the revised content, ready for publication.
       : 'An unknown error occurred while refining the content';
     let statusCode = 500;
     
-    if (error instanceof Error) {
-      errorMessage = error.message;
+    if (outerError instanceof Error) {
+      errorMessage = outerError.message;
       
       // Check for specific API errors and provide localized messages
-      if (error.message.includes('API key')) {
+      if (outerError.message.includes('API key')) {
         errorMessage = language === 'es'
           ? 'Error de clave API - verifica tu configuración de API'
           : 'API key error - please check your API configuration';
-      } else if (error.message.includes('rate limit')) {
+      } else if (outerError.message.includes('rate limit')) {
         errorMessage = language === 'es'
           ? 'Límite de velocidad excedido. Por favor, inténtalo de nuevo en unos minutos'
           : 'Rate limit exceeded. Please try again in a few minutes';
         statusCode = 429;
-      } else if (error.message.includes('timeout')) {
+      } else if (outerError.message.includes('timeout')) {
         errorMessage = language === 'es'
           ? 'La solicitud agotó el tiempo de espera. Por favor, inténtalo de nuevo'
           : 'Request timed out. Please try again';
         statusCode = 408;
-      } else if (error.message.includes('token')) {
+      } else if (outerError.message.includes('token')) {
         errorMessage = language === 'es'
           ? 'Contenido demasiado largo para procesar. Por favor, intenta con contenido más corto'
           : 'Content too long for processing. Please try with shorter content';
@@ -467,14 +474,29 @@ Return ONLY the revised content, ready for publication.
       }
     }
     
-    console.error('Returning error response:', errorMessage, statusCode);
+    console.error('🚨 Returning outer error response:', errorMessage, statusCode);
     
-    // Return a simple error response that can be easily parsed
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: statusCode,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
+    try {
+      // Ensure valid JSON is returned even for outer errors
+      const safeErrorResponse = JSON.stringify({ error: errorMessage });
+      console.log(`📦 Error JSON response: ${safeErrorResponse}`);
+      console.log('⭐️ REFINE API END - OUTER ERROR ⭐️');
+      
+      return new Response(safeErrorResponse, {
+        status: statusCode,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (jsonError) {
+      console.error('💥 Critical error - Failed to create JSON error response:', jsonError);
+      // Last resort plain text response
+      return new Response('{"error":"Critical server error"}', {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    }
   }
 } 

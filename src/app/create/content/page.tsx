@@ -994,6 +994,9 @@ export default function ContentGenerator() {
       return;
     }
     
+    console.log('🚀 Starting content refinement process');
+    const startTime = Date.now();
+    
     setIsRefinementLoading(true);
     setStatusMessage('');
     
@@ -1002,7 +1005,7 @@ export default function ContentGenerator() {
       setStatusMessage(t('contentGeneration.refiningContent', { defaultValue: 'Refining content based on your feedback...' }));
 
       // Log language value for debugging
-      console.log("Submitting refinement with language:", language);
+      console.log(`🌐 Refinement language: "${language || 'en'}"`);
 
       // Create a more detailed payload
       const payload = {
@@ -1015,11 +1018,9 @@ export default function ContentGenerator() {
         researchData: researchResults?.perplexityResearch || '' // Add research data if available
       };
       
-      console.log("Refinement payload:", JSON.stringify({
-        ...payload,
-        originalContent: payload.originalContent.substring(0, 50) + '...' // Only log part of content for brevity
-      }));
+      console.log(`📦 Refinement payload prepared in ${Date.now() - startTime}ms`);
 
+      console.log('📡 Sending API request...');
       const response = await fetch('/api/claude/refine-content', {
         method: 'POST',
         headers: { 
@@ -1029,26 +1030,47 @@ export default function ContentGenerator() {
         body: JSON.stringify(payload),
       });
       
+      console.log(`📥 Received API response in ${Date.now() - startTime}ms`);
+      console.log(`🔍 Response status: ${response.status} ${response.statusText}`);
+      
+      // Log headers in a way that doesn't cause linter issues
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      console.log('🔍 Response headers:', headers);
+      
       // First try to get the response as text for diagnostic purposes
+      console.log('📄 Reading response text...');
       const responseText = await response.text();
-      console.log(`Raw API response (${response.status}):`, responseText.length > 100 
-        ? responseText.substring(0, 100) + '...' 
-        : responseText);
+      console.log(`📄 Response text received (${responseText.length} bytes) in ${Date.now() - startTime}ms`);
+      console.log(`📄 First 100 chars: "${responseText.substring(0, 100).replace(/\n/g, '\\n')}..."`);
+      
+      // Check if the response looks like JSON
+      const looksLikeJson = responseText.trim().startsWith('{') && responseText.trim().endsWith('}');
+      console.log(`🔍 Response appears to be JSON: ${looksLikeJson}`);
       
       // Parse the JSON response with improved error handling
       let data;
       try {
         // Try to parse the JSON
+        console.log('🔄 Parsing JSON response...');
         data = JSON.parse(responseText);
-        
-        // Log success
-        console.log('Successfully parsed API response');
+        console.log('✅ JSON parsing successful');
+        console.log('📊 Parsed data:', { 
+          hasContent: Boolean(data.content),
+          contentLength: data.content?.length || 0,
+          error: data.error || 'none'
+        });
       } catch (parseError) {
-        console.error('JSON parse error:', parseError);
+        console.error('❌ JSON parse error:', parseError);
+        console.log(`❌ JSON parse error occurred at ${Date.now() - startTime}ms`);
+        console.log(`📄 Raw response causing parse error: "${responseText.substring(0, 200).replace(/\n/g, '\\n')}..."`);
         
         // If parsing fails, create a simple fallback based on the raw response
         // This is a last resort to prevent the entire flow from failing
         if (responseText.length > 0) {
+          console.warn('⚠️ Using fallback text response handling');
           const errorMsg = language === 'es' 
             ? 'Error al analizar la respuesta. Usando respuesta sin formato.' 
             : 'Error parsing response. Using raw response.';
@@ -1060,11 +1082,13 @@ export default function ContentGenerator() {
           
           // Check if it's clearly an error response
           if (responseText.includes('error') || responseText.includes('Error')) {
+            console.error('❌ Error text detected in response');
             throw new Error(language === 'es'
               ? 'Error en la respuesta de la API'
               : 'Error in API response');
           }
         } else {
+          console.error('❌ Empty response received');
           throw new Error(language === 'es' 
             ? 'Respuesta vacía de la API' 
             : 'Empty response from API');
