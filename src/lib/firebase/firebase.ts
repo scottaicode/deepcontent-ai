@@ -5,13 +5,14 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from 'firebase/functions';
 import { createRequiredIndexes } from './firebaseUtils';
 
+// Using hardcoded Firebase config to ensure consistency with AuthContext
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyD3SjBt4rcN0TxNtpod8lNyNE_UKdX0GYw",
+  authDomain: "deepcontent-53022.firebaseapp.com",
+  projectId: "deepcontent-53022",
+  storageBucket: "deepcontent-53022.appspot.com",
+  messagingSenderId: "398075751792",
+  appId: "1:398075751792:web:2b52857b283b1acb3373b5"
 };
 
 // Initialize Firebase
@@ -36,6 +37,9 @@ export const testFirestoreConnection = async (): Promise<boolean> => {
     const currentUser = auth.currentUser;
     console.log('Current user during Firestore test:', currentUser?.uid || 'No user authenticated');
     
+    // If user isn't authenticated, we should still test basic connectivity
+    // but return false at the end since we need authentication for DB operations
+    
     // Try to fetch a single document from any collection
     const testQuery = query(collection(db, 'content'), limit(1));
     const snapshot = await getDocs(testQuery);
@@ -54,8 +58,29 @@ export const testFirestoreConnection = async (): Promise<boolean> => {
     }
     
     return true;
-  } catch (error) {
+  } catch (error: any) {
+    // Provide more detailed error logging for better debugging
     console.error('Firestore connection failed:', error);
+    
+    // Log specific error types for better debugging
+    if (error.code) {
+      console.error(`Firebase error code: ${error.code}`);
+    }
+    
+    if (error.name === 'FirebaseError') {
+      if (error.code === 'permission-denied') {
+        console.error('Permission denied accessing Firestore. Check security rules and authentication.');
+      } else if (error.code === 'unavailable') {
+        console.error('Firebase is unavailable. Check your network connection.');
+      } else if (error.code === 'failed-precondition') {
+        console.error('Operation failed. Check that all required conditions are met.');
+      } else if (error.code === 'unauthenticated') {
+        console.error('User is not authenticated. Please sign in again.');
+      }
+    } else if (error.name === 'TypeError' || error.message?.includes('undefined')) {
+      console.error('Type error - Firebase may not be properly initialized or environment variables missing.');
+    }
+    
     return false;
   }
 };

@@ -175,16 +175,25 @@ export default function DashboardPage() {
       setFirestoreConnected(isConnected);
       
       if (!isConnected) {
+        const isUserAuthenticated = !!user;
+        
         toast({
           title: t('dashboard.dbConnectionIssue'),
-          description: t('dashboard.dbConnectionDesc'),
+          description: isUserAuthenticated 
+            ? t('dashboard.dbConnectionDesc') 
+            : t('dashboard.dbAuthRequired'),
           variant: 'destructive'
         });
+        
+        // If user is authenticated but still can't connect, log extra debug info
+        if (isUserAuthenticated) {
+          console.error('User is authenticated but Firestore connection failed. Check Firebase console for errors.');
+        }
       }
     };
     
     checkFirestore();
-  }, [toast, t]);
+  }, [toast, t, user]);
   
   // Function to handle resending verification email
   const handleResendVerification = async () => {
