@@ -27,6 +27,28 @@ export async function POST(request: NextRequest) {
   const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || 'unknown';
   console.log(`[DIAG] [${requestId}] Received ${request.method} request at ${new Date().toISOString()}`);
   
+  // Debug language parameter early
+  const getLanguageFromRequest = async () => {
+    try {
+      const body = await request.clone().json();
+      const language = body.language || 'en';
+      console.log(`[DIAG] [${requestId}] [LANGUAGE] Research language parameter: "${language}"`);
+      
+      // Force explicit handling of Spanish
+      if (language === 'es') {
+        console.log(`[DIAG] [${requestId}] [LANGUAGE] Spanish detected - using Spanish system prompt and instructions`);
+      }
+      
+      return language;
+    } catch (err) {
+      console.error(`[DIAG] [${requestId}] Error checking language parameter:`, err);
+      return 'en';
+    }
+  };
+  
+  // Execute language check right away (async but we don't need to wait for result)
+  getLanguageFromRequest();
+  
   // Create a TransformStream for SSE
   const encoder = new TextEncoder();
   const stream = new TransformStream();
@@ -99,6 +121,9 @@ export async function POST(request: NextRequest) {
     
     const { topic, context, sources = ['recent', 'scholar'], companyName, websiteContent, language = 'en' } = body;
     
+    // Log language parameter to help with debugging
+    console.log(`[DIAG] [${requestId}] Language parameter: "${language}"`);
+    
     if (!topic) {
       console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
       await handleError('Topic is required');
@@ -106,7 +131,11 @@ export async function POST(request: NextRequest) {
     }
     
     // Send initial progress
-    await sendProgress(5, 'Initializing research request...');
+    let progressMessage = 'Initializing research request...';
+    if (language === 'es') {
+      progressMessage = 'Inicializando solicitud de investigación...';
+    }
+    await sendProgress(5, progressMessage);
     
     // Extract audience, content type, and platform from context
     let audience = 'general audience';
@@ -140,7 +169,8 @@ export async function POST(request: NextRequest) {
       hasWebsiteContent: !!websiteContent
     });
     
-    await sendProgress(10, 'Connecting to research databases...');
+    progressMessage = language === 'es' ? 'Conectando a bases de datos de investigación...' : 'Connecting to research databases...';
+    await sendProgress(10, progressMessage);
     
     // Get API key from environment variables
     const apiKey = process.env.PERPLEXITY_API_KEY;
@@ -151,7 +181,8 @@ export async function POST(request: NextRequest) {
       return new Response(stream.readable, { headers });
     }
     
-    await sendProgress(15, 'Building research query...');
+    progressMessage = language === 'es' ? 'Construyendo consulta de investigación...' : 'Building research query...';
+    await sendProgress(15, progressMessage);
     
     // Build the prompt
     const promptText = getPromptForTopic(topic, {
@@ -159,13 +190,14 @@ export async function POST(request: NextRequest) {
       contentType,
       platform,
       sources,
-      language,
+      language, // Ensure language is passed to the prompt builder
       companyName,
       websiteContent
     });
     
     console.log(`[DIAG] [${requestId}] Prompt built, length: ${promptText.length} characters`);
-    await sendProgress(20, 'Sending request to Perplexity...');
+    progressMessage = language === 'es' ? 'Enviando solicitud a Perplexity...' : 'Sending request to Perplexity...';
+    await sendProgress(20, progressMessage);
     
     // Create Perplexity client
     let perplexity;
