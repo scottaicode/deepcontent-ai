@@ -654,7 +654,26 @@ export default function ResearchPage() {
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        setResearchStep(3);
+        // Get the step from the URL query parameters to ensure we respect manual navigation
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          const stepParam = urlParams.get('step');
+          
+          // Only auto-transition if the URL doesn't explicitly request a different step
+          // This allows the user to explicitly navigate to step 3 from the follow-up page
+          if (!stepParam || stepParam === '4') {
+            setResearchStep(4);
+            console.log('Auto-transitioning to research results (step 4)');
+          } else if (stepParam === '3') {
+            // If URL explicitly requested step 3, stay there
+            console.log('Staying at step 3 (Generate Research) as specified in URL');
+            setResearchStep(3);
+          }
+        } else {
+          // Default behavior if window is not defined (SSR context)
+          setResearchStep(3);
+        }
+        
         // Make sure we save the research results again just in case
         const researchResults: ResearchResults = {
           researchMethod: 'perplexity',
@@ -666,7 +685,7 @@ export default function ResearchPage() {
           }
         };
         sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        console.log('Research step set to 3 (complete) and data saved');
+        console.log('Research data saved to session storage');
       }, 500);
       
       return () => clearTimeout(timer);
@@ -942,8 +961,19 @@ Language: ${language || 'en'}`
             };
             sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
             
-            // Move to the next step
-            setResearchStep(4);
+            // Check URL parameters before deciding which step to show
+            const urlParams = new URLSearchParams(window.location.search);
+            const stepParam = urlParams.get('step');
+            
+            // Only move to step 4 if the URL doesn't explicitly request step 3
+            if (stepParam === '3') {
+              console.log('[DEBUG] Staying at step 3 (Generate Research) as specified in URL');
+              setResearchStep(3);
+            } else {
+              // Default behavior - move to results
+              console.log('[DEBUG] Moving to step 4 (Research Results)');
+              setResearchStep(4);
+            }
             
             // Show success toast
             toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
