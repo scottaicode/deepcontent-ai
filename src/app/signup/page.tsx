@@ -12,11 +12,14 @@ export default function SignUp() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [signupComplete, setSignupComplete] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [resendingVerification, setResendingVerification] = useState(false);
   const { signUp, user } = useAuth();
   const router = useRouter();
 
   // If user is already logged in, redirect to home page
-  if (user) {
+  if (user && !signupComplete) {
     router.push('/');
     return null;
   }
@@ -41,14 +44,109 @@ export default function SignUp() {
 
     try {
       await signUp(email, password);
-      router.push('/');
+      // Instead of redirecting immediately, show verification message
+      setSignupComplete(true);
+      setSignupEmail(email);
     } catch (err: any) {
       console.error('Signup error:', err);
-      setError(err.message || 'Failed to create account. Please try again.');
+      if (err.code === 'auth/email-already-in-use') {
+        setError('This email is already registered. Please sign in or use a different email.');
+      } else {
+        setError(err.message || 'Failed to create account. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleResendVerification = async () => {
+    // Make sure we have an email to work with
+    if (!signupEmail) {
+      setError('Email address is required for verification');
+      return;
+    }
+
+    setResendingVerification(true);
+    setError('');
+
+    try {
+      // Open a modal dialog to get password for verification
+      const password = prompt('Please enter your password to resend verification email:');
+      
+      if (!password) {
+        setError('Password is required to resend verification');
+        setResendingVerification(false);
+        return;
+      }
+
+      // Call the API endpoint with email and password
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: signupEmail, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend verification email');
+      }
+
+      // Show success message
+      alert('Verification email has been sent! Please check your inbox and spam folder.');
+
+    } catch (err: any) {
+      console.error('Error resending verification:', err);
+      setError(err.message || 'Failed to resend verification email. Please try again.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  // Show verification success screen
+  if (signupComplete) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md">
+          <div className="text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold tracking-tight">
+              Account created!
+            </h2>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">
+              We've sent a verification email to <span className="font-medium">{signupEmail}</span>.
+            </p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Please check your inbox (and spam folder) and click the verification link to activate your account.
+            </p>
+          </div>
+
+          <div className="mt-8 space-y-4">
+            <div>
+              <Link href="/signin" className="flex w-full justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Go to Sign In
+              </Link>
+            </div>
+            <div>
+              <button
+                onClick={handleResendVerification}
+                disabled={resendingVerification}
+                className="flex w-full justify-center rounded-md border border-gray-300 py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                {resendingVerification ? 'Sending...' : 'Resend verification email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
