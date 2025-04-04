@@ -1148,15 +1148,15 @@ export default function ContentGenerator() {
         
         // Update status message based on progress
         if (progress < 20) {
-          setStatusMessage('Analyzing research data...');
+          setStatusMessage(t('researchPage.status.analyzing', { defaultValue: 'Analizando datos de investigación...' }));
         } else if (progress < 40) {
-          setStatusMessage('Structuring content with persona voice...');
+          setStatusMessage(t('contentGeneration.structuring', { defaultValue: 'Estructurando contenido con voz de persona...' }));
         } else if (progress < 60) {
-          setStatusMessage('Developing key points and insights...');
+          setStatusMessage(t('contentGeneration.developing', { defaultValue: 'Desarrollando puntos clave e ideas...' }));
         } else if (progress < 80) {
-          setStatusMessage('Optimizing for platform and audience...');
+          setStatusMessage(t('contentGeneration.optimizing', { defaultValue: 'Optimizando para plataforma y audiencia...' }));
         } else {
-          setStatusMessage('Finalizing content generation...');
+          setStatusMessage(t('contentGeneration.finalizing', { defaultValue: 'Finalizando generación de contenido...' }));
         }
       }, 2000);
       
@@ -1164,7 +1164,7 @@ export default function ContentGenerator() {
     } else {
       setGenerationProgress(0);
     }
-  }, [isGenerating]);
+  }, [isGenerating, t]);
 
   return (
     <AppShell hideHeader={true}>
