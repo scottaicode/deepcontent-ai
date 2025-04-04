@@ -227,28 +227,21 @@ export default function ResearchPage() {
   // Initialize content details from URL or session storage
   useEffect(() => {
     try {
-      // When research step changes to 3 (complete), make sure to show research results
-      if (researchStep === 3 && deepResearch) {
-        // Set showResearchResults to true when research is complete
-        setShowResearchResults(true);
-      }
-    } catch (error) {
-      console.error('Error in research visibility effect:', error);
-    }
-  }, [researchStep, deepResearch]);
-  
-  // Add a useEffect to log step changes for debugging
-  useEffect(() => {
-    console.log(`[DEBUG] Research step changed to: ${researchStep}`);
-    console.log(`[DEBUG] Deep research data present: ${!!deepResearch}`);
-    console.log(`[DEBUG] Is generating: ${isGenerating}`);
-    console.log(`[DEBUG] Error state: ${error ? 'Yes' : 'No'}`);
-  }, [researchStep, deepResearch, isGenerating, error]);
-  
-  // Initialize content details from URL or session storage
-  useEffect(() => {
-    try {
       setIsLoading(true);
+      
+      // Get step from URL parameter if available
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const stepParam = urlParams.get('step');
+        if (stepParam) {
+          const stepNumber = parseInt(stepParam, 10);
+          console.log('[DEBUG] Found step parameter in URL:', stepNumber);
+          if (!isNaN(stepNumber) && stepNumber >= 1 && stepNumber <= 5) {
+            setResearchStep(stepNumber);
+          }
+        }
+      }
+      
       // Get content details from session storage
       const storedDetails = sessionStorage.getItem('contentDetails');
       
@@ -285,6 +278,34 @@ export default function ResearchPage() {
       router.push('/create');
     }
   }, [router]);
+  
+  // Add a useEffect to log step changes for debugging and update URL
+  useEffect(() => {
+    console.log(`[DEBUG] Research step changed to: ${researchStep}`);
+    console.log(`[DEBUG] Deep research data present: ${!!deepResearch}`);
+    console.log(`[DEBUG] Is generating: ${isGenerating}`);
+    console.log(`[DEBUG] Error state: ${error ? 'Yes' : 'No'}`);
+    
+    // Update the URL to match the current step
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('step', researchStep.toString());
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [researchStep, deepResearch, isGenerating, error]);
+  
+  // Add useEffect to manage research visibility
+  useEffect(() => {
+    try {
+      // When research step changes to 3 (complete), make sure to show research results
+      if (researchStep === 3 && deepResearch) {
+        // Set showResearchResults to true when research is complete
+        setShowResearchResults(true);
+      }
+    } catch (error) {
+      console.error('Error in research visibility effect:', error);
+    }
+  }, [researchStep, deepResearch]);
   
   // Handle fetching data based on selected research method
   const fetchInitialResearch = async () => {
