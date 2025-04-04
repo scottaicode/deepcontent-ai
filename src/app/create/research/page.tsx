@@ -636,14 +636,14 @@ export default function ResearchPage() {
     }
   };
   
-  // Add a useEffect to automatically transition to step 3 when research is complete
+  // Add a useEffect to automatically transition to step 4 when research is complete
   useEffect(() => {
-    if (deepResearch && !isGenerating) {
+    if (deepResearch && !isGenerating && researchStep === 3) {
       console.log('Auto-transitioning to research complete step');
       
       // Use a slight delay to ensure UI is updated
       const timer = setTimeout(() => {
-        setResearchStep(3);
+        setResearchStep(4);
         // Make sure we save the research results again just in case
         const researchResults: ResearchResults = {
           researchMethod: 'perplexity',
@@ -655,12 +655,12 @@ export default function ResearchPage() {
           }
         };
         sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        console.log('Research step set to 3 (complete) and data saved');
+        console.log('Research step set to 4 (complete) and data saved');
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [deepResearch, isGenerating]);
+  }, [deepResearch, isGenerating, researchStep]);
   
   // Update the handleGenerateDeepResearch function to use Perplexity instead of Claude
   const handleGenerateDeepResearch = async () => {
@@ -1295,7 +1295,7 @@ If you'd like complete research, please try again later when our research servic
     console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
     
     // Check state changes that should trigger a transition
-    if (deepResearch && researchStep < 4) {
+    if (deepResearch && researchStep < 4 && researchStep !== 3) {
       console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
       
       // Move to research step 4 (results) directly if we have data
@@ -1319,30 +1319,8 @@ If you'd like complete research, please try again later when our research servic
       return () => clearTimeout(timer);
     }
     
-    // Also transition if generation has stopped but we're still in step 2
-    if ((isGenerating === false) && deepResearch && researchStep === 2) {
-      console.log('[DEBUG TRANSITION] Generation complete but still in step 2');
-      
-      // Use a slight delay to ensure UI is updated
-      const timer = setTimeout(() => {
-        console.log('[DEBUG TRANSITION] Moving from step 2 to step 4 with research data');
-        setResearchStep(4);
-        
-        // Make sure we save the research results
-        const researchResults: ResearchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: deepResearch,
-          trendingTopics: [],
-          dataSources: {
-            reddit: true,
-            rss: true
-          }
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-      }, 500);
-      
-      return () => clearTimeout(timer);
-    }
+    // Do not automatically transition from step 2 to step 4 - this skips the research generation
+    // Instead, handleProceedToResearch will handle moving from step 2 to step 3 and starting research
   }, [deepResearch, isGenerating, researchStep]);
 
   // Add handler for follow-up answer changes
@@ -1390,6 +1368,12 @@ If you'd like complete research, please try again later when our research servic
     
     // Move to research generation step
     setResearchStep(3);
+    
+    // Start the research generation process after a short delay to allow UI to update
+    setTimeout(() => {
+      // Use our robust research generation function with automatic fallbacks
+      generateResearchWithFallbacks();
+    }, 300);
   };
 
   // Add a better error display component for API quota issues
