@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 
 // Testing mode flag
-const TESTING_MODE = true;
+const TESTING_MODE = false;
 
 /**
  * Component that applies fixes for production mode display issues
