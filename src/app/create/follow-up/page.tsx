@@ -86,8 +86,8 @@ export default function FollowUpPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate first answer is provided
+
+    // Ensure first question is answered
     if (!answers[0] || answers[0].trim() === '') {
       toast({
         title: 'Required Answer Missing',
@@ -96,18 +96,27 @@ export default function FollowUpPage() {
       });
       return;
     }
-    
-    // Save final answers to session storage
+
+    // Save questions and answers together in an object
+    const followUp = {
+      questions,
+      answers,
+    };
+
+    // Save to session storage
+    sessionStorage.setItem('followUpQuestions', JSON.stringify(questions));
     sessionStorage.setItem('followUpAnswers', JSON.stringify(answers));
     
     // Update content details with follow-up answers
     const updatedDetails = {
       ...contentDetails,
-      followUpAnswers: answers,
+      followUp, // Store as a structured object for better access
     };
     sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
     
-    // Navigate to next step
+    // Make sure we explicitly preserve the step parameter to ensure
+    // the Spanish version behaves the same as English
+    // This is important to prevent skipping the Generate Research step
     router.push('/create/research?step=3');
   };
 
