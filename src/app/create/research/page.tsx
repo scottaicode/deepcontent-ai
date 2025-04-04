@@ -2528,7 +2528,7 @@ If you'd like complete research, please try again later when our research servic
                   {language === 'es' ? 'Generando...' : 'Generating...'}
                 </>
               ) : (
-                language === 'es' ? 'Generar Investigación' : 'Generate Research'
+                language === 'es' ? 'Generar Investigación (5 min)' : 'Generate Research (5 min)'
               )}
             </button>
           </div>
@@ -2543,54 +2543,20 @@ If you'd like complete research, please try again later when our research servic
               <h3 className="text-xl font-semibold mb-2">
                 {language === 'es' ? 'Investigación en Progreso' : 'Research in Progress'}
               </h3>
-              <p className="text-gray-500 mb-6">
-                {language === 'es' ? 'Comenzando investigación...' : 'Starting research...'}
+              <p className="text-gray-600 mb-3">
+                {language === 'es' ? 'Este proceso puede tomar hasta 5 minutos.' : 'This process can take up to 5 minutes.'}
               </p>
-
-              <div className="w-full max-w-lg mb-4">
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium text-blue-600">
-                    {language === 'es' ? 'Progreso' : 'Progress'}
-                  </span>
-                  <span className="text-sm font-medium text-blue-600">{Math.round(generationProgress)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-blue-600 h-2.5 rounded-full" 
-                    style={{ width: `${generationProgress}%` }}
-                  ></div>
-                </div>
+              
+              <div className="mb-6 text-center">
+                <p className="text-gray-600 mb-2">
+                  {statusMessage || (language === 'es' ? 'Generando investigación profunda...' : 'Generating deep research...')}
+                </p>
+                <p className="text-gray-500 text-sm italic">
+                  {language === 'es' 
+                    ? 'Estamos consultando múltiples fuentes de datos para proporcionar información completa y relevante.' 
+                    : 'We are querying multiple data sources to provide comprehensive and relevant information.'}
+                </p>
               </div>
-
-              <p className="text-gray-600">
-                {(() => {
-                  if (language === 'es') {
-                    if (generationProgress < 20) {
-                      return 'Consultando fuentes de datos...';
-                    } else if (generationProgress < 40) {
-                      return 'Analizando datos de fuentes...';
-                    } else if (generationProgress < 60) {
-                      return 'Sintetizando hallazgos de investigación...';
-                    } else if (generationProgress < 80) {
-                      return 'Organizando información clave...';
-                    } else {
-                      return 'Finalizando documento de investigación...';
-                    }
-                  } else {
-                    if (generationProgress < 20) {
-                      return 'Querying data sources...';
-                    } else if (generationProgress < 40) {
-                      return 'Analyzing data from sources...';
-                    } else if (generationProgress < 60) {
-                      return 'Synthesizing research findings...';
-                    } else if (generationProgress < 80) {
-                      return 'Organizing key insights...';
-                    } else {
-                      return 'Finalizing research document...';
-                    }
-                  }
-                })()}
-              </p>
 
               {isGenerating && (
                 <button
@@ -2761,57 +2727,11 @@ If you'd like complete research, please try again later when our research servic
 
   // Add a progress simulation fallback 
   useEffect(() => {
-    // Only run the fallback when actively generating and progress seems stuck
-    if (isGenerating && generationProgress <= 25) {
-      // Start a timer that will increment progress if we don't get real updates
-      const simulationTimer = setTimeout(() => {
-        // Start a simulation interval that slowly increases progress
-        const simulationInterval = setInterval(() => {
-          setGenerationProgress(prev => {
-            // Slowly increase up to 90% maximum (leave room for the real completion)
-            if (prev < 90) {
-              const increment = Math.max(0.5, (90 - prev) / 50); // Faster at start, slower as it approaches 90%
-              return prev + increment;
-            }
-            return prev;
-          });
-          
-          // Also update status messages based on simulated progress
-          setStatusMessage(prevStatus => {
-            // Only update if it's one of our standard messages (not error messages)
-            if (prevStatus.includes('Analyzing') || 
-                prevStatus.includes('Querying') || 
-                prevStatus.includes('Synthesizing') || 
-                prevStatus.includes('Organizing') || 
-                prevStatus.includes('Finalizing')) {
-              
-              // Choose progress message based on current progress level
-              const progress = generationProgress;
-              if (progress < 40) {
-                return 'Querying knowledge databases...';
-              } else if (progress < 60) {
-                return 'Analyzing information sources...';
-              } else if (progress < 75) {
-                return 'Synthesizing research findings...';
-              } else if (progress < 85) {
-                return 'Organizing research insights...';
-              } else {
-                return 'Finalizing research document...';
-              }
-            }
-            return prevStatus;
-          });
-        }, 3000); // Update every 3 seconds
-        
-        // Cleanup function for the interval
-        return () => {
-          clearInterval(simulationInterval);
-        };
-      }, 10000); // Start progress simulation after 10 seconds of no progress
-      
-      // Clean up timer on component unmount
-      return () => clearTimeout(simulationTimer);
-    }
+    // We're using a spinner instead of progress bar now, so we don't need this simulation
+    // This effect is intentionally empty to override the previous implementation
+    return () => {
+      // No cleanup needed
+    };
   }, [isGenerating, generationProgress]);
 
   // Function to check if research has completed on the server
@@ -3067,9 +2987,6 @@ If you'd like complete research, please try again later when our research servic
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     
-    // Store interval IDs for cleanup
-    let progressIntervalId: ReturnType<typeof setInterval> | undefined;
-    
     try {
       // Set timeout for cancellation (4 minutes max to prevent browser timeout)
       const fetchTimeoutId = setTimeout(() => {
@@ -3099,17 +3016,30 @@ Platform: ${safeContentDetails?.platform || 'facebook'},
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
 Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}`;
       
-      // Set up progress tracking
-      progressIntervalId = setInterval(() => {
-        setGenerationProgress(prev => {
-          // Gradual progress simulation up to 95%
-          if (prev < 95) {
-            const increment = Math.random() * 2 + 0.5; // Random increment between 0.5-2.5%
-            return Math.min(95, prev + increment);
-          }
-          return prev;
-        });
-      }, 5000); // Update every 5 seconds
+      // Update status message periodically with informative messages
+      let messageIndex = 0;
+      const statusMessages = [
+        'Querying knowledge databases...',
+        'Analyzing information sources...',
+        'Synthesizing research findings...',
+        'Organizing key insights...',
+        'Finalizing research document...'
+      ];
+      
+      const spanishStatusMessages = [
+        'Consultando bases de conocimiento...',
+        'Analizando fuentes de información...',
+        'Sintetizando hallazgos de la investigación...',
+        'Organizando información clave...',
+        'Finalizando documento de investigación...'
+      ];
+      
+      // Update status message every 30 seconds
+      const messageInterval = setInterval(() => {
+        const messages = language === 'es' ? spanishStatusMessages : statusMessages;
+        messageIndex = (messageIndex + 1) % messages.length;
+        setStatusMessage(messages[messageIndex]);
+      }, 30000);
       
       try {
         // Make the API request
@@ -3126,22 +3056,17 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           })
         });
         
+        // Clear message interval
+        clearInterval(messageInterval);
+        
         // Process response
         if (!response.ok) {
-          // Clear the progress interval
-          if (progressIntervalId) {
-            clearInterval(progressIntervalId);
-          }
-          
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `API error: ${response.status}`);
         }
         
         // Parse response
         const data = await response.json();
-        
-        // Clear intervals since we succeeded
-        clearInterval(progressIntervalId);
         
         if (!data || !data.research) {
           throw new Error('Empty response from research API');
@@ -3172,9 +3097,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         toast.success('Research completed successfully!');
       } catch (error: any) {
         // Clear interval
-        if (progressIntervalId) {
-          clearInterval(progressIntervalId);
-        }
+        clearInterval(messageInterval);
         
         // Set error message
         const errorMessage = error.message || 'Unknown error occurred';
@@ -3194,11 +3117,6 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       clearTimeout(fetchTimeoutId);
     } catch (error: any) {
       // Handle any unhandled errors
-      if (progressIntervalId) {
-        clearInterval(progressIntervalId);
-      }
-      
-      // Set error message
       const errorMessage = error.message || 'Unknown error occurred';
       setError(`Research generation failed: ${errorMessage}`);
       
