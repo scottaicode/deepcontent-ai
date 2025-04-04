@@ -171,24 +171,42 @@ export default function DashboardPage() {
   // Add Firestore connection check - keep this as it's important for UX
   useEffect(() => {
     const checkFirestore = async () => {
-      const isConnected = await testFirestoreConnection();
-      setFirestoreConnected(isConnected);
-      
-      if (!isConnected) {
-        const isUserAuthenticated = !!user;
-        
-        toast({
-          title: t('dashboard.dbConnectionIssue'),
-          description: isUserAuthenticated 
-            ? t('dashboard.dbConnectionDesc') 
-            : t('dashboard.dbAuthRequired'),
-          variant: 'destructive'
-        });
-        
-        // If user is authenticated but still can't connect, log extra debug info
-        if (isUserAuthenticated) {
-          console.error('User is authenticated but Firestore connection failed. Check Firebase console for errors.');
+      try {
+        // First check if user is authenticated
+        if (!user) {
+          setFirestoreConnected(false);
+          toast({
+            title: t('dashboard.dbConnectionIssue'),
+            description: t('dashboard.dbAuthRequired'),
+            variant: 'destructive'
+          });
+          return;
         }
+        
+        // If user is authenticated, try to connect
+        const isConnected = await testFirestoreConnection();
+        setFirestoreConnected(isConnected);
+        
+        if (!isConnected) {
+          // Force a retry after a short delay
+          setTimeout(async () => {
+            console.log('Retrying Firestore connection...');
+            const retryConnection = await testFirestoreConnection();
+            setFirestoreConnected(retryConnection);
+            
+            if (!retryConnection) {
+              toast({
+                title: t('dashboard.dbConnectionIssue'),
+                description: t('dashboard.dbConnectionDesc'),
+                variant: 'destructive'
+              });
+              console.error('User is authenticated but Firestore connection failed after retry. Check Firebase console for errors.');
+            }
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error checking Firestore:', error);
+        setFirestoreConnected(false);
       }
     };
     

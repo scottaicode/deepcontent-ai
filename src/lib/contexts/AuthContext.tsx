@@ -11,29 +11,24 @@ import {
   User,
   setPersistence, 
   browserLocalPersistence,
-  getAuth,
   sendEmailVerification,
   sendPasswordResetEmail,
   getIdTokenResult
 } from "firebase/auth";
-import { initializeApp, deleteApp } from "firebase/app";
+import { auth } from '@/lib/firebase/firebase';
 
 // DEVELOPMENT FLAG: Set to true to bypass authentication in development
 const BYPASS_AUTH_FOR_DEV = false;
 
-// Import the direct Firebase config that doesn't rely on process.env variables
-const firebaseConfig = {
-  apiKey: "AIzaSyD3SjBt4rcN0TxNtpod8lNyNE_UKdX0GYw",
-  authDomain: "deepcontent-53022.firebaseapp.com",
-  projectId: "deepcontent-53022",
-  storageBucket: "deepcontent-53022.appspot.com",
-  messagingSenderId: "398075751792",
-  appId: "1:398075751792:web:2b52857b283b1acb3373b5"
-};
-
-// Initialize Firebase directly in this file to avoid circular dependencies
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+// Create a mock user for development
+const mockUser = BYPASS_AUTH_FOR_DEV ? {
+  uid: 'dev-user-123',
+  email: 'dev@example.com',
+  displayName: 'Development User',
+  emailVerified: true,
+  isAnonymous: false,
+  // Add other required User properties as needed
+} as User : null;
 
 interface AuthContextType {
   user: User | null;
@@ -47,16 +42,6 @@ interface AuthContextType {
   sendVerificationEmail: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
 }
-
-// Create a mock user for development
-const mockUser = BYPASS_AUTH_FOR_DEV ? {
-  uid: 'dev-user-123',
-  email: 'dev@example.com',
-  displayName: 'Development User',
-  emailVerified: true,
-  isAnonymous: false,
-  // Add other required User properties as needed
-} as User : null;
 
 const AuthContext = createContext<AuthContextType>({
   user: null,

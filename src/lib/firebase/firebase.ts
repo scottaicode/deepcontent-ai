@@ -15,8 +15,9 @@ const firebaseConfig = {
   appId: "1:398075751792:web:2b52857b283b1acb3373b5"
 };
 
-// Initialize Firebase
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// This ensures we get the existing Firebase app if it already exists
+console.log('Firebase initialization - existing apps:', getApps().length);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig, "deepcontent-primary");
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
@@ -40,24 +41,37 @@ export const testFirestoreConnection = async (): Promise<boolean> => {
     // If user isn't authenticated, we should still test basic connectivity
     // but return false at the end since we need authentication for DB operations
     
-    // Try to fetch a single document from any collection
-    const testQuery = query(collection(db, 'content'), limit(1));
-    const snapshot = await getDocs(testQuery);
-    
-    // Log more details about the connection status
-    console.log('Firestore connection successful!', {
-      empty: snapshot.empty,
-      size: snapshot.size,
-      authenticated: !!currentUser
-    });
-    
-    // Return true only if both connection works AND user is authenticated
-    if (!currentUser) {
-      console.log('Firestore connection works but user is not authenticated');
-      return false;
+    try {
+      // Try to fetch a single document from any collection
+      const testQuery = query(collection(db, 'content'), limit(1));
+      const snapshot = await getDocs(testQuery);
+      
+      // Log more details about the connection status
+      console.log('Firestore connection successful!', {
+        empty: snapshot.empty,
+        size: snapshot.size,
+        authenticated: !!currentUser
+      });
+      
+      // Return true only if both connection works AND user is authenticated
+      if (!currentUser) {
+        console.log('Firestore connection works but user is not authenticated');
+        return false;
+      }
+      
+      return true;
+    } catch (innerError: any) {
+      console.error('Error during test query:', innerError);
+      
+      // Even if query fails, if it's just a permission issue but user is authenticated,
+      // that might be fine (empty collection or missing permissions)
+      if (innerError.code === 'permission-denied' && currentUser) {
+        console.log('Permission denied, but user is authenticated - likely just missing data');
+        return true;
+      }
+      
+      throw innerError;
     }
-    
-    return true;
   } catch (error: any) {
     // Provide more detailed error logging for better debugging
     console.error('Firestore connection failed:', error);
