@@ -2360,6 +2360,14 @@ If you'd like complete research, please try again later when our research servic
 
   // Render a clean version of Step 3 for research generation
   const renderMinimalStep3Content = () => {
+    // Remove any leftover debug components that might be in the session storage
+    if (typeof window !== 'undefined') {
+      // Clear any debug test components or data that might be causing issues
+      sessionStorage.removeItem('debugResearch');
+      sessionStorage.removeItem('debugButtons');
+      sessionStorage.removeItem('testComponent');
+    }
+    
     return (
       <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
         <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">
@@ -2370,7 +2378,7 @@ If you'd like complete research, please try again later when our research servic
             // If the result still has the raw key, it means translation failed
             if (translated.includes('researchPage.results.generatedResearch')) {
               // Return a hardcoded value based on the language
-              return language === 'es' ? 'Investigación Generada' : 'Generate Research';
+              return language === 'es' ? 'Generar Investigación' : 'Generate Research';
             }
             
             return translated;
@@ -2470,29 +2478,7 @@ If you'd like complete research, please try again later when our research servic
           </button>
           
           <div className="flex space-x-4">
-            {/* Add continue to results button for manual navigation */}
-            {deepResearch && !isGenerating && (
-              <button
-                onClick={() => {
-                  console.log('[DEBUG] User manually requested to proceed to Research Results');
-                  setResearchStep(4);
-                }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-              >
-                {language === 'es' ? 'Continuar a Resultados' : 'Continue to Results'}
-              </button>
-            )}
-            
-            {/* Add quick access to content creation if research is already available */}
-            {deepResearch && (
-              <button
-                onClick={proceedToContentCreation}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-              >
-                {language === 'es' ? 'Ir a Creación de Contenido' : 'Go to Content Creation'}
-              </button>
-            )}
-          
+            {/* Only show the generate research button */}
             <button
               onClick={handleDeepAnalysisClick}
               className="flex items-center justify-center px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
@@ -3581,6 +3567,30 @@ Language: ${language || 'en'}${followUpSection}`;
           {researchStep === 2 && renderFollowUpQuestionsContent()}
           {researchStep === 3 && (
             <div className="mb-6">
+              {/* Ensure no debug content is shown */}
+              <div id="debug-cleanup-container">
+                <script dangerouslySetInnerHTML={{
+                  __html: `
+                    // Clean up any debug UI components
+                    setTimeout(() => {
+                      // Find and remove any purple or green buttons that shouldn't be in step 3
+                      const debugButtons = document.querySelectorAll('.bg-indigo-600:not(#debug-cleanup-container button), .bg-green-600:not(#debug-cleanup-container button)');
+                      debugButtons.forEach(button => {
+                        // Only remove if it contains certain text patterns
+                        const buttonText = button.textContent || '';
+                        if (
+                          buttonText.includes('Continue to Results') || 
+                          buttonText.includes('Go to Content') ||
+                          buttonText.includes('Continuar a')
+                        ) {
+                          console.log('Removing debug button:', buttonText);
+                          button.parentNode.removeChild(button);
+                        }
+                      });
+                    }, 100);
+                  `
+                }} />
+              </div>
               {renderMinimalStep3Content()}
             </div>
           )}
@@ -3712,3 +3722,41 @@ const callPerplexityWithRetry = async (
   // If we've exhausted all retries, throw the last error
   throw lastError;
 };
+
+// Clean up any debug UI or test components from session storage
+useEffect(() => {
+  if (typeof window !== 'undefined' && researchStep === 3) {
+    // Remove any stored debug components or buttons
+    sessionStorage.removeItem('debugResearch');
+    sessionStorage.removeItem('debugButtons');
+    sessionStorage.removeItem('testComponent');
+    
+    // Clear any event handlers that might be dynamically adding buttons
+    const cleanupDebugElements = () => {
+      // Find and remove any purple or green buttons that shouldn't be in step 3
+      const debugButtons = document.querySelectorAll('.bg-indigo-600, .bg-green-600');
+      debugButtons.forEach(button => {
+        // Only remove if it contains certain text patterns
+        const buttonText = button.textContent || '';
+        if (
+          buttonText.includes('Continue to Results') || 
+          buttonText.includes('Go to Content') ||
+          buttonText.includes('Continuar a')
+        ) {
+          console.log('Removing debug button:', buttonText);
+          button.remove();
+        }
+      });
+    };
+    
+    // Run cleanup after render
+    setTimeout(cleanupDebugElements, 100);
+    
+    // Also run it whenever the DOM might change
+    const observer = new MutationObserver(cleanupDebugElements);
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Cleanup the observer when component unmounts or step changes
+    return () => observer.disconnect();
+  }
+}, [researchStep]);
