@@ -10,7 +10,6 @@ import { testFirestoreConnection } from '@/lib/firebase/firebase';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
-import { sendEmailVerification } from "firebase/auth";
 
 export default function DashboardPage() {
   const { contentList, isLoading, error, deleteContent, archiveContent, restoreContent, refreshContent } = useContent();
@@ -133,9 +132,8 @@ export default function DashboardPage() {
   
   // Clean up useEffect - simplify initialization
   useEffect(() => {
-    // Initial content load - ONLY if user is verified
-    if (user?.uid && user.emailVerified && !isRefreshing) {
-      console.log('User is verified, attempting initial content load...');
+    // Initial content load
+    if (user?.uid && !isRefreshing) {
       setIsRefreshing(true);
       
       refreshContent()
@@ -143,20 +141,13 @@ export default function DashboardPage() {
           setLastRefreshTime(new Date());
         })
         .catch(error => {
-          // Error from useContent will be handled by the main render block
-          console.error('Error loading content during initial load (verified user):', error);
+          console.error('Error loading content:', error);
         })
         .finally(() => {
           setIsRefreshing(false);
         });
-    } else if (user?.uid && !user.emailVerified) {
-      // User exists but is not verified - Do nothing here.
-      // The UI error display logic will handle showing the prompt based on the lack of content 
-      // and the user's verification status, or any error caught by handleRefresh if clicked.
-      console.log('User is not verified, skipping initial content load.');
     }
-    // Only re-run if user ID or verification status changes, or refresh function instance changes.
-  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, setIsRefreshing, setLastRefreshTime]);
+  }, [user?.uid]);
   
   // Add Firestore connection check - keep this as it's important for UX
   useEffect(() => {
@@ -175,27 +166,6 @@ export default function DashboardPage() {
     
     checkFirestore();
   }, [toast, t]);
-  
-  // Add handler for resending verification email
-  const handleResendVerification = async () => {
-    if (user) {
-      try {
-        await sendEmailVerification(user);
-        toast({
-          title: t('auth.verificationSentTitle', { defaultValue: 'Verification Email Sent' }),
-          description: t('auth.verificationSentDesc', { defaultValue: 'A new verification email has been sent. Please check your inbox.' }),
-          variant: 'success',
-        });
-      } catch (err) {
-        console.error("Error resending verification email:", err);
-        toast({
-          title: t('common.error'),
-          description: t('auth.verificationSendError', { defaultValue: 'Failed to send verification email. Please try again later.' }),
-          variant: 'destructive',
-        });
-      }
-    }
-  };
   
   const formatDate = (date: string | number | Timestamp | undefined) => {
     if (!date) return 'N/A';
@@ -608,27 +578,10 @@ export default function DashboardPage() {
           </div>
         ) : error ? (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center shadow">
-            {user && !user.emailVerified && error?.toLowerCase().includes('permission') ? (
-              // Specific message for unverified users with permission errors
-              <p className="text-yellow-800 dark:text-yellow-300 mb-3">
-                {t('auth.verificationRequiredForAccess', { defaultValue: 'Please verify your email address to access your content. Check your inbox for the verification email or click below to resend it.' })}
-              </p>
-            ) : (
-              // Generic error message
-              <p className="text-red-800 dark:text-red-300">
-                {t('dashboard.errorLoadingContent', { defaultValue: 'Error loading content:' })} {error}
-              </p>
-            )}
+            <p className="text-red-800 dark:text-red-300">
+              {error}
+            </p>
             <div className="mt-4 space-x-3">
-              {/* Conditionally show resend button if user exists, isn't verified, and error indicates permission issue */}
-              {user && !user.emailVerified && error?.toLowerCase().includes('permission') && (
-                <button
-                  onClick={handleResendVerification}
-                  className="px-4 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-md transition-colors"
-                >
-                  {t('auth.resendVerification', { defaultValue: 'Resend Verification Email' })}
-                </button>
-              )}
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors"

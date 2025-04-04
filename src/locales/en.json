@@ -58,7 +58,8 @@
     "showMore": "Show More",
     "showLess": "Show Less",
     "whatToDo": "What to do:",
-    "comingSoon": "Coming Soon"
+    "comingSoon": "Coming Soon",
+    "yes": "Yes"
   },
   "navigation": {
     "home": "Home",
@@ -650,6 +651,17 @@
     "edit": "Edit",
     "error": "Error loading content"
   },
+  "contentGeneration": {
+    "refinementError": "Error refining content. Please try again.",
+    "refinementFailure": "Failed to refine content. Please try again.",
+    "contentLength": "Content Length",
+    "emptyFeedbackError": "Please provide feedback for refinement",
+    "refiningContent": "Refining content based on your feedback...",
+    "noRefinedContent": "No refined content received",
+    "refinementSuccess": "Content refined successfully!",
+    "refining": "Refining Content...",
+    "backToResearch": "Back to Research"
+  },
   "followup": {
     "title": "Follow-up Questions",
     "subtitle": "Please answer these questions to help us generate more tailored content for you.",
@@ -1193,77 +1205,5 @@
     "trendingTopics": "Trending Topics",
     "keyPoints": "Key Points to Consider",
     "contentSuggestions": "Content Suggestions"
-  },
-  "contentGeneration": {
-    "pageTitle": "Content Generation",
-    "parameters": "Content Parameters",
-    "settings": "Content Settings",
-    "contentType": "Content Type",
-    "platform": "Platform",
-    "targetAudience": "Target Audience",
-    "businessType": "Business Type",
-    "currentStyle": "Current Style",
-    "length": "Length",
-    "medium": "Medium",
-    "short": "Short",
-    "long": "Long",
-    "includeCTA": "Include CTA",
-    "includeHashtags": "Include Hashtags",
-    "choosePersona": "Choose an AI Persona for Your Content",
-    "selectStyleText": "Select the writing style that best matches your needs",
-    "preparingContent": "Preparing your content...",
-    "waitingMessage": "Please wait while we refine your content",
-    "refining": "Refining...",
-    "versionHistory": "Version History",
-    "showHistory": "Show History",
-    "hideHistory": "Hide History",
-    "versionNumber": "Version {{number}} - {{date}}",
-    "personaLabel": "Persona: {{persona}}",
-    "restoreVersion": "Restore this version",
-    "create": "Create Content",
-    "select": "Select your content",
-    "defineDetails": "Define your content details",
-    "gather": "Gather insights & trends",
-    "createEdit": "Create & edit content",
-    "copyToClipboard": "Copy to Clipboard",
-    "exportAsText": "Export as Text",
-    "saveToPanel": "Save to Dashboard",
-    "creatingWith": "Creating content with {persona}...",
-    "regenerateText": "Regenerate Content"
-  },
-  "refineContent": {
-    "title": "Refine Content",
-    "promptInstructions": "Refinement Instructions",
-    "placeholder": "Enter your refinement instructions here...",
-    "refineButton": "Refine"
-  },
-  "personas": {
-    "ariastar": {
-      "description": "Friendly and relatable tone perfect for social media and blogs"
-    },
-    "specialist_mentor": {
-      "description": "Professional and authoritative voice for technical content"
-    },
-    "ai_collaborator": {
-      "description": "Balanced and analytical tone for research and reports"
-    },
-    "sustainable_advocate": {
-      "description": "Passionate voice for sustainability and social impact"
-    },
-    "data_visualizer": {
-      "description": "Clear data-driven narrative style"
-    },
-    "multiverse_curator": {
-      "description": "Creative and engaging tone for multimedia content"
-    },
-    "ethical_tech": {
-      "description": "Balanced voice for explaining complex technical concepts"
-    },
-    "niche_community": {
-      "description": "Engaging tone for building community and connection"
-    },
-    "synthesis_maker": {
-      "description": "Insightful tone for connecting ideas across domains"
-    }
   }
 } 

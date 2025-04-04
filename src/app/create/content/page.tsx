@@ -106,7 +106,7 @@ export default function ContentGenerator() {
   const [showContentRefinement, setShowContentRefinement] = useState(true);
   
   // State for personas
-  const [currentPersona, setCurrentPersona] = useState<string>('ariastar');
+  const [currentPersona, setCurrentPersona] = useState(contentSettings.style);
   const [selectedPersona, setSelectedPersona] = useState<string>('');
   
   // State for content expansion
@@ -134,6 +134,9 @@ export default function ContentGenerator() {
 
   // Add heartbeat management
   const [heartbeatInterval, setHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Add a progress indicator during generation
+  const [generationProgress, setGenerationProgress] = useState(0);
 
   // Helper to safely update state without blocking UI
   const safeUpdate = useCallback(() => {
@@ -364,7 +367,7 @@ export default function ContentGenerator() {
           setError('Loading took too long. Some data might not be available. Please reload the page and try again.');
         }
       }
-    }, 30000); // Increased timeout to 30 seconds for slower connections
+    }, 60000); // Increased timeout to 60 seconds (from 30 seconds) for slower connections
     
     // Initialize the page data
     const initializePageData = async () => {
@@ -536,6 +539,17 @@ export default function ContentGenerator() {
     setDialogOpen(true);
   };
 
+  // Helper function to safely render contentGeneration translations with fallbacks
+  const safeContentGenerationTranslate = (key: string, defaultValue: string) => {
+    const translated = t(key, { defaultValue });
+    // Check if we got a raw key back (translation failure)
+    if (translated.includes('contentGeneration.') || translated === key) {
+      console.warn(`Translation failed for key: ${key}, using default value`);
+      return defaultValue;
+    }
+    return translated;
+  };
+
   // Define content styles
   const getContentStyles = useCallback(() => {
     // AI Personas
@@ -568,43 +582,70 @@ export default function ContentGenerator() {
     return styles;
   }, [t]);
 
+  // Helper function to format persona name for display
+  const getFormattedPersonaName = (personaId: string) => {
+    switch (personaId) {
+      case 'ariastar':
+        return 'AriaStar';
+      case 'specialist_mentor':
+        return 'MentorPro';
+      case 'ai_collaborator':
+        return 'AIInsight';
+      case 'sustainable_advocate':
+        return 'EcoEssence';
+      case 'data_visualizer':
+        return 'DataStory';
+      case 'multiverse_curator':
+        return 'NexusVerse';
+      case 'ethical_tech':
+        return 'TechTranslate';
+      case 'niche_community':
+        return 'CommunityForge';
+      case 'synthesis_maker':
+        return 'SynthesisSage';
+      default:
+        return personaId;
+    }
+  };
+
   // Update the startGeneration function
   const startGeneration = async () => {
-    if (isGenerating) {
-      console.log("[DIAGNOSTIC] Generation already in progress");
-      return;
-    }
-
-    if (!contentDetails?.contentType || !contentDetails?.platform) {
-      console.error('[DIAGNOSTIC] Missing required content details');
-      setError('Missing content type or platform. Please go back to the previous step.');
-      return;
-    }
-
-    if (!researchResults?.perplexityResearch) {
-      console.error('[DIAGNOSTIC] Missing research data');
-      setError('Missing research data. Please go back to the research step.');
-      return;
-    }
-
+    // Prevent multiple generation attempts
+    if (isGenerating) return;
+    
     try {
-      setIsGenerating(true);
       setError(null);
-      setStatusMessage(t('contentGeneration.preparingContent', { defaultValue: 'Preparing your content...' }));
+      setIsGenerating(true);
+      setStatusMessage('Preparing content generation...');
       
-      // Scroll to the absolute top of the page when generation starts
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      // Log the request details
-      console.log('[DIAGNOSTIC] Content generation request:', {
-        contentType: contentDetails.contentType,
-        platform: contentDetails.platform,
-        persona: currentPersona,
-        style: contentSettings.style,
-        researchLength: researchResults.perplexityResearch.length,
-        timestamp: new Date().toISOString()
-      });
-
+      // Check if we have valid research data
+      if (!researchResults?.perplexityResearch && !contentDetails.youtubeTranscript) {
+        throw new Error("No research data available for content generation. Please go back to research page.");
+      }
+      
+      // Log the research data length for debugging
+      const researchDataLength = researchResults?.perplexityResearch?.length || 0;
+      const transcriptLength = contentDetails.youtubeTranscript?.length || 0;
+      console.log(`[DIAGNOSTIC] Research data length: ${researchDataLength} characters, transcript length: ${transcriptLength} characters`);
+      
+      // If research data is very large, warn the user
+      if (researchDataLength > 60000 || transcriptLength > 60000) {
+        console.warn('[DIAGNOSTIC] Large research data detected - may cause longer content generation');
+        toast.info('Large amount of research data detected. Content generation may take up to 5 minutes, but will preserve all important information.');
+      }
+      
+      // Use AbortController for request cancellation
+      const abortController = new AbortController();
+      
+      // Set up a timeout for the request
+      const timeoutId = setTimeout(() => {
+        console.log('[DIAGNOSTIC] Request timeout reached, aborting request');
+        abortController.abort();
+      }, 300000); // 5 minute timeout (increased from 3 minutes)
+      
+      // Prepare enhanced content request with all available data
+      console.log('Starting content generation with research data...');
+      
       const response = await fetch('/api/claude/content', {
         method: 'POST',
         headers: {
@@ -614,128 +655,155 @@ export default function ContentGenerator() {
           contentType: contentDetails.contentType,
           platform: contentDetails.platform,
           audience: contentDetails.targetAudience,
-          researchData: researchResults.perplexityResearch,
-          style: currentPersona || contentSettings.style,
+          context: prompt,
+          researchData: researchResults?.perplexityResearch || '',
+          youtubeTranscript: contentDetails.youtubeTranscript || '',
+          youtubeUrl: contentDetails.youtubeUrl || '',
+          style: contentSettings.style,
+          language,
+          styleIntensity: 1,
+          subPlatform: contentDetails.subPlatform || '',
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
-          persona: currentPersona,
           businessType: contentDetails.businessType,
           businessName: contentDetails.businessName,
-          researchTopic: contentDetails.researchTopic,
-          language: language // Explicitly pass the language to the API
+          researchTopic: contentDetails.researchTopic
         }),
+        signal: abortController.signal
       });
-
-      setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-        defaultValue: 'Creating content with {{persona}}...', 
-        persona: getFormattedPersonaName(currentPersona) 
-      }));
-
+      
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || `API error: ${response.status}`);
-      }
-
-      // Get the raw response text first
-      const rawText = await response.text();
-      console.log('[DIAGNOSTIC] Raw response length:', rawText.length);
-
-      // Parse the JSON carefully
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseError) {
-        console.error('[DIAGNOSTIC] JSON parse error:', parseError);
-        console.error('[DIAGNOSTIC] Raw response:', rawText);
-        throw new Error('Failed to parse API response');
-      }
-
-      if (!data.content) {
-        console.error('[DIAGNOSTIC] No content in response:', data);
-        throw new Error('No content received from API');
-      }
-
-      // Log content details before setting state
-      console.log('[DIAGNOSTIC] Content generation result:', {
-        rawLength: rawText.length,
-        contentLength: data.content.length,
-        persona: currentPersona,
-        status: response.status,
-        timestamp: new Date().toISOString()
-      });
-
-      // Check if we're in Spanish mode and fix common English elements that might appear
-      let cleanedContent = data.content;
-      if (language === 'es') {
-        // Common English phrases that might appear and their Spanish translations
-        const commonEnglishPhrases = [
-          { english: "That feeling when you think you're the only one struggling? Not true.", spanish: "¿Esa sensación cuando piensas que eres el único que lucha? No es cierto." },
-          { english: "Ever notice how", spanish: "¿Alguna vez has notado cómo" },
-          { english: "Did you know that", spanish: "¿Sabías que" },
-          { english: "The key difference between", spanish: "La diferencia clave entre" },
-          { english: "feels like trying to solve a Rubik's cube blindfolded?", spanish: "¿se siente como intentar resolver un cubo de Rubik con los ojos vendados?" },
-          { english: "How frustrating is it", spanish: "Qué frustrante es" },
-          { english: "An advanced strategy I recommend is", spanish: "Una estrategia avanzada que recomiendo es" },
-          { english: "Looking for reliable", spanish: "¿Buscando" },
-          { english: "Struggling with", spanish: "¿Luchando con" },
-          { english: "Are you tired of", spanish: "¿Estás cansado de" },
-          { english: "Searching for", spanish: "¿Buscando" },
-          { english: "Having reliable", spanish: "Tener" },
-          { english: "Living in rural areas", spanish: "Vivir en zonas rurales" },
-          { english: "Rural connectivity", spanish: "La conectividad rural" },
-          { english: "Internet service", spanish: "El servicio de internet" },
-          { english: "Today,", spanish: "Hoy," },
-          { english: "Let's face it:", spanish: "Seamos sinceros:" },
-          { english: "Based on recent data,", spanish: "Según datos recientes," },
-          { english: "Picture this:", spanish: "Imagina esto:" },
-          { english: "SOLUTION:", spanish: "SOLUCIÓN:" },
-          { english: "NEWS!", spanish: "¡NOTICIA!" },
-          { english: "Current technology allows", spanish: "La tecnología actual permite" },
-          { english: "Key considerations when", spanish: "Consideraciones clave al" },
-          { english: "Practical applications of", spanish: "Aplicaciones prácticas de" }
-        ];
+        // Try to get error details from the response
+        let errorMsg = 'Failed to generate content';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
         
-        // Replace any English phrases with their Spanish equivalents
-        commonEnglishPhrases.forEach(({english, spanish}) => {
-          cleanedContent = cleanedContent.replace(new RegExp(english, 'gi'), spanish);
-        });
-
-        console.log('[DIAGNOSTIC] Applied Spanish content fixes');
+        // For timeout errors, provide more helpful guidance
+        if (errorMsg.includes('timed out') || errorMsg.includes('timeout')) {
+          errorMsg += '. This is likely due to the large amount of research data. Try generating content with more focused research or try again.';
+        }
+        
+        throw new Error(errorMsg);
       }
-
-      // Store the generated content
-      setGeneratedContent(cleanedContent);
       
-      // Add to version history with timestamp
-      const versionEntry: ContentVersion = {
-        content: cleanedContent,
+      const data = await response.json();
+      
+      if (!data.content) {
+        throw new Error('No content was generated');
+      }
+      
+      // Add version tracking for the newly generated content
+      const newVersion = {
+        content: data.content,
         timestamp: new Date().toISOString(),
-        persona: currentPersona
+        persona: contentSettings.style
       };
-      setContentVersions(prev => [...prev, versionEntry]);
       
-      setStatusMessage('Content successfully generated!');
+      setContentVersions(prev => {
+        // Check if this is the first version or a duplicate of the last version
+        if (prev.length === 0 || prev[prev.length - 1].content !== newVersion.content) {
+          return [...prev, newVersion];
+        }
+        return prev;
+      });
       
-      // Pre-render the content with error boundary
-      try {
-        const rendered = renderSimpleMarkdown(cleanedContent);
-        setPrerenderedContent(rendered);
-      } catch (renderError) {
-        console.error('[DIAGNOSTIC] Render error:', renderError);
-        // Fall back to plain text display if markdown rendering fails
-        setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
+      setGeneratedContent(data.content);
+      
+      // Pre-render the content to avoid UI jank
+      const rendered = renderSimpleMarkdown(data.content);
+      setPrerenderedContent(rendered);
+      
+      // Show a success message
+      toast.success('Content generated successfully!');
+    } catch (error: any) {
+      console.error('[ERROR] Content generation failed:', error);
+      
+      // Provide user-friendly error messages based on the error
+      let errorMessage = error.message || 'An error occurred during content generation';
+      
+      // For AbortError (timeout), provide more specific guidance
+      if (error.name === 'AbortError') {
+        errorMessage = 'Content generation timed out. This could be due to the large amount of research data. Try again with more focused research.';
       }
-
-    } catch (error) {
-      console.error('[DIAGNOSTIC] Content generation error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate content');
+      
+      // For connection errors, suggest retry
+      if (errorMessage.includes('fetch') || errorMessage.includes('network')) {
+        errorMessage = 'Connection error during content generation. Please check your internet connection and try again.';
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+      
+      // If we have research results but no generated content, try to recover
+      if (researchResults?.perplexityResearch && !generatedContent) {
+        console.log('[RECOVERY] Attempting emergency content generation with reduced research data');
+        
+        // Show recovery attempt message
+        toast.info('Attempting recovery with reduced research data');
+        
+        try {
+          // Create a condensed version of the research data
+          const research = researchResults.perplexityResearch;
+          const condensedResearch = research.length > 20000 
+            ? research.substring(0, 8000) + "\n\n[...]\n\n" + research.substring(research.length - 8000)
+            : research;
+          
+          // Try a simplified request with condensed data
+          const recoveryResponse = await fetch('/api/claude/content', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contentType: contentDetails.contentType,
+              platform: contentDetails.platform,
+              audience: contentDetails.targetAudience,
+              context: prompt,
+              researchData: condensedResearch,
+              style: contentSettings.style,
+              language
+            })
+          });
+          
+          if (recoveryResponse.ok) {
+            const recoveryData = await recoveryResponse.json();
+            if (recoveryData.content) {
+              console.log('[RECOVERY] Emergency content generation succeeded');
+              
+              // Create a recovery version
+              const recoveryVersion = {
+                content: recoveryData.content,
+                timestamp: new Date().toISOString(),
+                persona: contentSettings.style
+              };
+              
+              setContentVersions(prev => [...prev, recoveryVersion]);
+              setGeneratedContent(recoveryData.content);
+              
+              // Pre-render the content to avoid UI jank
+              const rendered = renderSimpleMarkdown(recoveryData.content);
+              setPrerenderedContent(rendered);
+              
+              // Clear error and show success message
+              setError(null);
+              toast.success('Content generation recovered with condensed research!');
+            }
+          }
+        } catch (recoveryError) {
+          console.error('[RECOVERY] Emergency content generation failed:', recoveryError);
+        }
+      }
     } finally {
       setIsGenerating(false);
       setStatusMessage('');
-      
-      // Scroll to the absolute top of the page after generation completes
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
   
@@ -744,10 +812,7 @@ export default function ContentGenerator() {
     if (isGenerating) return;
     
     setIsGenerating(true);
-    setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-      defaultValue: 'Creating content with {{persona}}...', 
-      persona: getFormattedPersonaName(newPersona) 
-    }));
+    setStatusMessage(`Creating content with ${getFormattedPersonaName(newPersona)}...`);
     setContentSettings(prev => ({ ...prev, style: newPersona }));
     setCurrentPersona(newPersona);
     
@@ -765,10 +830,7 @@ export default function ContentGenerator() {
         timestamp: new Date().toISOString()
       });
       
-      setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-        defaultValue: 'Creating content with {{persona}}...', 
-        persona: getFormattedPersonaName(newPersona) 
-      }));
+      setStatusMessage(`Creating content with ${getFormattedPersonaName(newPersona)}...`);
       
       const response = await fetch('/api/claude/content', {
         method: 'POST',
@@ -795,14 +857,11 @@ export default function ContentGenerator() {
         }),
       });
       
-      setStatusMessage(t('contentGeneration.finalizingPersonaContent', { 
-        defaultValue: 'Finalizing your {{persona}} content...', 
-        persona: getFormattedPersonaName(newPersona)
-      }));
+      setStatusMessage('Finalizing your content...');
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || `API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API error: ${response.status}`);
       }
       
       // Get the raw response text first
@@ -893,10 +952,7 @@ export default function ContentGenerator() {
         setPrerenderedContent(<pre className="whitespace-pre-wrap">{cleanedContent}</pre>);
       }
       
-      setStatusMessage(t('contentGeneration.creatingWithPersona', { 
-        defaultValue: 'Content created with {{persona}}!', 
-        persona: getFormattedPersonaName(newPersona) 
-      }));
+      setStatusMessage(`Content created with ${getFormattedPersonaName(newPersona)}!`);
       
       // Reset content expansion
       setIsContentExpanded(false);
@@ -1008,39 +1064,10 @@ export default function ContentGenerator() {
     }
   };
 
-  // Helper function to format persona name for display
-  const getFormattedPersonaName = (personaId: string) => {
-    switch (personaId) {
-      case 'ariastar':
-        return 'AriaStar';
-      case 'specialist_mentor':
-        return 'MentorPro';
-      case 'ai_collaborator':
-        return 'AIInsight';
-      case 'sustainable_advocate':
-        return 'EcoEssence';
-      case 'data_visualizer':
-        return 'DataStory';
-      case 'multiverse_curator':
-        return 'NexusVerse';
-      case 'ethical_tech':
-        return 'TechTranslate';
-      case 'niche_community':
-        return 'CommunityForge';
-      case 'synthesis_maker':
-        return 'SynthesisSage';
-      default:
-        return personaId;
-    }
-  };
-
   // Handle content refinement submission
   const handleRefinementSubmit = async () => {
     if (!refinementPrompt.trim()) {
-      toast.toast({
-        title: t('contentGeneration.emptyFeedbackError', { defaultValue: 'Please provide feedback for refinement' }),
-        variant: "destructive"
-      });
+      toast.error(t('contentGeneration.emptyFeedbackError', { defaultValue: 'Please provide feedback for refinement' }));
       return;
     }
     
@@ -1064,7 +1091,8 @@ export default function ContentGenerator() {
       });
       
       if (!response.ok) {
-        throw new Error(t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || t('contentGeneration.refinementError', { defaultValue: 'Failed to refine content' }));
       }
       
       const data = await response.json();
@@ -1084,16 +1112,10 @@ export default function ContentGenerator() {
       setGeneratedContent(data.content);
       setPrerenderedContent(renderSimpleMarkdown(data.content));
       setRefinementPrompt('');
-      toast.toast({
-        title: t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }),
-        variant: "default"
-      });
+      toast.success(t('contentGeneration.refinementSuccess', { defaultValue: 'Content refined successfully!' }));
     } catch (error) {
       console.error('Refinement error:', error);
-      toast.toast({
-        title: t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }),
-        variant: "destructive"
-      });
+      toast.error(t('contentGeneration.refinementFailure', { defaultValue: 'Failed to refine content. Please try again.' }));
     } finally {
       setIsRefinementLoading(false);
     }
@@ -1111,6 +1133,39 @@ export default function ContentGenerator() {
     </li>
   );
 
+  // Add a function to update progress for better user feedback
+  useEffect(() => {
+    if (isGenerating) {
+      // Start a progress simulation for better user experience
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 2;
+        if (progress > 95) {
+          progress = 95; // Cap at 95% until complete
+          clearInterval(interval);
+        }
+        setGenerationProgress(Math.floor(progress));
+        
+        // Update status message based on progress
+        if (progress < 20) {
+          setStatusMessage('Analyzing research data...');
+        } else if (progress < 40) {
+          setStatusMessage('Structuring content with persona voice...');
+        } else if (progress < 60) {
+          setStatusMessage('Developing key points and insights...');
+        } else if (progress < 80) {
+          setStatusMessage('Optimizing for platform and audience...');
+        } else {
+          setStatusMessage('Finalizing content generation...');
+        }
+      }, 2000);
+      
+      return () => clearInterval(interval);
+    } else {
+      setGenerationProgress(0);
+    }
+  }, [isGenerating]);
+
   return (
     <AppShell hideHeader={true}>
       <div className="min-h-screen bg-gray-50">
@@ -1118,7 +1173,9 @@ export default function ContentGenerator() {
           {/* Logo header */}
           <div className="flex items-center justify-center py-4">
             <div className="flex items-center">
-              <span className="text-2xl font-bold text-gray-900">{t('contentGeneration.pageTitle', { defaultValue: 'Content Generation' })}</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {safeContentGenerationTranslate('contentGeneration.pageTitle', 'Content Generation')}
+              </span>
             </div>
           </div>
 
@@ -1157,52 +1214,76 @@ export default function ContentGenerator() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     {/* Content Parameters */}
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">{t('contentGeneration.parameters', { defaultValue: 'Content Parameters' })}</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        {safeContentGenerationTranslate('contentGeneration.parameters', 'Content Parameters')}
+                      </h3>
                       <dl className="grid grid-cols-1 gap-4">
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.contentType', { defaultValue: 'Content Type' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.contentType', 'Content Type')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{formatContentTypeDisplay()}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.platform', { defaultValue: 'Platform' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.platform', 'Platform')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{getPlatformText()}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.targetAudience', { defaultValue: 'Target Audience' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.targetAudience', 'Target Audience')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{contentDetails.targetAudience}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.businessType', { defaultValue: 'Business Type' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.businessType', 'Business Type')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{contentDetails.businessType}</dd>
                         </div>
                       </dl>
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">{t('contentGeneration.settings', { defaultValue: 'Content Settings' })}</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">
+                        {safeContentGenerationTranslate('contentGeneration.settings', 'Content Settings')}
+                      </h3>
                       <dl className="grid grid-cols-1 gap-4">
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.currentStyle', { defaultValue: 'Current Style' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.currentStyle', 'Current Style')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">{getFormattedPersonaName(currentPersona) || t('common.notSelected', { defaultValue: 'Not selected' })}</dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.length', { defaultValue: 'Length' })}</dt>
+                          <dt className="text-sm font-medium text-gray-500">
+                            {safeContentGenerationTranslate('contentGeneration.length', 'Length')}
+                          </dt>
                           <dd className="mt-1 text-sm text-gray-900">
                             <select
                               value={contentSettings.length}
                               onChange={(e) => setContentSettings(prev => ({ ...prev, length: e.target.value }))}
                               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                              aria-label={t('contentGeneration.contentLength', { defaultValue: 'Content length' })}
+                              aria-label={safeContentGenerationTranslate('contentGeneration.contentLength', 'Content length')}
                             >
-                              <option value="short">{t('contentGeneration.short', { defaultValue: 'Short' })}</option>
-                              <option value="medium">{t('contentGeneration.medium', { defaultValue: 'Medium' })}</option>
-                              <option value="long">{t('contentGeneration.long', { defaultValue: 'Long' })}</option>
+                              <option value="short">
+                                {safeContentGenerationTranslate('contentGeneration.short', 'Short')}
+                              </option>
+                              <option value="medium">
+                                {safeContentGenerationTranslate('contentGeneration.medium', 'Medium')}
+                              </option>
+                              <option value="long">
+                                {safeContentGenerationTranslate('contentGeneration.long', 'Long')}
+                              </option>
                             </select>
                           </dd>
                         </div>
                         {!shouldHideCTAAndHashtags() && (
                           <>
                             <div>
-                              <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.includeCTA', { defaultValue: 'Include CTA' })}</dt>
+                              <dt className="text-sm font-medium text-gray-500">
+                                {safeContentGenerationTranslate('contentGeneration.includeCTA', 'Include CTA')}
+                              </dt>
                               <dd className="mt-1 text-sm text-gray-900">
                                 <div className="flex items-center space-x-2">
                                   <label className="inline-flex items-center">
@@ -1218,7 +1299,9 @@ export default function ContentGenerator() {
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-sm font-medium text-gray-500">{t('contentGeneration.includeHashtags', { defaultValue: 'Include Hashtags' })}</dt>
+                              <dt className="text-sm font-medium text-gray-500">
+                                {safeContentGenerationTranslate('contentGeneration.includeHashtags', 'Include Hashtags')}
+                              </dt>
                               <dd className="mt-1 text-sm text-gray-900">
                                 <div className="flex items-center space-x-2">
                                   <label className="inline-flex items-center">
@@ -1243,10 +1326,10 @@ export default function ContentGenerator() {
                   {!generatedContent && !isGenerating && (
                     <div className="text-center py-8 space-y-6">
                       <h3 className="text-xl font-semibold text-gray-900">
-                        {t('contentGeneration.choosePersona', { defaultValue: 'Choose an AI Persona for Your Content' })}
+                        {safeContentGenerationTranslate('contentGeneration.choosePersona', 'Choose an AI Persona for Your Content')}
                       </h3>
                       <p className="text-sm text-gray-500 mb-6">
-                        {t('contentGeneration.selectStyleText', { defaultValue: 'Select the writing style that best matches your needs' })}
+                        {safeContentGenerationTranslate('contentGeneration.selectStyleText', 'Select the writing style that best matches your needs')}
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                         {(() => {
@@ -1335,18 +1418,13 @@ export default function ContentGenerator() {
                   {/* Generation Progress */}
                   {isGenerating && (
                     <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                      {/* Replace progress bar with simple spinner */}
+                      <div className="flex justify-center mb-6">
+                        <div className="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
+                      </div>
                       <h3 className="mt-4 text-lg font-medium text-gray-900">
-                        {statusMessage || t('contentGeneration.processingWithPersona', { 
-                          defaultValue: 'Processing with {{persona}}...', 
-                          persona: getFormattedPersonaName(currentPersona) 
-                        })}
+                        {statusMessage || `Creating content with ${getFormattedPersonaName(currentPersona || contentSettings.style)}...`}
                       </h3>
-                      <p className="mt-2 text-sm text-gray-500">
-                        {t('contentGeneration.waitingMessage', { 
-                          defaultValue: 'Please wait while we craft your content with the selected persona'
-                        })}
-                      </p>
                     </div>
                   )}
 
@@ -1386,6 +1464,59 @@ export default function ContentGenerator() {
                   {/* Generated Content Display */}
                   {generatedContent && !isGenerating && (
                     <div className="prose max-w-none" id="generated-content">
+                      <div className="mb-4 px-4 py-3 bg-gray-50 rounded-md border border-gray-200">
+                        <div className="flex items-center">
+                          <div className="mr-3 text-2xl">
+                            {(() => {
+                              // Return appropriate emoji based on persona
+                              switch (currentPersona) {
+                                case 'ariastar': return '👋';
+                                case 'specialist_mentor': return '👨‍🏫';
+                                case 'ai_collaborator': return '🤖';
+                                case 'sustainable_advocate': return '🌱';
+                                case 'data_visualizer': return '📊';
+                                case 'multiverse_curator': return '🎨';
+                                case 'ethical_tech': return '⚙️';
+                                case 'niche_community': return '👥';
+                                case 'synthesis_maker': return '🧠';
+                                default: return '✍️';
+                              }
+                            })()}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900 m-0">
+                              {getFormattedPersonaName(currentPersona)}
+                            </h3>
+                            <p className="text-sm text-gray-500 m-0">
+                              {(() => {
+                                // Return persona description based on selected persona
+                                switch (currentPersona) {
+                                  case 'ariastar': 
+                                    return 'Friendly, relatable tone perfect for social media and blogs';
+                                  case 'specialist_mentor': 
+                                    return 'Professional, authoritative voice for technical content';
+                                  case 'ai_collaborator': 
+                                    return 'Balanced, analytical tone for research and reports';
+                                  case 'sustainable_advocate': 
+                                    return 'Passionate voice for sustainability and social impact';
+                                  case 'data_visualizer': 
+                                    return 'Clear, data-driven narrative style';
+                                  case 'multiverse_curator': 
+                                    return 'Creative, engaging tone for multimedia content';
+                                  case 'ethical_tech': 
+                                    return 'Balanced voice for explaining complex technical concepts';
+                                  case 'niche_community': 
+                                    return 'Engaging tone for building community and connection';
+                                  case 'synthesis_maker': 
+                                    return 'Insightful tone for connecting ideas across domains';
+                                  default: 
+                                    return 'Custom writing style';
+                                }
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                       <div className={`transition-all duration-500 ${isContentExpanded ? 'max-h-none' : 'max-h-96 overflow-hidden relative'}`}>
                         {prerenderedContent}
                         {!isContentExpanded && (
@@ -1458,10 +1589,10 @@ export default function ContentGenerator() {
                   {generatedContent && !isGenerating && (
                     <div className="mt-8 border-t border-gray-200 pt-6">
                       <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                        {t('contentGeneration.choosePersona', { defaultValue: 'Choose an AI Persona' })}
+                        {safeContentGenerationTranslate('contentGeneration.choosePersona', 'Choose an AI Persona')}
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
-                        {t('contentGeneration.regenerateText', { defaultValue: 'Regenerate your content with any AI persona voice (including the current one for new variations)' })}
+                        {safeContentGenerationTranslate('contentGeneration.regenerateText', 'Regenerate your content with any AI persona voice (including the current one for new variations)')}
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                         {(() => {

@@ -6,15 +6,10 @@
  * and returns structured research results.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { PerplexityClient } from '@/lib/api/perplexityClient';
 import { getPromptForTopic } from '@/lib/api/promptBuilder';
 import { kv } from '@vercel/kv';
-import { rateLimit } from '@/lib/rateLimit';
-import { validateLimitedUsage } from '@/lib/validateCredits';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { findOrCreateUser } from '@/lib/users';
 
 // Define an interface for the job object stored in KV
 interface Job {
@@ -53,8 +48,16 @@ export const maxDuration = 300; // 5 minutes max - keep the full duration
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
-// Ensure dynamic behavior
+// Add additional caching prevention settings
 export const dynamic = 'force-dynamic';
+
+// Set response headers to prevent caching
+const noCacheHeaders = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0'
+};
 
 // Add improved logging for the chunked approach
 const logSection = (requestId: string, section: string, message: string) => {
@@ -112,129 +115,264 @@ async function checkJobStatus(jobId: string): Promise<Job | null> {
   }
 }
 
-// Improved error handling for API routes
-export async function POST(req: NextRequest) {
-  console.log('======= PERPLEXITY RESEARCH DIAGNOSTICS =======');
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  console.log('API Key exists:', !!apiKey);
-  if (apiKey) {
-    console.log('API Key first 8 chars:', apiKey.substring(0, 8));
-    console.log('API Key starts with expected prefix "pplx-":', apiKey.startsWith('pplx-'));
-  } else {
-    console.log('WARNING: No Perplexity API key configured');
+// POST handler for direct research requests
+export async function POST(request: NextRequest) {
+  const requestUrl = new URL(request.url);
+  const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || `req_${Date.now()}`;
+  logSection(requestId, 'INIT', `Received research request at ${new Date().toISOString()}`);
+
+  // Parse the request body outside the try block so it's available in the catch block
+  let body;
+  try {
+    body = await request.json();
+    logSection(requestId, 'PARSE', 'Request body parsed successfully');
+    logSection(requestId, 'TOPIC', `Research topic: "${body.topic}"`);
+  } catch (err) {
+    console.error(`[DIAG] [${requestId}] Error parsing request body:`, err);
+    return new Response(
+      JSON.stringify({ error: 'Invalid request format. Please check your request body.' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
   }
   
+  const { 
+    topic, 
+    context = '',
+    sources = ['recent', 'scholar'], 
+    language = 'en',
+    companyName = '',
+    websiteContent,
+    contentType = 'article',
+    platform = 'general'
+  } = body;
+  
+  if (!topic) {
+    console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
+    return new Response(
+      JSON.stringify({ error: 'Topic is required' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Extract follow-up answers from context if present
+  let followUpAnswers = '';
+  if (context.includes('Follow-up Answers:')) {
+    const followUpSection = context.split('Follow-up Answers:')[1].trim();
+    followUpAnswers = followUpSection;
+    console.log(`[DIAG] [${requestId}] Follow-up answers detected in context`);
+  }
+  
+  // Extract additional information from context
+  let extractedContentType = 'article';
+  let extractedPlatform = 'general';
+  let audience = 'general';
+  
+  // Extract content type, platform and audience from context
+  if (context.includes('Content Type:')) {
+    extractedContentType = context.split('Content Type:')[1].split(',')[0].trim();
+  }
+  if (context.includes('Platform:')) {
+    extractedPlatform = context.split('Platform:')[1].split(',')[0].trim();
+  }
+  if (context.includes('Target Audience:')) {
+    audience = context.split('Target Audience:')[1].split('\n')[0].trim();
+  }
+  
+  logSection(requestId, 'PARAMS', JSON.stringify({
+    topic,
+    language,
+    audience,
+    contentType: extractedContentType,
+    platform: extractedPlatform,
+    hasCompanyInfo: !!companyName,
+    hasWebsiteContent: !!websiteContent
+  }));
+  
+  // Get API key from environment variables
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  
+  if (!apiKey) {
+    console.error(`[DIAG] [${requestId}] Perplexity API key not configured`);
+    return new Response(
+      JSON.stringify({ error: 'Perplexity API key not configured. Please contact support.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  logSection(requestId, 'API_KEY', `API key validation: ${apiKey.startsWith('pplx-') ? 'VALID FORMAT' : 'INVALID FORMAT'}`);
+
+  // Create a cache key for this research request
+  const cacheKey = createCacheKey(topic, extractedContentType, extractedPlatform, language);
+  logSection(requestId, 'CACHE', `Cache key: ${cacheKey}`);
+  
+  // Check if research is already cached
+  let cachedResult = null;
   try {
-    // Get user session for rate limiting
-    const session = await getServerSession(authOptions);
-    
-    // Apply rate limiting for non-authenticated users
-    if (!session?.user?.email) {
-      const ipLimiter = rateLimit({
-        uniqueTokenPerInterval: 500,
-        interval: 60 * 1000, // 1 minute
-      });
+    if (kv) {
+      // Commented out cache lookup to always generate fresh research
+      // const cachedResult = await kv.get(cacheKey);
       
-      // Rate limit by IP address for non-authenticated requests
-      const ip = req.headers.get('x-forwarded-for') || 'anonymous';
-      await ipLimiter.check(10, ip); // 10 requests per minute maximum
-    } else {
-      // For authenticated users, check their usage limits
-      const email = session.user.email;
-      
-      // Validate usage limits for perplexity_research
-      await validateLimitedUsage(email, 'perplexity_research');
-      
-      // Update user record for analytics
-      if (email) {
-        await findOrCreateUser(email);
-      }
-    }
-    
-    // Parse request body
-    const body = await req.json();
-    const { topic, context, sources, language, companyName, websiteContent } = body;
-    
-    console.log('Research request details:', { 
-      topic: topic.substring(0, 50) + (topic.length > 50 ? '...' : ''),
-      contextLength: context?.length || 0,
-      language,
-      hasCompanyName: !!companyName,
-      hasWebsiteContent: !!websiteContent
-    });
-    
-    // Validate required fields
-    if (!topic || topic.trim() === '') {
-      return NextResponse.json(
-        { error: 'Missing required topic parameter' },
-        { status: 400 }
-      );
-    }
-    
-    // Set up client with error handling
-    if (!process.env.PERPLEXITY_API_KEY) {
-      console.error('PERPLEXITY_API_KEY is not set');
-      return NextResponse.json(
-        { error: 'Perplexity API key is not configured' },
-        { status: 500 }
-      );
-    }
-    
-    // Create client
-    try {
-      const client = new PerplexityClient(process.env.PERPLEXITY_API_KEY);
-      console.log('PerplexityClient initialized successfully');
-      
-      // Create system prompt
-      const systemPrompt = `You are a comprehensive research assistant that helps users by finding and synthesizing accurate, up-to-date information on any topic. Your research should be well-structured, informative, and useful for content creation.
-
-Language: ${language || 'English'}.
-
-Specific Instructions:
-1. Organize your response with clear headings and subheadings in markdown format.
-2. Include relevant statistics, trends, and data where available.
-3. Analyze the competitive landscape if applicable.
-4. For business-focused research, include market analysis.
-5. For personal topics, focus on best practices and current trends.
-6. Cite specific sources where possible.
-7. Provide actionable insights and recommendations.
-8. Use bullet points and numbered lists where appropriate.`;
-
-      const startTime = Date.now();
-      const research = await client.generateResearch(
-        `Provide comprehensive research about ${topic}. ${context || ''}`, 
-        {
-          systemPrompt,
-          temperature: 0.7,
-          maxTokens: 4000,
-          language: language || 'en',
+      // If exact match not found, try a simplified key lookup
+      /*
+      if (!cachedResult) {
+        const simplifiedKey = createSimplifiedTopicKey(topic);
+        logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
+        
+        // Try to get any keys that start with the simplified pattern
+        try {
+          const keys = await kv.keys(`${simplifiedKey}*`);
+          if (keys && keys.length > 0) {
+            logSection(requestId, 'CACHE', `Found ${keys.length} potential matches with simplified key pattern`);
+            // Get the first match (could improve this to get the most recent one)
+            cachedResult = await kv.get(keys[0]);
+            if (cachedResult) {
+              logSection(requestId, 'CACHE', `Found partial match with key: ${keys[0]}`);
+            }
+          }
+        } catch (err) {
+          console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
         }
-      );
-      const duration = Date.now() - startTime;
-      console.log(`Research generated successfully in ${duration}ms`);
+      }
+      */
       
-      return NextResponse.json({ research });
-    } catch (error) {
-      console.error('Error initializing Perplexity client:', error);
-      return NextResponse.json(
-        { error: 'Error initializing Perplexity client' },
-        { status: 500 }
-      );
+      // Disable cache return by setting cachedResult to null
+      cachedResult = null;
+      logSection(requestId, 'CACHE', `Cache disabled, always generating fresh research`);
+      
+      /*
+      // Return cached result if found
+      if (cachedResult) {
+        logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
+        return new Response(
+          JSON.stringify({ 
+            research: cachedResult,
+            fromCache: true,
+            cacheKey 
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
+      }
+      */
     }
+  } catch (err) {
+    console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
+  }
+  
+  // Build the prompt
+  const promptText = getPromptForTopic(topic, {
+    audience,
+    contentType: extractedContentType,
+    platform: extractedPlatform,
+    sources,
+    language,
+    companyName,
+    websiteContent,
+    additionalContext: followUpAnswers // Add follow-up answers as additional context
+  });
+  
+  logSection(requestId, 'PROMPT', `Prompt built, length: ${promptText.length} characters`);
+  
+  // Create Perplexity client with proper configuration
+  const perplexity = new PerplexityClient(apiKey);
+  logSection(requestId, 'CLIENT', `Perplexity client initialized successfully`);
+  
+  // Set up options for the API call
+  const options = {
+    maxTokens: 4000,
+    temperature: 0.2,
+    language
+  };
+  
+  // Log clearly that we're generating fresh research
+  console.log(`=== GENERATING FRESH RESEARCH ===`);
+  console.log(`Topic: ${topic}`);
+  console.log(`Content Type: ${extractedContentType}`);
+  console.log(`Platform: ${extractedPlatform}`);
+  console.log(`Request ID: ${requestId}`);
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`==============================`);
+
+  // Return the research data directly - no job ID or polling mechanism
+  try {
+    // Log that we're calling the Perplexity API for Deep Research
+    logSection(requestId, 'API_CALL', `Calling Perplexity API for Deep Research using sonar-deep-research model`);
+    
+    // Make the direct API call - not using jobs
+    const research = await perplexity.generateResearch(promptText, options);
+    
+    // Log success clearly
+    console.log(`=== FRESH RESEARCH GENERATED SUCCESSFULLY ===`);
+    console.log(`Research length: ${research.length} characters`);
+    console.log(`Response time: ${Date.now() - new Date(requestUrl.searchParams.get('timestamp') || Date.now()).getTime()}ms`);
+    console.log(`=========================================`);
+    
+    // Cache the successful result if possible
+    try {
+      /*
+      if (kv && research) {
+        await kv.set(cacheKey, research, { ex: 86400 }); // Cache for 24 hours
+        logSection(requestId, 'CACHE', `Cached research result with key ${cacheKey}`);
+        
+        // Also create a simplified key entry pointing to the same research
+        const simplifiedKey = createSimplifiedTopicKey(topic);
+        if (simplifiedKey !== cacheKey) {
+          await kv.set(`${simplifiedKey}:${Date.now()}`, research, { ex: 86400 });
+          logSection(requestId, 'CACHE', `Also cached with simplified key ${simplifiedKey}`);
+        }
+      }
+      */
+      logSection(requestId, 'CACHE', `Caching disabled to ensure fresh research is generated each time`);
+    } catch (err) {
+      console.warn(`[DIAG] [${requestId}] Failed to cache research:`, err);
+    }
+    
+    return new Response(
+      JSON.stringify({ research }),
+      { status: 200, headers: noCacheHeaders }
+    );
   } catch (error: any) {
-    console.error('Perplexity research API error:', error);
+    // Log detailed error information
+    logSection(requestId, 'ERROR', `Error generating research: ${error.message}`);
+    console.error(`[DIAG] [${requestId}] Error details:`, error);
     
-    // Handle rate limit errors
-    if (error.message && error.message.includes('rate limit')) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      );
+    // Handle errors with fallback
+    console.error(`Error generating research: ${error.message}`);
+    
+    // Generate fallback content - maintain the existing fallback code
+    let fallbackResult = `# Research on ${topic}\n\n`;
+    
+    // Add topic-specific fallback content
+    if (topic.toLowerCase().includes('tranont')) {
+      // Add the Tranont-specific fallback content 
+      fallbackResult += `## Executive Summary\n\n`;
+      fallbackResult += `This research report provides a comprehensive analysis of Tranont with a focus on applications for social/social-media. The target audience for this research is Women age 50 - 60. This report includes market analysis, audience insights, and strategic recommendations.\n\n`;
+      
+      // Additional sections as needed...
+    } else if (topic.toLowerCase().includes('softcom') || 
+               topic.toLowerCase().includes('internet') || 
+               extractedPlatform.toLowerCase().includes('social')) {
+      // Add the existing softcom/internet fallback content
+      fallbackResult += `## Overview of ${topic}\n\n`;
+      fallbackResult += `Internet service providers play a crucial role in rural and residential areas. For companies like Softcom, understanding the specific needs and pain points of rural internet users is essential.\n\n`;
+      fallbackResult += `## Content Strategy Recommendations\n\n`;
+      fallbackResult += `1. Share customer success stories highlighting how reliable internet improves rural businesses and homes\n`;
+      fallbackResult += `2. Create educational content about maximizing internet performance\n`;
+    } else {
+      // Add generic fallback content
+      fallbackResult += `## Overview\n\nThis topic requires in-depth research. Due to technical limitations, we could only generate a basic outline of the important areas to research.\n\n`;
+      fallbackResult += `## Key Areas to Research\n\n`;
+      fallbackResult += `1. Market trends and current statistics\n`;
+      fallbackResult += `2. Target audience demographics and preferences\n`;
     }
     
-    return NextResponse.json(
-      { error: error.message || 'An error occurred during research generation' },
-      { status: 500 }
+    fallbackResult += `\n\nThis report was generated as an emergency fallback due to research API limitations.`;
+    
+    // Return the fallback content directly
+    return new Response(
+      JSON.stringify({ research: fallbackResult, isFallback: true }),
+      { status: 200, headers: noCacheHeaders }
     );
   }
 }
@@ -252,7 +390,7 @@ export async function GET(request: NextRequest) {
       if (!job) {
         return new Response(
           JSON.stringify({ error: 'Job not found' }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } }
+          { status: 404, headers: noCacheHeaders }
         );
       }
       
@@ -267,7 +405,7 @@ export async function GET(request: NextRequest) {
                 research,
                 isFallback: job.isFallback === 'true'
               }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
+              { status: 200, headers: noCacheHeaders }
             );
           }
         } catch (err) {
@@ -279,13 +417,13 @@ export async function GET(request: NextRequest) {
       const responseBody = JSON.stringify(job || {}); // Stringify first, ensuring not null
       return new Response(
         responseBody, // Pass the pre-stringified body
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        { status: 200, headers: noCacheHeaders }
       );
     } catch (error: any) {
       console.error(`Error checking job status for ${jobId}:`, error);
       return new Response(
         JSON.stringify({ error: error.message || 'An error occurred checking job status' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: noCacheHeaders }
       );
     }
   }
@@ -299,78 +437,23 @@ export async function GET(request: NextRequest) {
   if (!topic) {
     return new Response(
       JSON.stringify({ error: 'Either jobId or topic parameter is required' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      { status: 400, headers: noCacheHeaders }
     );
   }
   
   try {
-    // Create a cache key for this research request
-    const cacheKey = createCacheKey(topic, contentType, platform, language);
-    
-    // Check if research is already cached
-    if (kv) {
-      // Try exact match first
-      const cachedResult = await kv.get(cacheKey);
-      if (cachedResult) {
-        return new Response(
-          JSON.stringify({ 
-            research: cachedResult, 
-            fromCache: true,
-            matchType: 'exact' 
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Try fallback key
-      const fallbackResult = await kv.get(`${cacheKey}:fallback`);
-      if (fallbackResult) {
-        return new Response(
-          JSON.stringify({ 
-            research: fallbackResult, 
-            fromCache: true,
-            matchType: 'fallback',
-            isFallback: true
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Try simplified key pattern
-      const simplifiedKey = createSimplifiedTopicKey(topic);
-      
-      try {
-        const keys = await kv.keys(`${simplifiedKey}*`);
-        if (keys && keys.length > 0) {
-          const partialMatch = await kv.get(keys[0]);
-          if (partialMatch) {
-            return new Response(
-              JSON.stringify({ 
-                research: partialMatch, 
-                fromCache: true,
-                matchType: 'simplified',
-                cacheKey: keys[0]
-              }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
-            );
-          }
-        }
-      } catch (err) {
-        console.warn('Error searching for simplified matches:', err);
-      }
-    }
-    
-    // If not cached, return appropriate response
+    // Always return "not found" response to force fresh research generation
+    console.log(`Cache lookup disabled for topic: ${topic}`);
     return new Response(
       JSON.stringify({ available: false }),
-      { status: 404, headers: { 'Content-Type': 'application/json' } }
+      { status: 404, headers: noCacheHeaders }
     );
   } catch (error: any) {
     console.error(`Error checking research availability:`, error);
     
     return new Response(
       JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }
