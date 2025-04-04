@@ -1429,20 +1429,34 @@ If you'd like complete research, please try again later when our research servic
           ? `${enrichedDetails}. ${additionalContext}` 
           : additionalContext;
             
-        // Update content details with enriched information
-        setContentDetails({
+        // Create updated details with enriched information AND follow-up Q&A
+        const updatedDetails = {
           ...safeContentDetails,
           primarySubject: enrichedSubject,
-          subjectDetails: enrichedDetails
-        });
+          subjectDetails: enrichedDetails,
+          followUp: {
+            questions: followUpQuestions,
+            answers: followUpAnswers
+          }
+        };
         
-        // Save to session storage
-        sessionStorage.setItem('contentDetails', JSON.stringify({
-          ...safeContentDetails,
-          primarySubject: enrichedSubject,
-          subjectDetails: enrichedDetails
-        }));
+        // Update state and save to session storage
+        setContentDetails(updatedDetails);
+        sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
       }
+    } else {
+      // Even if no answers, still save the questions
+      const updatedDetails = {
+        ...safeContentDetails,
+        followUp: {
+          questions: followUpQuestions,
+          answers: []
+        }
+      };
+      
+      // Update state and save to session storage
+      setContentDetails(updatedDetails);
+      sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
     }
     
     // Move to research generation step
@@ -3093,23 +3107,40 @@ If you'd like complete research, please try again later when our research servic
         
         // Format only questions with actual answers
         const answeredQuestions = questions
-          .map((q: string, i: number) => answers[i] && answers[i].trim() ? `Q: ${q}\nA: ${answers[i]}` : null)
+          .map((q: string, i: number) => answers[i] && answers[i].trim() ? 
+            language === 'es' ? 
+              `Pregunta: ${q}\nRespuesta: ${answers[i]}` : 
+              `Q: ${q}\nA: ${answers[i]}`
+          : null)
           .filter(Boolean);
         
         if (answeredQuestions.length > 0) {
-          followUpSection = "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
+          followUpSection = language === 'es' ? 
+            "\n\nRespuestas de Seguimiento:\n" + answeredQuestions.join("\n\n") :
+            "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
         }
       }
       
       // Build context
-      const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
+      const contextString = language === 'es' ?
+        `Tema: "${safeContentDetails?.researchTopic || ''}"
+Plataforma: ${safeContentDetails?.platform || 'facebook'}, 
+Tipo de Contenido: ${safeContentDetails?.contentType || 'social-post'},
+Audiencia Objetivo: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}` :
+        `Topic: "${safeContentDetails?.researchTopic || ''}"
 Platform: ${safeContentDetails?.platform || 'facebook'}, 
 Content Type: ${safeContentDetails?.contentType || 'social-post'},
 Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSection}`;
       
       // Update status message periodically with informative messages
       let messageIndex = 0;
-      const statusMessages = [
+      const statusMessages = language === 'es' ? [
+        'Consultando bases de datos de conocimiento...',
+        'Analizando fuentes de información...',
+        'Sintetizando resultados de investigación...',
+        'Organizando hallazgos clave...',
+        'Finalizando documento de investigación...'
+      ] : [
         'Querying knowledge databases...',
         'Analyzing information sources...',
         'Synthesizing research findings...',
@@ -3117,19 +3148,10 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         'Finalizing research document...'
       ];
       
-      const spanishStatusMessages = [
-        'Consultando bases de conocimiento...',
-        'Analizando fuentes de información...',
-        'Sintetizando hallazgos de la investigación...',
-        'Organizando información clave...',
-        'Finalizando documento de investigación...'
-      ];
-      
       // Update status message every 30 seconds
       const messageInterval = setInterval(() => {
-        const messages = language === 'es' ? spanishStatusMessages : statusMessages;
-        messageIndex = (messageIndex + 1) % messages.length;
-        setStatusMessage(messages[messageIndex]);
+        messageIndex = (messageIndex + 1) % statusMessages.length;
+        setStatusMessage(statusMessages[messageIndex]);
       }, 30000);
       
       try {
