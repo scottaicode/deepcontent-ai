@@ -337,43 +337,22 @@ export async function POST(request: NextRequest) {
     logSection(requestId, 'ERROR', `Error generating research: ${error.message}`);
     console.error(`[DIAG] [${requestId}] Error details:`, error);
     
-    // Handle errors with fallback
-    console.error(`Error generating research: ${error.message}`);
-    
-    // Generate fallback content - maintain the existing fallback code
-    let fallbackResult = `# Research on ${topic}\n\n`;
-    
-    // Add topic-specific fallback content
-    if (topic.toLowerCase().includes('tranont')) {
-      // Add the Tranont-specific fallback content 
-      fallbackResult += `## Executive Summary\n\n`;
-      fallbackResult += `This research report provides a comprehensive analysis of Tranont with a focus on applications for social/social-media. The target audience for this research is Women age 50 - 60. This report includes market analysis, audience insights, and strategic recommendations.\n\n`;
-      
-      // Additional sections as needed...
-    } else if (topic.toLowerCase().includes('softcom') || 
-               topic.toLowerCase().includes('internet') || 
-               extractedPlatform.toLowerCase().includes('social')) {
-      // Add the existing softcom/internet fallback content
-      fallbackResult += `## Overview of ${topic}\n\n`;
-      fallbackResult += `Internet service providers play a crucial role in rural and residential areas. For companies like Softcom, understanding the specific needs and pain points of rural internet users is essential.\n\n`;
-      fallbackResult += `## Content Strategy Recommendations\n\n`;
-      fallbackResult += `1. Share customer success stories highlighting how reliable internet improves rural businesses and homes\n`;
-      fallbackResult += `2. Create educational content about maximizing internet performance\n`;
+    // Remove fallback logic that creates mockup softcom content, keeping only essential code
+    if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+      console.error(`Research API timeout: ${error.message}`);
+      return new Response(
+        JSON.stringify({ error: 'Research generation timed out. Please try again.' }),
+        { status: 504, headers: noCacheHeaders }
+      );
     } else {
-      // Add generic fallback content
-      fallbackResult += `## Overview\n\nThis topic requires in-depth research. Due to technical limitations, we could only generate a basic outline of the important areas to research.\n\n`;
-      fallbackResult += `## Key Areas to Research\n\n`;
-      fallbackResult += `1. Market trends and current statistics\n`;
-      fallbackResult += `2. Target audience demographics and preferences\n`;
+      console.error(`Research API error: ${error.message}`);
+      
+      // Return appropriate error
+      return new Response(
+        JSON.stringify({ error: `${error.message}` }),
+        { status: 500, headers: noCacheHeaders }
+      );
     }
-    
-    fallbackResult += `\n\nThis report was generated as an emergency fallback due to research API limitations.`;
-    
-    // Return the fallback content directly
-    return new Response(
-      JSON.stringify({ research: fallbackResult, isFallback: true }),
-      { status: 200, headers: noCacheHeaders }
-    );
   }
 }
 
