@@ -31,7 +31,7 @@ export class PerplexityClient {
     const {
       maxTokens = 4000,
       temperature = 0.2,
-      timeoutMs = 60000, // 60 second timeout default
+      timeoutMs = 180000, // 180 second timeout (3 minutes)
       language = 'en'
     } = options;
     

@@ -42,7 +42,7 @@ interface Job {
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Set the maximum duration for this route
-export const maxDuration = 300; // 5 minutes max - keep the full duration
+export const maxDuration = 300; // 5 minutes max duration
 
 // Set the maximum size for request/response to handle large research results
 export const fetchCache = "force-no-store";
