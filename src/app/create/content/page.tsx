@@ -1031,41 +1031,43 @@ export default function ContentGenerator() {
       
       // First try to get the response as text for diagnostic purposes
       const responseText = await response.text();
-      console.log(`Raw API response (${response.status}):`, responseText.substring(0, 100) + '...');
+      console.log(`Raw API response (${response.status}):`, responseText.length > 100 
+        ? responseText.substring(0, 100) + '...' 
+        : responseText);
       
-      // Parse the JSON response manually with additional error handling
+      // Parse the JSON response with improved error handling
       let data;
       try {
+        // Try to parse the JSON
         data = JSON.parse(responseText);
-        console.log('Successfully parsed API response', { 
-          hasContent: Boolean(data.content),
-          contentLength: data.content?.length,
-          language: data.language
-        });
+        
+        // Log success
+        console.log('Successfully parsed API response');
       } catch (parseError) {
         console.error('JSON parse error:', parseError);
         
-        // Check if we can salvage something from the response
-        if (responseText.includes('"content"')) {
-          try {
-            // Try to extract content using regex as a fallback
-            const contentMatch = /"content":"(.*?)","language"/.exec(responseText);
-            if (contentMatch && contentMatch[1]) {
-              console.log('Extracted content using regex fallback');
-              data = { content: contentMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') };
-            } else {
-              throw new Error('Failed to extract content from response');
-            }
-          } catch (fallbackError) {
-            console.error('Regex fallback failed:', fallbackError);
-            throw new Error(language === 'es' 
-              ? 'Error al analizar la respuesta de la API. El formato no es válido.' 
-              : 'Error parsing API response. Invalid format.');
+        // If parsing fails, create a simple fallback based on the raw response
+        // This is a last resort to prevent the entire flow from failing
+        if (responseText.length > 0) {
+          const errorMsg = language === 'es' 
+            ? 'Error al analizar la respuesta. Usando respuesta sin formato.' 
+            : 'Error parsing response. Using raw response.';
+          
+          console.warn(errorMsg);
+          
+          // Just set content to the text response as fallback
+          data = { content: responseText };
+          
+          // Check if it's clearly an error response
+          if (responseText.includes('error') || responseText.includes('Error')) {
+            throw new Error(language === 'es'
+              ? 'Error en la respuesta de la API'
+              : 'Error in API response');
           }
         } else {
           throw new Error(language === 'es' 
-            ? 'Error al analizar la respuesta de la API' 
-            : 'Error parsing API response');
+            ? 'Respuesta vacía de la API' 
+            : 'Empty response from API');
         }
       }
       

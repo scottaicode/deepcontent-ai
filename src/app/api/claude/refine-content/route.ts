@@ -405,18 +405,17 @@ Return ONLY the revised content, ready for publication.
           : 'Invalid response from Claude API');
       }
       
-      // Ensure proper encoding for Spanish characters
-      const contentResponse = {
-        content: refinedContent,
-        language: language || 'en',
-        timestamp: new Date().toISOString()
-      };
+      // Simplify response to avoid JSON parsing issues
+      // Use a simple object with minimal nesting
+      const simpleResponse = { content: refinedContent };
       
-      // Return the response as JSON with proper content type
-      return new NextResponse(JSON.stringify(contentResponse), {
+      console.log('Returning response with content length:', refinedContent.length);
+      
+      // Return a simple JSON response to avoid parsing issues
+      return new Response(JSON.stringify(simpleResponse), {
         status: 200,
         headers: {
-          'Content-Type': 'application/json; charset=utf-8'
+          'Content-Type': 'application/json',
         }
       });
     } catch (claudeError) {
@@ -424,7 +423,14 @@ Return ONLY the revised content, ready for publication.
       const errorMessage = language === 'es' 
         ? 'Error al comunicarse con la API de Claude. Por favor, inténtalo de nuevo.' 
         : 'Error communicating with Claude API. Please try again.';
-      return NextResponse.json({ error: errorMessage }, { status: 500 });
+      
+      // Return a simple error response that can be easily parsed
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
     }
   } catch (error) {
     console.error('Error in refine-content API:', error);
@@ -463,9 +469,12 @@ Return ONLY the revised content, ready for publication.
     
     console.error('Returning error response:', errorMessage, statusCode);
     
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: statusCode }
-    );
+    // Return a simple error response that can be easily parsed
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: statusCode,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
   }
 } 
