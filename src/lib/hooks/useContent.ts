@@ -81,6 +81,8 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
   const [contentList, setContentList] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempts, setLoadAttempts] = useState<number>(0);
+  const MAX_LOAD_ATTEMPTS = 3;
   
   // Development mode sampleContent state
   const [devContentList, setDevContentList] = useState<ContentItem[]>(sampleContentItems);
@@ -134,9 +136,25 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
       return;
     }
     
+    // Add check for too many load attempts
+    if (loadAttempts >= MAX_LOAD_ATTEMPTS) {
+      console.warn(`Maximum load attempts (${MAX_LOAD_ATTEMPTS}) reached. Stopping further loading attempts.`);
+      setError('Too many loading attempts. Please try refreshing the page.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Increment the load attempt counter
+    setLoadAttempts(prev => prev + 1);
+    
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Add a timeout to prevent hanging loads
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Loading content timed out')), 15000);
+      });
       
       if (bypassAuthActive) {
         // DEV MODE: Filter sample content based on params
@@ -158,14 +176,26 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
         console.log('DEV MODE: Filtered content count:', filteredContent.length);
         setContentList(filteredContent);
       } else {
-        // PRODUCTION: Fetch from Firebase
+        // PRODUCTION: Fetch from Firebase with timeout
         console.log('Fetching content for user:', user.uid);
         try {
-          const fetchedContent = await getUserContent(user.uid, status, contentType, limit);
+          // Use Promise.race to implement timeout for fetch
+          const fetchedContent = await Promise.race([
+            getUserContent(user.uid, status, contentType, limit),
+            timeoutPromise
+          ]) as ContentItem[];
+          
           console.log('Fetched content count:', fetchedContent.length);
           setContentList(fetchedContent);
           setError(null); // Clear any previous errors
+          
+          // Reset load attempts counter on success
+          setLoadAttempts(0);
         } catch (fetchError: any) {
+          if (fetchError.message === 'Loading content timed out') {
+            throw fetchError;
+          }
+          
           console.error('Specific fetch error:', fetchError);
           
           // Check if this is a "collection not found" type error
@@ -175,6 +205,9 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
             console.log('Collection may not exist yet, setting empty array');
             setContentList([]); // Set empty array instead of error
             setError(null); // Don't show error in this case
+            
+            // Reset load attempts counter on intentional empty result
+            setLoadAttempts(0);
           } else {
             // For other types of errors, show the error message
             throw fetchError;
@@ -183,11 +216,18 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
       }
     } catch (err) {
       console.error('Error fetching content list:', err);
-      setError('Failed to fetch content list');
+      setError(typeof err === 'object' && err !== null && 'message' in err 
+        ? (err as Error).message 
+        : 'Failed to fetch content list');
+      
+      // Don't increment load attempts for timeout errors to prevent further retries
+      if (err instanceof Error && err.message === 'Loading content timed out') {
+        setLoadAttempts(MAX_LOAD_ATTEMPTS); // Force stop retrying
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [user?.uid, status, contentType, limit, bypassAuthActive, devContentList]);
+  }, [user?.uid, status, contentType, limit, bypassAuthActive, devContentList, loadAttempts, MAX_LOAD_ATTEMPTS]);
 
   // Get all content for the current user (without filters)
   const getAllContent = useCallback(async (): Promise<ContentItem[]> => {
@@ -222,6 +262,12 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
       return;
     }
     
+    // Prevent refreshing if max attempts reached
+    if (loadAttempts >= MAX_LOAD_ATTEMPTS) {
+      console.warn(`Maximum load attempts (${MAX_LOAD_ATTEMPTS}) reached. Skipping refresh.`);
+      return;
+    }
+    
     // Clear content lists first to avoid showing stale data
     setContent(null);
     setContentList([]);
@@ -238,7 +284,7 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
         console.log('No content found after refresh, may need to check Firebase permissions or data existence');
       }
     }, 500);
-  }, [contentId, fetchContentById, fetchContentList, user?.uid, contentList.length, isLoading]);
+  }, [contentId, fetchContentById, fetchContentList, user?.uid, contentList.length, isLoading, loadAttempts, MAX_LOAD_ATTEMPTS]);
 
   // Save new content
   const saveNewContent = useCallback(async (data: Omit<ContentItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {
@@ -482,10 +528,19 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
     }
   }, [refreshContent, bypassAuthActive, setDevContentList]);
 
-  // Load initial data
+  // Load initial data with safety checks
   useEffect(() => {
+    // Reset counter when dependencies change
+    setLoadAttempts(0);
+    
     if (bypassAuthActive || user?.uid) {
       console.log('Initial data load triggered', { bypassAuthActive, userId: user?.uid });
+      
+      // Prevent loading if already in progress
+      if (isLoading) {
+        console.log('Already loading, skipping initial load');
+        return;
+      }
       
       if (contentId) {
         fetchContentById();
@@ -499,11 +554,11 @@ export function useContent({ contentId, status, contentType, limit }: UseContent
       setIsLoading(false);
     }
     
-    // Refresh when auth state changes
-    if (user?.uid) {
-      console.log('User auth state changed, refreshing content');
-    }
-  }, [user?.uid, contentId, fetchContentById, fetchContentList, bypassAuthActive]);
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      setIsLoading(false);
+    };
+  }, [user?.uid, contentId, fetchContentById, fetchContentList, bypassAuthActive, isLoading]);
 
   return {
     content,

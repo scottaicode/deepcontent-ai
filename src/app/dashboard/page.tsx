@@ -20,8 +20,24 @@ export default function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [firestoreConnected, setFirestoreConnected] = useState<boolean | null>(null);
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const MAX_REFRESH_ATTEMPTS = 2;
   const { t } = useTranslation();
   const { user } = useAuth();
+  
+  // Use ref to track loading state across renders
+  const isLoadingRef = React.useRef(false);
+  const refreshTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  // Update ref when isLoading changes
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+  
+  // Update ref when isRefreshing changes
+  useEffect(() => {
+    isLoadingRef.current = isRefreshing || isLoading;
+  }, [isRefreshing, isLoading]);
   
   // Clean up filter function - no need for temporary content anymore
   const filteredContent = useMemo(() => {
@@ -104,7 +120,19 @@ export default function DashboardPage() {
       return;
     }
     
+    // Prevent too many refresh attempts
+    if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+      console.warn('Maximum refresh attempts reached');
+      toast({
+        title: t('common.warning'),
+        description: t('dashboard.tooManyRefreshAttempts', { defaultValue: 'Too many refresh attempts. Please reload the page.' }),
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     setIsRefreshing(true);
+    setRefreshAttempts(prev => prev + 1);
 
     try {
       // Test Firestore connection
@@ -115,8 +143,31 @@ export default function DashboardPage() {
         throw new Error(t('dashboard.firestoreConnectionFailed'));
       }
       
+      // Set a timeout to ensure we don't get stuck loading
+      const refreshTimeout = setTimeout(() => {
+        console.warn('Refresh operation timed out');
+        setIsRefreshing(false);
+        toast({
+          title: t('common.warning'),
+          description: t('dashboard.refreshTimeout', { defaultValue: 'Refresh operation timed out' }),
+          variant: 'destructive'
+        });
+      }, 20000);
+      
+      refreshTimeoutRef.current = refreshTimeout;
+      
       await refreshContent();
+      
+      // Clear timeout if refresh completed successfully
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+      
       setLastRefreshTime(new Date());
+      
+      // Reset attempts on success
+      setRefreshAttempts(0);
       
       toast({
         title: t('dashboard.refreshSuccess'),
@@ -124,42 +175,78 @@ export default function DashboardPage() {
         variant: 'success'
       });
     } catch (error) {
+      console.error('Refresh error:', error);
       toast({
         title: t('common.error'),
         description: t('dashboard.refreshError'),
         variant: 'destructive'
       });
     } finally {
+      // Clear any existing timeout
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+      
       setIsRefreshing(false);
     }
   };
   
-  // Clean up useEffect - simplify initialization
+  // Clean up useEffect - simplify initialization with debounce
   useEffect(() => {
     // Initial content load - ONLY if user is verified and not already refreshing
-    if (user?.uid && user.emailVerified && !isRefreshing && !isLoading) {
+    if (user?.uid && user.emailVerified && !isRefreshing && !isLoading && !isLoadingRef.current) {
       console.log('User is verified, attempting initial content load...');
-      setIsRefreshing(true);
       
-      refreshContent()
-        .then(() => {
-          setLastRefreshTime(new Date());
-        })
-        .catch(error => {
-          // Error from useContent will be handled by the main render block
-          console.error('Error loading content during initial load (verified user):', error);
-        })
-        .finally(() => {
-          setIsRefreshing(false);
-        });
+      // Prevent too many refresh attempts
+      if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+        console.warn('Maximum refresh attempts reached during initial load');
+        return;
+      }
+      
+      // Use debounce to prevent multiple simultaneous loads
+      const debounceTimeout = setTimeout(() => {
+        // Check again if we're loading, to handle race conditions
+        if (isLoadingRef.current) {
+          console.log('Loading already in progress after debounce, skipping');
+          return;
+        }
+        
+        setIsRefreshing(true);
+        setRefreshAttempts(prev => prev + 1);
+        
+        refreshContent()
+          .then(() => {
+            setLastRefreshTime(new Date());
+            // Reset attempts on success
+            setRefreshAttempts(0);
+          })
+          .catch(error => {
+            // Error from useContent will be handled by the main render block
+            console.error('Error loading content during initial load (verified user):', error);
+          })
+          .finally(() => {
+            setIsRefreshing(false);
+          });
+      }, 300); // 300ms debounce
+      
+      // Cleanup function
+      return () => clearTimeout(debounceTimeout);
     } else if (user?.uid && !user.emailVerified) {
       // User exists but is not verified - Do nothing here.
-      // The UI error display logic will handle showing the prompt based on the lack of content 
-      // and the user's verification status, or any error caught by handleRefresh if clicked.
       console.log('User is not verified, skipping initial content load.');
     }
     // Only re-run if user ID or verification status changes, or refresh function instance changes.
-  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, setIsRefreshing, setLastRefreshTime, isLoading]);
+  }, [user?.uid, user?.emailVerified, refreshContent, isRefreshing, isLoading, refreshAttempts]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Add Firestore connection check - keep this as it's important for UX
   useEffect(() => {
