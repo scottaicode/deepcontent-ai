@@ -5,252 +5,126 @@
  * 1. Using Perplexity Deep Research to generate basic research
  * 2. Using trending topics from Reddit and RSS feeds
  * 
- * After initial research, users can generate more detailed analysis with the research process.
+ * After initial research, users can generate deeper analysis with Claude 3.7 Sonnet.
  */
 
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import AppShell from '../../../components/AppShell';
 import { TrendingTopic } from '@/app/lib/api/trendingTypes';
 import { TrendingResult } from '@/app/lib/api/trendingService';
 import { generateResearch } from '@/app/lib/api/trendService';
+import { getSampleResearch } from '@/app/lib/sampleResearch';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeSlug from 'rehype-slug';
-import rehypeSanitize from 'rehype-sanitize';
 import ApiKeySetupGuide from '../../../components/ApiKeySetupGuide';
+import YouTubeTranscriptInput from '@/components/YouTubeTranscriptInput';
 import ContentTypeRecommendations from '@/components/ContentTypeRecommendations';
 import { toast } from 'react-hot-toast';
 import { MODEL_CONFIG, getProcessDescription } from '@/app/lib/modelConfig';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { IconArrowDown, IconArrowRight } from '@tabler/icons-react';
-import { useAuth } from '@/lib/hooks/useAuth';  // Add useAuth import
-import ResearchActionButtons from '@/components/ResearchActionButtons';
-import { 
-  platformToContentType, 
-  contentTypeDisplayNames, 
-  platformDisplayNames, 
-  getDisplayNames 
-} from '@/app/lib/contentTypeDetection';
-import { generatePerplexityResearch } from '@/lib/api/generatePerplexityResearch';
-
-// Add declaration for global EventSource property
-declare global {
-  interface Window {
-    researchEventSource: EventSource | null;
-  }
-}
-
-// Define type for the ReactMarkdown code component to include inline property
-type CodeProps = {
-  node?: any;
-  inline?: boolean; 
-  className?: string;
-  children?: React.ReactNode;
-};
 
 // Add back the ResearchResults interface at the top level
 interface ResearchResults {
-  researchMethod: 'perplexity' | 'trending' | 'claude' | 'perplexity-fallback' | 'perplexity-mock' | 'fallback' | 'emergency-fallback';
+  researchMethod: 'perplexity' | 'trending' | 'claude';
   perplexityResearch?: string;
   trendingTopics?: TrendingTopic[];
   dataSources?: {
     reddit: boolean;
     rss: boolean;
   };
-  claudeResearch?: string;
 }
 
 // Add ContentDetails interface definition
 interface ContentDetails {
   contentType: string;
-  platform: string;
   researchTopic: string;
-  targetAudience: string;
   businessType: string;
-  userId?: string; // Make userId optional
-  isPersonalUseCase?: boolean; // Make isPersonalUseCase optional
-  youtubeTranscript?: string;
-  youtubeUrl?: string;
-  language?: string;
-  // Add the missing properties
-  subPlatform?: string;
-  audienceNeeds?: string;
-  primarySubject?: string;
-  subjectDetails?: string;
-  businessName?: string; // Add businessName field
-  websiteContent?: {
-    title?: string;
-    paragraphs?: string[];
-    headings?: string[];
-    aboutContent?: string;
-    productInfo?: string;
-    contactInfo?: {
-      emails?: string[];
-      phones?: string[];
-    };
-  };
-  followUp?: {
-    questions: string[];
-    answers: string[];
-  };
+  targetAudience: string;
+  audienceNeeds: string;
+  platform: string;
+  subPlatform: string;
+  primarySubject?: string;    // Add back primarySubject
+  subjectDetails?: string;    // Add back subjectDetails
+  youtubeTranscript?: string; // YouTube transcript
+  youtubeUrl?: string;        // YouTube URL
 }
 
-// Replace the existing platformToContentType mapping with an expanded version
-// Now using the imported definition from contentTypeDetection.ts
-
-// Helper function to get display names
-const getFormattedContentType = (
-  contentType: string, 
-  platform: string, 
-  subPlatform?: string,
-  currentLanguage: string = 'en'
-): { displayContentType: string, displayPlatform: string } => {
-  // Use the imported getDisplayNames function
-  return getDisplayNames(contentType, platform, subPlatform || '', currentLanguage);
-};
-
-// Add detectPersonalUseCase definition
-const detectPersonalUseCase = (topic: string): boolean => {
-  if (!topic) return false;
-  
-  const topicLower = topic.toLowerCase();
-  
-  // Business-oriented keywords
-  const businessKeywords = [
-    'business', 'company', 'professional', 'commerce',
-    'product', 'service', 'market', 'client', 'customer'
-  ];
-  
-  // Check for business indicators
-  if (businessKeywords.some(keyword => topicLower.includes(keyword))) {
-    return false;
+/**
+ * Fetch trending topics from the API based on business type
+ */
+async function fetchTrendingTopics(businessType: string, sources: string[] = ['rss']): Promise<TrendingResult> {
+  try {
+    // Build sources parameter - default to RSS
+    const sourcesParam = sources.length > 0 
+      ? sources.join(',') 
+      : 'rss'; // Default to RSS if none selected
+    
+    // Fetch trending topics with real data only
+    const response = await fetch(`/api/trending?businessType=${encodeURIComponent(businessType)}&sources=${sourcesParam}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const errorMessage = errorData?.error || `Failed to fetch trending topics: ${response.status}`;
+      throw new Error(errorMessage);
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error fetching trending topics:', error);
+    throw error;
   }
-  
-  // Personal-oriented keywords
-  const personalKeywords = [
-    'personal', 'family', 'hobby', 'home', 'travel', 'lifestyle',
-    'recipe', 'cooking', 'fitness', 'education'
-  ];
-  
-  // Look for personal keywords
-  return personalKeywords.some(keyword => topicLower.includes(keyword));
-};
+}
 
-export default function ResearchPage() {
-  const router = useRouter();
-  const { t, language } = useTranslation();
-  const { user, loading: authLoading } = useAuth(); // Add auth usage
-  
-  // Add state for auth prompt
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  
-  // Add error state
-  const [errorState, setErrorState] = useState<{
-    hasError: boolean;
-    message: string;
-  }>({
-    hasError: false,
-    message: ''
-  });
-  
-  // Helper function to ensure we always get a string from translation
-  const safeTranslate = (key: string, fallback: string): string => {
-    const translated = t(key);
-    if (typeof translated === 'string') {
-      return translated;
-    }
-    console.warn(`Translation for key "${key}" returned non-string value:`, translated);
-    return fallback;
-  };
-  
-  /**
-   * Removes thinking tags from content
-   */
-  const removeThinkingTags = (content: string): string => {
-    if (!content) return '';
+/**
+ * Simulate Deep Research with Claude 3.7 Sonnet
+ * Makes an API call to our Claude research endpoint
+ */
+async function generateDeepResearch(
+  topic: string, 
+  context: string,
+  additionalTopics?: TrendingTopic[]
+): Promise<string> {
+  try {
+    const response = await fetch('/api/claude/research', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        topic,
+        context,
+        trendingTopics: additionalTopics || []
+      }),
+    });
     
-    return content
-      // Remove both thinking tag variants
-      .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-      .replace(/<thinking[\s\S]*?thinking>/g, '')
-      .replace(/<think>[\s\S]*?<\/think>/g, '')
-      .replace(/<think[\s\S]*?think>/g, '');
-  };
-  
-  /**
-   * Thoroughly clean research content to remove any template language or placeholders
-   */
-  const cleanResearchContent = (content: string): string => {
-    if (!content) return '';
-    
-    // Remove thinking tags and their content
-    let cleaned = removeThinkingTags(content);
-
-    // Remove excessive blank lines (more than 2 consecutive)
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-    
-    // Enhance headings with better formatting
-    cleaned = cleaned.replace(/^# (.*?)$/gm, '# 📊 $1');
-    cleaned = cleaned.replace(/^## (.*?)$/gm, '## 🔍 $1');
-    cleaned = cleaned.replace(/^### (.*?)$/gm, '### 📈 $1');
-    
-    // Enhance key sections with better formatting
-    cleaned = cleaned.replace(/(?:market overview|Market Overview)/g, '## 🌐 Market Overview');
-    cleaned = cleaned.replace(/(?:competitive landscape|Competitive Landscape)/g, '## 🏆 Competitive Landscape');
-    cleaned = cleaned.replace(/(?:consumer pain points|Consumer Pain Points|Customer Pain Points)/g, '## 😣 Consumer Pain Points');
-    cleaned = cleaned.replace(/(?:key takeaways|Key Takeaways)/g, '## 💡 Key Takeaways');
-    cleaned = cleaned.replace(/(?:recommendations|Recommendations|Action Items)/g, '## 🚀 Recommendations');
-    cleaned = cleaned.replace(/(?:keywords|Keywords|Key Terms)/g, '## 🔑 Keywords');
-    cleaned = cleaned.replace(/(?:best practices|Best Practices)/g, '## ✅ Best Practices');
-    cleaned = cleaned.replace(/(?:statistics|Statistics|Key Stats)/g, '## 📊 Statistics');
-    cleaned = cleaned.replace(/(?:trends|Trends|Current Trends)/g, '## 📈 Trends');
-    
-    // Enhance bullet points with better formatting
-    cleaned = cleaned.replace(/^(\s*)-\s+(.+)$/gm, '$1• $2');
-    
-    // Highlight data points and percentages
-    cleaned = cleaned.replace(/(\d+%)/g, '**$1**');
-    cleaned = cleaned.replace(/(\$\d+(?:\.\d+)? (?:billion|million|trillion))/gi, '**$1**');
-    
-    // Highlight year ranges
-    cleaned = cleaned.replace(/\b(20\d\d-20\d\d)\b/g, '**$1**');
-    
-    // Add markdown table formatting to improve any tabular data
-    cleaned = cleaned.replace(/(\|\s*[^|]+\s*\|\s*[^|]+\s*\|)/g, '$1\n| --- | --- |');
-    
-    // Add a professional summary box at the end if there's no conclusion
-    if (!cleaned.includes('# Conclusion') && !cleaned.includes('## Conclusion')) {
-      cleaned += '\n\n## 🔄 Summary\n\nThis research provides a comprehensive overview of the topic, including market analysis, competitive landscape, and strategic recommendations. Use these insights to inform your content strategy and connect with your target audience effectively.';
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || 'Failed to generate deep research');
     }
     
-    return cleaned;
-  };
-  
-  /**
-   * Generate research with Perplexity
-   * Simplified implementation to fix the error
-   */
-  const generatePerplexityResearch = async (
-    topic: string,
-    context: string,
-    sources?: string[],
-    language?: string,
-    companyName?: string,
-    websiteContent?: any
-  ): Promise<string> => {
+    const data = await response.json();
+    return data.research;
+  } catch (error: any) {
+    console.error('Error generating deep research:', error);
+    throw new Error('Failed to generate research with Claude 3.7 Sonnet: ' + error.message);
+  }
+}
+
+async function generatePerplexityResearch(
+  topic: string,
+  context: string,
+  sources?: string[]
+): Promise<string> {
+  try {
     console.log('Calling Perplexity research API with:', { 
       topic, 
       context,
-      sources: sources || [],
-      language,
-      companyName,
-      hasWebsiteContent: !!websiteContent
+      sources: sources || [] 
     });
     
     // Validate topic to ensure it's not empty
@@ -258,143 +132,39 @@ export default function ResearchPage() {
       throw new Error('Empty research topic provided to Perplexity API');
     }
     
-    // Log special message for company-specific research
-    if (companyName) {
-      console.log(`📊 Performing company-specific research on "${companyName}" - Will prioritize official website and social media sources`);
-    }
-    
-    // Add timestamp for tracking request duration
-    const startTime = Date.now();
-    
-    // Add cache busting timestamp parameter to the URL
-    const timestamp = Date.now();
-    const url = `/api/perplexity/research?timestamp=${timestamp}`;
-    
-    const response = await fetch(url, {
+    const response = await fetch('/api/perplexity/research', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        'Pragma': 'no-cache'
       },
       body: JSON.stringify({
-        topic: topic.trim(),
+        topic: topic.trim(), // Ensure clean topic
         context: context.trim(),
-        sources: sources || [],
-        language,
-        companyName,
-        websiteContent // Include website content if available
+        sources: sources || []
       }),
     });
     
-    // Calculate request duration
-    const duration = Date.now() - startTime;
-    console.log(`Perplexity research request completed in ${duration}ms`);
-    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      
-      // Better handling for specific error types
-      if (response.status === 504) {
-        console.error('Perplexity research request timed out (504 Gateway Timeout)');
-        throw new Error('Research generation timed out. Please try again with a more specific topic or try later when the service is less busy.');
-      } else if (response.status === 503) {
-        console.error('Perplexity research service temporarily unavailable (503)');
-        throw new Error('The research service is temporarily unavailable. Please try again in a few minutes.');
-      } else {
-        console.error(`API error (${response.status}):`, errorData);
-        throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
-      }
+      throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
     }
     
     const data = await response.json();
-    
-    // Check for company research validation
-    if (companyName && data.companyResearchValidation && !data.companyResearchValidation.isValid) {
-      console.warn(`⚠️ Company research validation failed: ${data.companyResearchValidation.message}`);
-      
-      // Show toast notification about the issue
-      if (typeof window !== 'undefined' && window.document) {
-        // Add to session storage to display warning on research page
-        sessionStorage.setItem('companyResearchWarning', data.companyResearchValidation.message);
-      }
-    }
-    
-    // Verify that company research was included if requested
-    if (companyName && data.research) {
-      const researchText = data.research.toLowerCase();
-      const companyLower = companyName.toLowerCase();
-      
-      // Check if company name appears frequently in the research
-      const companyNameMatches = (researchText.match(new RegExp(companyLower, 'g')) || []).length;
-      
-      if (companyNameMatches < 5) {
-        console.warn(`⚠️ Warning: Company name "${companyName}" only appears ${companyNameMatches} times in the research. The research may not contain sufficient company-specific information.`);
-      } else {
-        console.log(`✓ Company name "${companyName}" appears ${companyNameMatches} times in the research.`);
-      }
-      
-      // Check for website citations
-      const hasWebsiteCitation = researchText.includes(`${companyLower}'s website`) || 
-                                researchText.includes(`${companyLower} website`) ||
-                                researchText.includes(`official website`);
-                                
-      // Check for LinkedIn citations
-      const hasLinkedInCitation = researchText.includes('linkedin') || researchText.includes('linked in');
-      
-      // Check for social media citations
-      const hasSocialMediaCitation = researchText.includes('facebook') || 
-                                    researchText.includes('twitter') || 
-                                    researchText.includes('instagram') ||
-                                    researchText.includes('social media');
-      
-      if (!hasWebsiteCitation) {
-        console.warn(`⚠️ Warning: No explicit citations of ${companyName}'s website found in the research.`);
-      }
-      
-      if (!hasLinkedInCitation) {
-        console.warn(`⚠️ Warning: No LinkedIn citations found in the research.`);
-      }
-      
-      if (!hasSocialMediaCitation) {
-        console.warn(`⚠️ Warning: No social media citations found in the research.`);
-      }
-    }
     
     if (!data.research) {
       throw new Error('No research content returned from Perplexity API');
     }
     
     return data.research;
-  };
-  
-  /**
-   * Fetch trending topics from the API based on business type
-   * Simplified implementation to fix the error
-   */
-  const fetchTrendingTopics = async (businessType: string, sources: string[] = ['rss']): Promise<TrendingResult> => {
-    try {
-      // Build sources parameter - default to RSS
-      const sourcesParam = sources.length > 0 
-        ? sources.join(',') 
-        : 'rss'; // Default to RSS if none selected
-      
-      // Fetch trending topics with real data only
-      const response = await fetch(`/api/trending?businessType=${encodeURIComponent(businessType)}&sources=${sourcesParam}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.error || `Failed to fetch trending topics: ${response.status}`;
-        throw new Error(errorMessage);
-      }
-      
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('Error fetching trending topics:', error);
-      throw error;
-    }
-  };
+  } catch (error) {
+    console.error('Error generating Perplexity research:', error);
+    throw error;
+  }
+}
+
+export default function ResearchPage() {
+  const router = useRouter();
+  const { t } = useTranslation();
   
   // State variables
   const [currentStep, setCurrentStep] = useState(1);
@@ -419,9 +189,8 @@ export default function ResearchPage() {
   const [trendingResult, setTrendingResult] = useState<TrendingResult | null>(null);
   const [selectedTopics, setSelectedTopics] = useState<TrendingTopic[]>([]);
   
-  // State for follow-up questions
+  // Add new state variable for follow-up questions
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
-  const [selectedFollowUpQuestions, setSelectedFollowUpQuestions] = useState<string[]>([]);
   const [followUpAnswers, setFollowUpAnswers] = useState<string[]>(['', '', '']);
   const [showFollowUpQuestions, setShowFollowUpQuestions] = useState(false);
   const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
@@ -455,151 +224,18 @@ export default function ResearchPage() {
   // Add a controller ref at the component level
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Add research results state
-  const [researchResults, setResearchResults] = useState<{
-    claudeResearch?: string;
-    perplexityResearch?: string;
-    researchMethod?: 'claude' | 'perplexity' | 'perplexity-fallback' | 'perplexity-mock' | 'fallback' | 'emergency-fallback';
-  }>({});
-  
-  // Add state for research content expansion
-  const [isResearchExpanded, setIsResearchExpanded] = useState(false);
-  const researchRef = useRef<HTMLDivElement>(null);
-  
-  // Add toggle function for research content expansion
-  const toggleResearchExpansion = () => {
-    setIsResearchExpanded(!isResearchExpanded);
-  };
-  
   // Initialize content details from URL or session storage
   useEffect(() => {
-    // Only try to load content details if in the browser environment
-    if (typeof window !== 'undefined') {
-      try {
-        const savedContentDetails = sessionStorage.getItem('contentDetails');
-        if (savedContentDetails) {
-          const parsedContentDetails = JSON.parse(savedContentDetails);
-          
-          // Determine appropriate content type based on platform/subplatform
-          let contentType = (() => {
-            // For blog-related platforms/subplatforms, always use blog-post
-            if (parsedContentDetails.platform === 'blog' || 
-                parsedContentDetails.platform === 'medium' || 
-                parsedContentDetails.subPlatform === 'medium' || 
-                parsedContentDetails.subPlatform === 'wordpress' || 
-                parsedContentDetails.subPlatform === 'company-blog') {
-              console.log('Setting content type to blog-post for Blog-related platform/subplatform');
-              return 'blog-post';
-            }
-            
-            // For social platforms
-            if (parsedContentDetails.platform === 'social' || 
-                ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok'].includes(parsedContentDetails.subPlatform || '')) {
-              return 'social-post';
-            }
-            
-            // For other platforms, use the provided content type
-            return parsedContentDetails.contentType || '';
-          })();
-          
-          // Build a safe object with fallbacks for all required fields
-          const safeContentDetails = {
-            researchTopic: 
-              parsedContentDetails.researchTopic || 
-              parsedContentDetails.primarySubject || 
-              parsedContentDetails.topic || 
-              'content creation',
-            businessType: parsedContentDetails.businessType || '',
-            targetAudience: parsedContentDetails.targetAudience || '',
-            audienceNeeds: parsedContentDetails.audienceNeeds || '',
-            platform: parsedContentDetails.platform || '',
-            contentType: contentType,
-            subPlatform: parsedContentDetails.subPlatform || '',
-            isPersonalUseCase: detectPersonalUseCase(parsedContentDetails.researchTopic || parsedContentDetails.primarySubject || ''),
-            primarySubject: parsedContentDetails.primarySubject || parsedContentDetails.researchTopic || '',
-            subjectDetails: parsedContentDetails.subjectDetails || '',
-            youtubeTranscript: parsedContentDetails.youtubeTranscript || '',
-            youtubeUrl: parsedContentDetails.youtubeUrl || '',
-            businessName: parsedContentDetails.businessName || '', // Add businessName field
-            websiteContent: parsedContentDetails.websiteContent || null, // Add websiteContent field
-            followUp: parsedContentDetails.followUp || { questions: [], answers: [] },
-          };
-          
-          // Update state with validated content details
-          setContentDetails(safeContentDetails);
-        }
-      } catch (error) {
-        // Silent fail - default values will be used
-      }
-    }
-  }, []);
-  
-  // Add this right after the useEffect for initializing content details
-  // This will check the URL for a query parameter specifying which step to show
-
-  useEffect(() => {
-    // Only try to parse URL params in the browser environment
-    if (typeof window !== 'undefined') {
-      // Get the step from the URL query parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const stepParam = urlParams.get('step');
-      
-      if (stepParam) {
-        const parsedStep = parseInt(stepParam, 10);
-        // Only set the step if it's valid (1-5)
-        if (!isNaN(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
-          setResearchStep(parsedStep);
-        }
-      }
-    }
-  }, []);
-  
-  // Function to generate follow-up questions
-  // Now using AI to generate truly tailored questions
-  const generateFollowUpQuestions = async () => {
-    if (!contentDetails) return;
-    
-    setIsLoading(true);
-    setError(''); // Clear any previous errors
-    
     try {
-      // Prepare request payload
-      const payload = {
-        ...contentDetails,
-        isPersonalUseCase: detectPersonalUseCase(contentDetails.researchTopic),
-        language // Pass the current language to the API
-      };
-      
-      console.log('[DEBUG] Generating follow-up questions with language:', language);
-      
-      const response = await fetch('/api/claude/questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate follow-up questions');
+      // When research step changes to 3 (complete), make sure to show research results
+      if (researchStep === 3 && deepResearch) {
+        // Set showResearchResults to true when research is complete
+        setShowResearchResults(true);
       }
-      
-      const data = await response.json();
-      
-      if (data.questions && Array.isArray(data.questions)) {
-        setFollowUpQuestions(data.questions);
-        setResearchStep(2); // Use the correct state setter
-      } else {
-        throw new Error('Invalid response format');
-      }
-    } catch (error: any) {
-      setError(`Failed to generate questions: ${error.message}`);
-      toast.error(error.message || 'Failed to generate follow-up questions');
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      console.error('Error in research visibility effect:', error);
     }
-  };
+  }, [researchStep, deepResearch]);
   
   // Add a useEffect to log step changes for debugging
   useEffect(() => {
@@ -609,37 +245,66 @@ export default function ResearchPage() {
     console.log(`[DEBUG] Error state: ${error ? 'Yes' : 'No'}`);
   }, [researchStep, deepResearch, isGenerating, error]);
   
-  // Handle fetching data based on selected research method
-  const fetchInitialResearch = async () => {
-    if (!safeContentDetails) {
-      console.error('Cannot generate research: Content details are missing');
-      return;
-    }
-    
+  // Initialize content details from URL or session storage
+  useEffect(() => {
     try {
       setIsLoading(true);
+      // Get content details from session storage
+      const storedDetails = sessionStorage.getItem('contentDetails');
       
-      // Build simple context with content details
-      const context = `Target Audience: ${safeContentDetails.targetAudience || 'general audience'}, 
-                     Audience Needs: ${safeContentDetails.audienceNeeds || 'not specified'}, 
-                     Content Type: ${safeContentDetails.contentType || 'social-media'}, 
-                     Platform: ${safeContentDetails.platform || 'facebook'}`;
+      if (storedDetails) {
+        const parsedDetails = JSON.parse(storedDetails);
+        console.log('Loaded content details from session storage:', parsedDetails);
+        
+        // Validate that we have the required fields
+        if (!parsedDetails.businessType && !parsedDetails.researchTopic) {
+          console.error('Missing required business type or research topic in stored details');
+          parsedDetails.businessType = parsedDetails.businessType || 'general business';
+        }
+        
+        if (!parsedDetails.contentType) {
+          console.warn('Missing content type in stored details, using default');
+          parsedDetails.contentType = 'social-media';
+        }
+        
+        if (!parsedDetails.audience) {
+          console.warn('Missing audience in stored details, using default');
+          parsedDetails.audience = 'general audience';
+        }
+        
+        setContentDetails(parsedDetails);
+        setIsLoading(false);
+      } else {
+        // If no stored details, redirect back to create page
+        console.error('No content details found in session storage');
+        router.push('/create');
+      }
+    } catch (err) {
+      console.error('Error initializing research page:', err);
+      setIsLoading(false);
+      router.push('/create');
+    }
+  }, [router]);
+  
+  // Handle fetching data based on selected research method
+  const fetchInitialResearch = async () => {
+    try {
+      console.log('Fetching initial research...');
+      setIsLoading(true);
       
-      const sources = ['recent', 'scholar'];
+      const context = `Target Audience: ${safeContentDetails.targetAudience || 'general'}, Content Type: ${safeContentDetails.contentType || 'article'}, Platform: ${safeContentDetails.platform || 'general'}`;
       
-      console.log('Generating basic research with Perplexity');
-      console.log('Language:', language);
+      // Use perplexity for initial research with empty sources array
+      const sources: string[] = [];
       
-      // Call generatePerplexityResearch with the language parameter
+      // Make call with proper parameters
       const research = await generatePerplexityResearch(
         safeContentDetails.researchTopic || '',
         context,
-        sources,
-        language
+        sources
       );
       
-      // Clean the research content before setting it
-      setBasicResearch(cleanResearchContent(research));
+      setBasicResearch(research);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching initial research:', error);
@@ -673,91 +338,20 @@ export default function ResearchPage() {
     }
   }, [deepResearch, isGenerating]);
   
-  // Update the handleGenerateDeepResearch function to use Perplexity instead of Claude
+  // Update the handleGenerateDeepResearch function to focus just on Perplexity
   const handleGenerateDeepResearch = async () => {
     // Prevent multiple simultaneous calls using debounce
-    if (isGenerating || isGenerateDeepResearchDebounced) {
-      console.log('[DEBUG] Skipping research generation - already in progress');
-      return;
-    }
-    
-    console.log('[DEBUG] Button clicked! Starting research generation with Perplexity');
-    
-    // Reset error state at the beginning
-    setErrorState({
-      hasError: false,
-      message: ''
-    });
+    if (isGenerating || isGenerateDeepResearchDebounced) return;
     
     try {
       // Set debounce flag to prevent multiple calls
       setIsGenerateDeepResearchDebounced(true);
       
-      console.log('[DEBUG] Starting deep research generation with Perplexity Deep Research');
+      console.log('[DEBUG] Starting deep research generation');
       setIsLoading(true);
       setIsGenerating(true);
-      setStatusMessage(language === 'es' 
-        ? 'Generando análisis profundo con Perplexity Deep Research...' 
-        : 'Generating deep analysis with Perplexity Deep Research...');
+      setStatusMessage('Generating deep analysis with Claude 3.7 Sonnet...');
       setGenerationProgress(0);
-      
-      // Make sure we use the safe version of contentDetails with defaults
-      const safeContentDetails = contentDetails ? {
-        ...contentDetails,
-        // Ensure consistent content type based on platform/subPlatform
-        contentType: (() => {
-          // For blog-related platforms/subplatforms, always use blog-post
-          if (contentDetails.platform === 'blog' || 
-              contentDetails.platform === 'medium' || 
-              contentDetails.subPlatform === 'medium' || 
-              contentDetails.subPlatform === 'wordpress' || 
-              contentDetails.subPlatform === 'company-blog') {
-            return 'blog-post';
-          }
-          
-          // For social platforms
-          if (contentDetails.platform === 'social' || 
-              ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok'].includes(contentDetails.subPlatform || '')) {
-            return 'social-post';
-          }
-          
-          // For presentation platforms
-          if (contentDetails.platform === 'presentation' || 
-              ['business', 'executive', 'sales', 'training', 'investor'].includes(contentDetails.subPlatform || '')) {
-            return 'presentation';
-          }
-          
-          // For email platforms
-          if (contentDetails.platform === 'email' || 
-              ['newsletter', 'marketing', 'sales', 'welcome'].includes(contentDetails.subPlatform || '')) {
-            return 'email';
-          }
-          
-          // For YouTube/video platforms
-          if (contentDetails.platform === 'youtube' || 
-              contentDetails.platform === 'video-script' ||
-              ['educational', 'entertainment', 'review', 'travel', 'daily', 'tutorial-vlog'].includes(contentDetails.subPlatform || '')) {
-            return contentDetails.platform === 'youtube' ? 'youtube-script' : 'video-script';
-          }
-          
-          // Default: use the existing content type or fallback to social-media
-          return contentDetails.contentType || 'social-media';
-        })(),
-      } : {
-        contentType: 'social-media',
-        platform: 'facebook',
-        subPlatform: '',
-        targetAudience: 'general audience',
-        audienceNeeds: '',
-        businessType: '',
-        researchTopic: '',
-        primarySubject: '',
-        businessName: '',
-        subjectDetails: '',
-        youtubeTranscript: '',
-        youtubeUrl: '',
-        websiteContent: null // Add websiteContent to the safe defaults
-      };
       
       // Use optional chaining for all contentDetails access
       const topic = safeContentDetails.primarySubject || safeContentDetails.businessType || '';
@@ -765,331 +359,109 @@ export default function ResearchPage() {
       console.log('[DEBUG] Research topic:', topic);
       
       if (!topic) {
-        throw new Error(language === 'es' 
-          ? 'No se ha especificado un tema de investigación' 
-          : 'No research topic specified');
+        throw new Error('No research topic specified');
       }
-      
-      // Enhanced company name detection - check multiple sources
-      // First check if businessName is available and non-empty
-      let companyName = safeContentDetails.businessName?.trim() || '';
-      
-      // If no businessName but we have businessType, use that as fallback
-      if (!companyName && safeContentDetails.businessType) {
-        // Only use businessType as company name if it's not already part of the topic
-        // This avoids duplication in research prompts
-        if (!topic.toLowerCase().includes(safeContentDetails.businessType.toLowerCase())) {
-          companyName = safeContentDetails.businessType.trim();
-        }
-      }
-      
-      // Check for company mentions in primarySubject
-      if (!companyName && safeContentDetails.primarySubject) {
-        // Check if primarySubject contains a potential company name 
-        // Look for capitalized words that might be company names
-        const words = safeContentDetails.primarySubject.split(' ');
-        for (const word of words) {
-          // Look for capitalized words that might be company names
-          if (word.length > 2 && word[0] === word[0].toUpperCase() && !['The', 'And', 'For', 'With'].includes(word)) {
-            companyName = word.replace(/[,.;:'"!?()]/g, ''); // Remove punctuation
-            console.log('[DEBUG] Extracted potential company name from primary subject:', companyName);
-            break;
-          }
-        }
-      }
-      
-      // For "Tranont" specific handling - if user mentioned it in topic or audience needs
-      if (!companyName) {
-        // Check if Tranont appears in the research topic
-        if (topic.toLowerCase().includes('tranont')) {
-          companyName = 'Tranont';
-        } 
-        // Check if Tranont appears in audience needs
-        else if (safeContentDetails.audienceNeeds?.toLowerCase().includes('tranont')) {
-          companyName = 'Tranont';
-        }
-      }
-      
-      console.log('[DEBUG] Company name for research:', companyName || 'None specified');
       
       // Build base context without trending topics
       const baseContext = `Target Audience: ${safeContentDetails.targetAudience || 'general audience'}, 
-                        Audience Needs: ${safeContentDetails.audienceNeeds || 'not specified'}, 
-                        Content Type: ${safeContentDetails.contentType || 'social-media'}, 
-                        Platform: ${safeContentDetails.platform || 'facebook'},
-                        ${safeContentDetails.subPlatform ? `Sub-Platform: ${safeContentDetails.subPlatform}` : ''}`;
+                         Audience Needs: ${safeContentDetails.audienceNeeds || 'not specified'}, 
+                         Content Type: ${safeContentDetails.contentType || 'social-media'}, 
+                         Platform: ${safeContentDetails.platform || 'facebook'}`;
       
-      // Sources for Perplexity research - using both recent and scholarly sources
-      const sources = ['recent', 'scholar'];
+      // Generate research with Claude
+      setStatusMessage(t('researchPage.progress.starting', { service: 'Claude 3.7 Sonnet' }));
+      setGenerationProgress(40);
       
-      // Generate research with Perplexity
-      setStatusMessage(safeTranslate('researchPage.progress.starting', 'Starting {service} analysis...').replace('{service}', 'Perplexity Deep Research'));
+      console.log('[DEBUG] Making API call to Claude research endpoint');
       
-      console.log(`Starting research generation with business name: ${companyName || 'N/A'}`);
+      // Call the Claude research API without trending topics
+      const response = await fetch('/api/claude/research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic,
+          context: baseContext,
+          // Remove trending topics param
+        }),
+      });
       
-      // Get website content from contentDetails and log details
-      const websiteContent = safeContentDetails.websiteContent;
-      if (websiteContent) {
-        console.log('📊 Website content will be used for enhanced company research:');
-        console.log(`   - Title: ${websiteContent.title || 'Not available'}`);
-        console.log(`   - Headings: ${websiteContent.headings?.length || 0}`);
-        console.log(`   - Paragraphs: ${websiteContent.paragraphs?.length || 0}`);
-        console.log(`   - Has About content: ${!!websiteContent.aboutContent}`);
-        console.log(`   - Has Product info: ${!!websiteContent.productInfo}`);
-        if (websiteContent.contactInfo) {
-          console.log(`   - Contact info: ${websiteContent.contactInfo.emails?.length || 0} emails, ${websiteContent.contactInfo.phones?.length || 0} phones`);
-        }
-      } else {
-        console.log('⚠️ No website content available - research will rely on Perplexity search only');
-      }
+      console.log('[DEBUG] Claude API response status:', response.status);
       
-      // Show 25% progress while preparing request
-      setGenerationProgress(25);
-      
-      // Use SSE (Server-Sent Events) instead of regular fetch for streaming response
-      const eventSourceUrl = `/api/perplexity/research-sse?t=${Date.now()}`;
-      console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
-      
-      // Close any existing connection first
-      if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
-        console.log('[DEBUG] Closing existing EventSource connection');
-        window.researchEventSource.close();
-      }
-      
-      // Create new connection with proper error handling
-      const eventSource = new EventSource(eventSourceUrl);
-      // Store in window for potential cleanup later
-      window.researchEventSource = eventSource;
-      
-      let researchText = '';
-      let retryCount = 0;
-      const MAX_RETRIES = 3;
-      
-      // Set up connection open handler
-      eventSource.onopen = (event) => {
-        console.log('[DEBUG] SSE connection opened successfully');
-        retryCount = 0; // Reset retry count on successful connection
-        
-        // After connection is established, send the actual request
-        fetch('/api/perplexity/research-sse', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            topic: safeContentDetails?.researchTopic || '',
-            context: safeContentDetails?.researchTopic 
-              ? `Topic: "${safeContentDetails.researchTopic}"
-Platform: ${safeContentDetails.platform || 'facebook'}, 
-Sub-Platform: ${safeContentDetails.subPlatform || ''},
-Content Type: ${safeContentDetails.contentType || 'social-post'},
-Target Audience: ${safeContentDetails.targetAudience || 'general'},
-Business Name: ${safeContentDetails.businessName || ''},
-Language: ${language || 'en'}`
-              : '', 
-            sources: ['recent', 'scholar', 'news'],
-            language,
-            companyName: safeContentDetails?.businessName || '',
-            websiteContent: safeContentDetails?.websiteContent || null
-          }),
-        }).catch(error => {
-          console.error('[DEBUG] Error initiating research request:', error);
-          eventSource.close();
-          setError('Failed to start research process. Please try again.');
-          setIsGenerating(false);
-          setIsLoading(false);
+      if (!response.ok) {
+        const errorData = await response.json().catch(e => {
+          console.error('[DEBUG] Error parsing error response:', e);
+          return { error: 'Unknown error parsing response' };
         });
-      };
-      
-      // Define interface for SSE event with data property
-      interface MessageEvent extends Event {
-        data: string;
+        console.error('[DEBUG] API error response:', errorData);
+        throw new Error(errorData.error || `Failed to generate research: Status ${response.status}`);
       }
       
-      // Set up listeners for the different event types
-      eventSource.addEventListener('progress', (event: Event) => {
-        const messageEvent = event as MessageEvent;
-        try {
-          const data = JSON.parse(messageEvent.data);
-          console.log('[DEBUG] Progress update:', data);
-          setGenerationProgress(data.progress);
-          setStatusMessage(data.status);
-        } catch (e) {
-          console.error('[DEBUG] Error parsing progress event data:', e);
+      let data;
+      try {
+        data = await response.json();
+        console.log('[DEBUG] Received research data:', data ? 'Data exists' : 'No data');
+        if (data && data.research) {
+          console.log('[DEBUG] Research data first 100 chars:', data.research.substring(0, 100));
+        } else {
+          console.error('[DEBUG] Missing research in response data:', data);
         }
-      });
+      } catch (parseError) {
+        console.error('[DEBUG] Error parsing success response:', parseError);
+        throw new Error('Failed to parse API response');
+      }
       
-      eventSource.addEventListener('complete', (event: Event) => {
-        const messageEvent = event as MessageEvent;
-        try {
-          const data = JSON.parse(messageEvent.data);
-          console.log('[DEBUG] Research complete:', data);
-          
-          // Save the full research
-          if (data.research) {
-            // Clean the research text and store it
-            const cleanedResearch = removeThinkingTags(data.research);
-            researchText = cleanedResearch;
-            setDeepResearch(cleanedResearch);
-            
-            // Store the clean research in session storage
-            sessionStorage.setItem('deepResearch', cleanedResearch);
-            
-            // Save research results
-            const researchResults = {
-              researchMethod: 'perplexity',
-              perplexityResearch: cleanedResearch
-            };
-            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-            
-            // Move to the next step
-            setResearchStep(4);
-            
-            // Show success toast
-            toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-            
-            // Update progress to 100%
-            setGenerationProgress(100);
-            setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
-          }
-          
-          // Close the connection when complete
-          eventSource.close();
-          setIsGenerating(false);
-          setIsLoading(false);
-        } catch (e) {
-          console.error('[DEBUG] Error parsing complete event data:', e);
-          setError('Error processing research results. Please try again.');
-          eventSource.close();
-          setIsGenerating(false);
-          setIsLoading(false);
-        }
-      });
+      // Store the complete research
+      if (data && data.research) {
+        setDeepResearch(data.research);
+        console.log('[DEBUG] Set deep research complete!');
+        // Save to session storage as well for redundancy
+        sessionStorage.setItem('deepResearch', data.research);
+        
+        // Move to research step 3
+        setResearchStep(3);
+      } else {
+        throw new Error('Research data missing from API response');
+      }
       
-      eventSource.addEventListener('error', (event: Event) => {
-        console.error('[DEBUG] SSE error event received:', event);
-        
-        // Try to extract error details from the event
-        let errorMessage = 'An error occurred during research generation.';
-        try {
-          // Try to parse error data if available
-          const messageEvent = event as MessageEvent;
-          if (messageEvent.data) {
-            const errorData = JSON.parse(messageEvent.data);
-            errorMessage = errorData.error || errorMessage;
-          }
-        } catch (e) {
-          // If we can't parse the error, use a generic message
-          console.error('Could not parse error data:', e);
-        }
-        
-        // With Pro plan's longer function duration, timeouts are less likely
-        // but still possible for very complex research
-        if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-          errorMessage = 'The research request is taking longer than expected. With your Pro plan, we can process complex requests up to 5 minutes. Please wait a moment and try again if needed.';
-        }
-        
-        // Set error message
-        setError(errorMessage);
-        setStatusMessage('Error generating research');
-        
-        // Close the SSE connection
-        eventSource.close();
-        setIsGenerating(false);
-        setIsLoading(false);
-        
-        // Show error toast
-        toast.error(errorMessage);
-      });
-      
-      // Handle general connection errors (this is different from the error event)
-      eventSource.onerror = (error) => {
-        console.error('[DEBUG] SSE connection error:', error);
-        
-        // Implement retry logic
-        if (retryCount < MAX_RETRIES) {
-          retryCount++;
-          console.log(`[DEBUG] Attempting to reconnect... (Attempt ${retryCount})`);
-          // No need to create a new EventSource, it will try to reconnect automatically
-          return;
-        }
-        
-        // If we've exceeded retry attempts, give up and close the connection
-        const errorMessage = 'Research generation connection error. The process may still be running in the background. Please try refreshing the page to check for results or try again.';
-        
-        // Set error message
-        setError(errorMessage);
-        setStatusMessage('Connection error');
-        
-        // Close the SSE connection
-        eventSource.close();
-        setIsGenerating(false);
-        setIsLoading(false);
-        
-        // Show error toast
-        toast.error(errorMessage);
-      };
-      
-      // Set a backup timeout to close the connection if nothing happens for 10 minutes
-      const timeoutId = setTimeout(() => {
-        if (eventSource.readyState !== EventSource.CLOSED) {
-          console.log('[DEBUG] Closing SSE connection after 10 minute timeout');
-          eventSource.close();
-          setError('Research generation timed out after 10 minutes. Please check back later for results or try again.');
-          setIsGenerating(false);
-          setIsLoading(false);
-          toast.error('Research generation timed out after 10 minutes.');
-        }
-      }, 600000); // 10 minutes
-      
-      // Add a cleanup function for component unmount
-      return () => {
-        clearTimeout(timeoutId);
-        if (eventSource.readyState !== EventSource.CLOSED) {
-          eventSource.close();
-        }
-      };
     } catch (error: any) {
-      console.error('[DEBUG] Error in handleDeepAnalysisClick:', error);
+      console.error('[DEBUG] Error generating deep research:', error);
+      // Display user-friendly error
+      setError(`Failed to generate research: ${error.message || 'Unknown error'}`);
       
-      // Create a user-friendly error message
-      let errorMessage = `Error: ${error.message || 'Unknown error. Please try again.'}`;
+      // Create fallback research without trending topics
+      const fallbackContent = getFallbackResearch(
+        safeContentDetails.primarySubject || '', 
+        safeContentDetails.businessType || ''
+      );
       
-      setError(errorMessage);
+      // Set the fallback research content
+      setDeepResearch(fallbackContent);
+      
+      // Save to session storage for redundancy
+      sessionStorage.setItem('deepResearch', fallbackContent);
+      
+      // Move to step 3 to show the fallback content
+      setResearchStep(3);
+      
+    } finally {
       setIsLoading(false);
       setIsGenerating(false);
-      
-      // Show toast notification
-      toast.error(errorMessage);
+      // Clear the debounce flag after a short delay
+      setTimeout(() => {
+        setIsGenerateDeepResearchDebounced(false);
+      }, 500);
     }
   };
 
   // Helper function to build research context - simplified without trending data
   const buildResearchContext = (trendingData: TrendingResult | null, selectedTopicsList?: TrendingTopic[]) => {
-    // Determine the most specific platform to use (prefer subPlatform over generic platform)
-    let platformToUse = safeContentDetails?.platform || 'facebook';
-    
-    // If platform is 'social' but we have a more specific subPlatform, use that instead
-    if (platformToUse === 'social' && safeContentDetails?.subPlatform) {
-      platformToUse = safeContentDetails.subPlatform;
-      console.log('Using specific sub-platform for research:', platformToUse);
-    }
-    
-    // Use the getFormattedContentType helper to get properly formatted display values
-    const { displayPlatform, displayContentType } = getFormattedContentType(
-      safeContentDetails?.contentType || 'social-media',
-      platformToUse,
-      safeContentDetails?.subPlatform
-    );
-    
-    // Base context from content details with optional chaining and formatted values
+    // Base context from content details with optional chaining
     const baseContext = `Target Audience: ${safeContentDetails?.targetAudience || 'general audience'}, 
                        Audience Needs: ${safeContentDetails?.audienceNeeds || 'not specified'}, 
-                       Content Type: ${displayContentType}, 
-                       Platform: ${displayPlatform}`;
-    
-    // Log the context being used
-    console.log('Research context built:', baseContext);
+                       Content Type: ${safeContentDetails?.contentType || 'social-media'}, 
+                       Platform: ${safeContentDetails?.platform || 'facebook'}`;
     
     return baseContext;
   };
@@ -1169,20 +541,13 @@ Language: ${language || 'en'}`
   
   // Reset to step 1
   const handleReset = () => {
-    // Reset state variables
     setResearchStep(1);
-    setTrendingResult(null);
     setSelectedTopics([]);
-    setBasicResearch(null);
-    setDeepResearch(null);
-    setShowFullResearch(false);
-    setFollowUpQuestions([]);
-    setSelectedFollowUpQuestions([]);
-    setFollowUpAnswers(['', '', '']);
-    setShowFollowUpQuestions(false);
-    setFollowUpSubmitted(false);
-    setShowApiSetupGuide(false);
+    setBasicResearch('');
+    setDeepResearch('');
     setError(null);
+    // Also clear the session storage
+    sessionStorage.removeItem('selectedTrendingTopics');
   };
   
   // Add this function near the other utilities to provide a fallback research result
@@ -1300,33 +665,134 @@ If you'd like complete research, please try again later when our research servic
     }
   };
 
-  // Modify the debug transition useEffect to not skip steps
+  // Update the useEffect that transitions to step 3 to handle empty research results
   useEffect(() => {
-    // Simplified transition logging
-    console.log(`Current research step: ${researchStep}, isGenerating: ${isGenerating}, has research data: ${!!deepResearch}`);
+    // Add more verbose logging for debugging purposes
+    console.log(`[DEBUG TRANSITION] Current step: ${researchStep}, isGenerating: ${isGenerating}, deepResearch length: ${deepResearch?.length || 0}`);
     
-    // IMPORTANT: We're removing the auto-transition logic that was skipping steps
-    // This ensures the user must manually go through each step
-    
-    // Only save research results when they're available, but don't change steps automatically
-    if (deepResearch && !sessionStorage.getItem('researchResults')) {
-      console.log('Saving research results to session storage');
+    // Check state changes that should trigger a transition
+    if (deepResearch && researchStep < 4) {
+      console.log('[DEBUG TRANSITION] Research data detected but not in step 4 - auto-transitioning');
       
-      // Save research results for later retrieval
-      const researchResults: ResearchResults = {
-        researchMethod: 'perplexity',
-        perplexityResearch: deepResearch,
-        trendingTopics: [],
-        dataSources: {
-          reddit: true,
-          rss: true
-        }
-      };
-      sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+      // Move to research step 4 (results) directly if we have data
+      const timer = setTimeout(() => {
+        console.log('[DEBUG TRANSITION] Forcing transition to step 4 with research data');
+        setResearchStep(4);
+        
+        // Save research results for redundancy
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
     
-    // No automatic transitions between steps
-  }, [deepResearch, researchStep, isGenerating]);
+    // Also transition if generation has stopped but we're still in step 2
+    if ((isGenerating === false) && deepResearch && researchStep === 2) {
+      console.log('[DEBUG TRANSITION] Generation complete but still in step 2');
+      
+      // Use a slight delay to ensure UI is updated
+      const timer = setTimeout(() => {
+        console.log('[DEBUG TRANSITION] Moving from step 2 to step 4 with research data');
+        setResearchStep(4);
+        
+        // Make sure we save the research results
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [deepResearch, isGenerating, researchStep]);
+
+  // Add function to generate follow-up questions based on input
+  const generateFollowUpQuestions = () => {
+    // Default questions for different scenarios
+    let questions: string[] = [];
+    
+    // Generate different questions based on the provided topic
+    const topicLength = safeContentDetails.researchTopic?.trim().length || 0;
+    const hasBusiness = !!safeContentDetails.businessType && safeContentDetails.businessType.trim().length > 3;
+    const hasAudienceNeeds = !!safeContentDetails.audienceNeeds && safeContentDetails.audienceNeeds.trim().length > 10;
+    
+    if (topicLength === 0) {
+      // If no topic provided
+      questions = [
+        "What specific subject or topic would you like to research?",
+        "What is the main purpose or goal for this content?",
+        "Are there any specific aspects of this topic you want to focus on?"
+      ];
+    } else if (topicLength < 5) {
+      // If topic is too short
+      questions = [
+        `Can you provide more details about "${safeContentDetails.researchTopic}"?`,
+        "What specific information are you looking for about this topic?",
+        `How would ${safeContentDetails.targetAudience} benefit from this content?`
+      ];
+    } else if (isPersonalUseCase) {
+      // For personal use cases
+      questions = [
+        `What aspects of "${safeContentDetails.researchTopic}" are you most interested in?`,
+        `What is your personal connection to this topic?`,
+        `What do you hope ${safeContentDetails.targetAudience} will gain from this content?`
+      ];
+    } else if (hasBusiness) {
+      // If business type is provided
+      questions = [
+        `How does "${safeContentDetails.researchTopic}" relate to your ${safeContentDetails.businessType} business?`,
+        `What are the top challenges your ${safeContentDetails.targetAudience} face regarding this topic?`,
+        `What specific outcomes do you want to achieve with this content?`
+      ];
+    } else if (hasAudienceNeeds) {
+      // If audience needs are detailed
+      questions = [
+        `What specific aspects of "${safeContentDetails.researchTopic}" address the needs you mentioned?`,
+        `Are there any common misconceptions about "${safeContentDetails.researchTopic}" your audience might have?`,
+        `What specific action do you want your ${safeContentDetails.targetAudience} to take after consuming this content?`
+      ];
+    } else if (safeContentDetails.contentType === 'social-media') {
+      // For social media content
+      const platformTerm = isPersonalUseCase ? "social media" : `${safeContentDetails.platform || 'social media'} marketing`;
+      questions = [
+        `What tone would resonate best with ${safeContentDetails.targetAudience} on ${safeContentDetails.platform || 'social media'}?`,
+        `Is there a specific trend or event related to "${safeContentDetails.researchTopic}" that you want to highlight?`,
+        `What makes your perspective on "${safeContentDetails.researchTopic}" unique or valuable?`
+      ];
+    } else if (safeContentDetails.contentType === 'blog-post') {
+      // For blog posts
+      questions = [
+        `What depth of information about "${safeContentDetails.researchTopic}" would be most valuable to your readers?`,
+        `Are there specific subtopics within "${safeContentDetails.researchTopic}" you want to cover?`,
+        `What expertise or perspective can you offer on this topic?`
+      ];
+    } else {
+      // General follow-up questions for any topic
+      questions = [
+        `What specific aspects of "${safeContentDetails.researchTopic}" are most important to you?`,
+        "What is the main objective for this content? (Inform, persuade, entertain, etc.)",
+        "Is there any specific angle or perspective you want to explore?"
+      ];
+    }
+    
+    setFollowUpQuestions(questions);
+    setShowFollowUpQuestions(true);
+  };
 
   // Add handler for follow-up answer changes
   const handleFollowUpChange = (index: number, value: string) => {
@@ -1375,42 +841,336 @@ If you'd like complete research, please try again later when our research servic
     setResearchStep(3);
   };
 
-  // Add a better error display component for API quota issues
-  // First, add a state variable to track if the error is specifically an API quota issue
-  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
-
-  // Function to handle clicking the "Generate Research" button
+  // Update the handleDeepAnalysisClick function to use the controller ref
   const handleDeepAnalysisClick = async () => {
-    // Ensure content details are available
-    if (!contentDetails?.researchTopic) {
-      setError(language === 'es' ? 'Por favor ingrese un tema de investigación' : 'Please enter a research topic');
+    // Prevent multiple simultaneous calls
+    if (isGenerating) {
+      console.log('[DEBUG] Already generating, ignoring click');
       return;
     }
     
-    console.log(`[DEBUG] Starting research generation in ${language} mode`);
+    // Create an AbortController for the fetch request
+    abortControllerRef.current = new AbortController();
+    const fetchTimeoutId = setTimeout(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    }, 360000); // 6 minute timeout (360 seconds)
     
-    // Set loading state but don't change research step yet
-    setIsLoading(true);
-    setIsGenerating(true);
-    setGenerationProgress(0);
-    setStatusMessage(language === 'es' 
-      ? 'Generando análisis profundo con Perplexity Deep Research...' 
-      : 'Generating deep analysis with Perplexity Deep Research...');
-    
-    // We stay on step 3 (Generate Research) until research is complete
-    // This prevents skipping to Research Results prematurely
-    
-    // Use our new robust research generation function with automatic fallbacks
     try {
-      await generateResearchWithFallbacks();
+      console.log('[DEBUG] Starting deep analysis click handler');
+      setIsLoading(true);
+      setIsGenerating(true);
+      setError(null);
+      setStatusMessage('Preparing research request...');
+      setGenerationProgress(5);
+      setRetryCount(0); // Reset retry count
       
-      // Only proceed to step 4 after research is done, which happens in generateResearchWithFallbacks()
-      console.log(`[DEBUG] Research generation complete, proceeding to results in ${language} mode`);
-    } catch (error) {
-      console.error(`[DEBUG] Research generation failed in ${language} mode:`, error);
-      // Error handling is done in generateResearchWithFallbacks()
+      // Add a timeout to automatically fail if taking too long overall
+      const overallTimeoutId = setTimeout(() => {
+        console.error('[DEBUG] Research generation timed out after 8 minutes');
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        throw new Error('Research generation timed out after 8 minutes. Please try again.');
+      }, 480000); // 8 minute overall timeout (480 seconds)
+      
+      try {
+        // Build context for research
+        const context = `Target Audience: ${safeContentDetails.targetAudience || 'general audience'}, 
+                        Audience Needs: ${safeContentDetails.audienceNeeds || 'not specified'}, 
+                        Content Type: ${safeContentDetails.contentType || 'social-media'}, 
+                        Platform: ${safeContentDetails.platform || 'facebook'}`;
+        
+        setStatusMessage('Connecting to research service...');
+        setGenerationProgress(10);
+        
+        // Call the Perplexity API with retry logic
+        console.log('[DEBUG] Calling Perplexity API with retry support...');
+        setStatusMessage('Generating research with Perplexity...');
+        setGenerationProgress(15);
+        
+        // Create a periodic progress update - slower increments for longer research time
+        const progressIntervalId = setInterval(() => {
+          setGenerationProgress((prev) => {
+            // More gradual progress increase up to 95%
+            if (prev < 95) {
+              // Calculate a smaller increment to spread progress over ~6 minutes
+              // About 1-3% increase every 10 seconds
+              const increment = Math.random() * 2 + 1;
+              return Math.min(95, prev + increment);
+            }
+            return prev;
+          });
+          
+          const messages = [
+            'Researching latest information...',
+            'Analyzing cooking techniques...',
+            'Finding expert recommendations...',
+            'Gathering viewer engagement data...',
+            'Compiling best practices...',
+            'Exploring current trends...',
+            'Researching audience preferences...',
+            'Evaluating content formats...',
+            'Identifying key insights...',
+            'Organizing research findings...',
+            'Finalizing research document...',
+            'Almost done...',
+          ];
+          
+          const randomIndex = Math.floor(Math.random() * messages.length);
+          setStatusMessage(messages[randomIndex]);
+        }, 10000); // Update every 10 seconds instead of 5
+        
+        // Use the retry-capable function
+        const perplexityData = await callPerplexityWithRetry(
+          safeContentDetails.researchTopic || '', 
+          context, 
+          []
+        );
+        
+        // Clear the progress interval
+        clearInterval(progressIntervalId);
+        
+        console.log('[DEBUG] Perplexity API response received');
+        
+        if (!perplexityData.research) {
+          console.error('[DEBUG] No research in Perplexity response:', perplexityData);
+          throw new Error('No research data returned from Perplexity API');
+        }
+        
+        // Set the research data
+        setDeepResearch(perplexityData.research);
+        console.log('[DEBUG] Set deep research from Perplexity');
+        
+        // Save to session storage
+        sessionStorage.setItem('deepResearch', perplexityData.research);
+        console.log('[DEBUG] Saved research to session storage');
+        
+        // Clear the timeouts since we succeeded
+        clearTimeout(overallTimeoutId);
+        clearTimeout(fetchTimeoutId);
+        
+        // Move to research step 4 (results) and make sure to log this
+        console.log('[DEBUG] Explicitly transitioning to step 4 (research results)');
+        setResearchStep(4);
+        setStatusMessage('Research complete!');
+        setGenerationProgress(100);
+        
+      } catch (apiError: any) {
+        // Clear the timeouts in case of error
+        clearTimeout(overallTimeoutId);
+        clearTimeout(fetchTimeoutId);
+        
+        console.error('[DEBUG] API error during research generation:', apiError);
+        
+        // Check for abort/timeout errors
+        const isTimeoutError = apiError.name === 'AbortError' || 
+                             apiError.message?.includes('timeout') || 
+                             apiError.message?.includes('Timeout');
+        
+        // Create a more user-friendly error message
+        const errorMessage = isTimeoutError 
+          ? 'Research generation timed out. The research process typically takes 4-6 minutes, but it took longer than expected. You can try again or use the fallback content below.' 
+          : apiError.message || 'Unknown error during research generation';
+        
+        setError(`Research generation failed: ${errorMessage}`);
+        
+        // Use fallback research
+        console.log('[DEBUG] Using fallback research due to error');
+        const fallbackContent = getFallbackResearch(
+          safeContentDetails.researchTopic || '', 
+          safeContentDetails.businessType || ''
+        );
+        
+        // Set the fallback research
+        setDeepResearch(fallbackContent);
+        
+        // Save to session storage
+        sessionStorage.setItem('deepResearch', fallbackContent);
+        
+        // Move to research step 4 (results) with fallback content
+        setResearchStep(4);
+      }
+      
+    } catch (error: any) {
+      // Clear the fetch timeout
+      clearTimeout(fetchTimeoutId);
+      
+      console.error('[DEBUG] Unexpected error in handleDeepAnalysisClick:', error);
+      
+      // Check for abort/timeout errors
+      const isTimeoutError = error.name === 'AbortError' || 
+                           error.message?.includes('timeout') || 
+                           error.message?.includes('Timeout');
+      
+      // Create a user-friendly error message
+      const errorMessage = isTimeoutError 
+        ? 'Research generation timed out. The process typically takes 4-6 minutes, but it exceeded the maximum allowed time. You can try again or use the fallback content below.' 
+        : `An unexpected error occurred: ${error.message || 'Unknown error'}`;
+      
+      setError(errorMessage);
+      
+      // Use fallback research for any unexpected errors
+      const fallbackContent = getFallbackResearch(
+        safeContentDetails.researchTopic || '', 
+        safeContentDetails.businessType || ''
+      );
+      
+      // Set the fallback research
+      setDeepResearch(fallbackContent);
+      
+      // Save to session storage
+      sessionStorage.setItem('deepResearch', fallbackContent);
+      
+      // Move to research step 4 (results) with fallback content
+      setResearchStep(4);
+      
+    } finally {
+      // Always clean up
+      setIsLoading(false);
+      setIsGenerating(false);
+      abortControllerRef.current = null; // Clear the controller reference
     }
   };
+
+  const callPerplexityWithRetry = async (
+    topic: string, 
+    context: string, 
+    sources: string[] = [],
+    currentRetry: number = 0
+  ): Promise<any> => {
+    try {
+      console.log(`[DEBUG] Calling Perplexity API (attempt ${currentRetry + 1})...`);
+      
+      // Log the request configuration
+      console.log('[DEBUG] Request configuration:', {
+        topic: topic.substring(0, 50) + (topic.length > 50 ? '...' : ''),
+        contextLength: context.length,
+        sourcesCount: sources.length,
+        signal: !!abortControllerRef.current?.signal
+      });
+      
+      const perplexityResponse = await fetch('/api/perplexity/research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic,
+          context,
+          sources
+        }),
+        signal: abortControllerRef.current?.signal
+      });
+      
+      // Log the response status
+      console.log(`[DEBUG] Perplexity API response status: ${perplexityResponse.status}`);
+      
+      if (!perplexityResponse.ok) {
+        console.error('[DEBUG] Perplexity API error:', perplexityResponse.status);
+        const errorData = await perplexityResponse.json().catch(() => ({}));
+        throw new Error(`Perplexity API error: ${errorData.error || errorData.details || `Status ${perplexityResponse.status}`}`);
+      }
+      
+      const responseData = await perplexityResponse.json();
+      console.log('[DEBUG] Successfully received research from Perplexity API');
+      return responseData;
+    } catch (error: any) {
+      // Log detailed error information
+      console.error(`[DEBUG] Error in callPerplexityWithRetry (attempt ${currentRetry + 1}):`, error);
+      console.error(`[DEBUG] Error name: ${error.name}, message: ${error.message}`);
+      
+      // If we haven't exceeded max retries and this isn't a timeout error, retry
+      const isTimeoutError = error.name === 'AbortError' || 
+                           error.message?.includes('timeout') || 
+                           error.message?.includes('Timeout');
+      
+      if (currentRetry < MAX_RETRIES && !isTimeoutError) {
+        console.log(`[DEBUG] Retry attempt ${currentRetry + 1} of ${MAX_RETRIES}`);
+        setStatusMessage(`Connection issue detected. Retrying... (${currentRetry + 1}/${MAX_RETRIES})`);
+        
+        // Exponential backoff: wait longer between each retry
+        const backoffMs = Math.min(1000 * Math.pow(2, currentRetry), 10000);
+        console.log(`[DEBUG] Waiting ${backoffMs}ms before retry`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        
+        // Increment retry count for UI
+        setRetryCount(currentRetry + 1);
+        
+        // Try again
+        return callPerplexityWithRetry(topic, context, sources, currentRetry + 1);
+      }
+      
+      // If we've exhausted retries or it's a timeout, re-throw the error
+      console.error('[DEBUG] Maximum retries reached or timeout occurred - giving up');
+      throw error;
+    }
+  };
+
+  // Add a function to handle cancellation
+  const handleCancelResearch = () => {
+    if (abortControllerRef.current) {
+      console.log('[DEBUG] User canceled research generation');
+      abortControllerRef.current.abort();
+      
+      // Set a specific error message for cancellation
+      setError('Research generation was canceled by user.');
+      
+      // Use fallback research for cancellation
+      const fallbackContent = getFallbackResearch(
+        safeContentDetails.researchTopic || '', 
+        safeContentDetails.businessType || ''
+      );
+      
+      // Set the fallback research
+      setDeepResearch(fallbackContent);
+      
+      // Save to session storage
+      sessionStorage.setItem('deepResearch', fallbackContent);
+      
+      // Move to research step 4 (results) with fallback content
+      setResearchStep(4);
+      
+      // Reset states
+      setIsLoading(false);
+      setIsGenerating(false);
+    }
+  };
+
+  // Next, update the button text to be clearer about what happens next
+  // Use this in all the Generate buttons throughout the file
+  const getActionButtonText = () => {
+    // Check if Perplexity research needed but not yet completed
+    const needsPerplexityResearch = selectedResearchMethods.includes('perplexity') && !basicResearch;
+    
+    if (needsPerplexityResearch) {
+      return "Run Perplexity Deep Research First";
+    } else {
+      return "Generate Deep Analysis with Claude 3.7 Sonnet";
+    }
+  };
+
+  // Update the research completion button to make sure it works
+  const mainResearchButton = () => (
+    <button
+      onClick={handleGenerateDeepResearch}
+      className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+      disabled={isGenerating}
+    >
+      <span>Generate Deep Analysis with Claude 3.7 Sonnet</span>
+      {isGenerating ? (
+        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      )}
+    </button>
+  );
 
   // Add a useEffect to load saved trending topics on initial load
   useEffect(() => {
@@ -1451,178 +1211,76 @@ If you'd like complete research, please try again later when our research servic
 
   // Function to proceed to content creation with research data
   const proceedToContentCreation = async () => {
-    if (!safeContentDetails) {
-      setError('Missing content details');
-      return;
-    }
-    
     try {
-      setIsLoading(true);
-      toast.success('Preparing to navigate to content creation...');
+      console.log('Proceeding to content creation with research data');
       
-      // Prepare research data for content creation
-      const researchMethod = researchResults?.researchMethod || 'perplexity';
+      // Get the current user from Firebase Auth
+      const { auth } = await import('@/lib/firebase/firebase');
+      const currentUser = auth.currentUser;
       
-      let researchData = '';
-      if (deepResearch) {
-        // Clean the research content before passing it to content creation
-        researchData = cleanResearchContent(deepResearch);
-      } else if (basicResearch) {
-        // Clean the basic research content if deep research isn't available
-        researchData = cleanResearchContent(basicResearch);
-      } else if (researchResults?.perplexityResearch) {
-        // Clean the perplexity research from research results
-        researchData = cleanResearchContent(researchResults.perplexityResearch);
-      } else if (researchResults?.claudeResearch) {
-        // Clean the claude research from research results
-        researchData = cleanResearchContent(researchResults.claudeResearch);
+      if (!currentUser) {
+        console.error('User not authenticated. Cannot save research data.');
+        toast.error('You must be logged in to save research data. Please log in and try again.');
+        return;
       }
       
-      // Save updated research results with cleaned data to session storage
-      const updatedResearchResults = {
-        researchMethod,
-        perplexityResearch: researchData,
-        // Use empty arrays/objects as defaults if properties don't exist
-        trendingTopics: [],
-        dataSources: {
-          reddit: true,
-          rss: true
-        }
+      // Create a research data object to save to Firebase
+      const researchData = {
+        topic: safeContentDetails.researchTopic || '',
+        contentType: safeContentDetails.contentType || 'article',
+        platform: safeContentDetails.platform || 'website',
+        targetAudience: safeContentDetails.targetAudience || 'general audience',
+        businessType: safeContentDetails.businessType || '',
+        research: deepResearch || '',
+        youtubeTranscript: safeContentDetails.youtubeTranscript || '',
+        youtubeUrl: safeContentDetails.youtubeUrl || '',
+        userId: currentUser.uid,
+        createdAt: new Date().toISOString(),
       };
       
-      console.log('Storing data to session storage...');
+      console.log('Saving research data to session storage:', researchData);
       
-      // Store the enhanced research results - do this synchronously to ensure it completes
-      sessionStorage.setItem('researchResults', JSON.stringify(updatedResearchResults));
+      // Save to session storage for the content creation page
+      sessionStorage.setItem('researchData', JSON.stringify(researchData));
       
-      // Save content details with proper synchronous execution
-      const normalizeContentDetails = () => {
-        // Check if we have a stored content type in session storage
-        let storedContentType = '';
-        try {
-          storedContentType = sessionStorage.getItem('contentType') || '';
-        } catch (e) {
-          console.error('Error checking for stored content type:', e);
-        }
+      // Save to Firebase Firestore
+      try {
+        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase/firebase');
         
-        // Normalize content type and platform values before saving
-        let normalizedContentType = storedContentType || safeContentDetails.contentType || 'social-media';
-        let normalizedPlatform = safeContentDetails.platform || 'facebook';
-        let platformSubtype = safeContentDetails.subPlatform || '';
-
-        // All the normalization logic...
+        console.log('Saving research data to Firestore...');
+        const docRef = await addDoc(collection(db, 'research'), {
+          ...researchData,
+          createdAt: serverTimestamp(),
+        });
         
-        // Handle video-script special case
-        if (normalizedPlatform === 'video-script' && platformSubtype) {
-          normalizedContentType = `${platformSubtype}-video-script`;
-          console.log('Setting video script content type to:', normalizedContentType);
-        }
-
-        // First, handle platform normalization
-        if (normalizedPlatform === 'social') {
-          normalizedPlatform = platformSubtype || 'facebook';
-          console.log('Normalized generic "social" platform to', normalizedPlatform);
-          // Ensure content type is set correctly
-          normalizedContentType = 'social-media';
-        }
-
-        // Fix for "email" platform
-        if (normalizedPlatform === 'email') {
-          normalizedPlatform = platformSubtype || 'marketing';
-          console.log('Normalized generic "email" platform to', normalizedPlatform);
-          // Ensure content type is set correctly - force override to prevent "newsletter-post" type issues
-          normalizedContentType = 'email';
-        }
-
-        // Special case for email sub-platforms that might have been selected directly
-        if (platformSubtype && ['newsletter', 'marketing', 'sales', 'welcome'].includes(platformSubtype)) {
-          console.log('Detected email subtype:', platformSubtype);
-          normalizedContentType = 'email';
-        }
-
-        // Fix for "presentation" platform
-        if (normalizedPlatform === 'presentation') {
-          normalizedPlatform = platformSubtype || 'business';
-          console.log('Normalized generic "presentation" platform to', normalizedPlatform);
-          // Ensure content type is set correctly - force override this value
-          normalizedContentType = 'presentation';
-        }
-
-        // Special case for presentation sub-platforms that might have been selected directly
-        if (platformSubtype && ['sales', 'business', 'executive', 'training', 'investor'].includes(platformSubtype)) {
-          console.log('Detected presentation subtype:', platformSubtype);
-          normalizedContentType = 'presentation';
-        }
-
-        // Fix for all other platform types with subtypes
-        if (platformSubtype && !['social', 'email', 'presentation'].includes(normalizedPlatform)) {
-          normalizedPlatform = platformSubtype;
-          console.log(`Normalized ${normalizedPlatform} to its subtype:`, platformSubtype);
-        }
-
-        // Fix for "social-post" content type
-        if (normalizedContentType === 'social-post' || normalizedContentType === 'social') {
-          normalizedContentType = 'social-media';
-          console.log('Normalized "social-post" content type to "social-media"');
-        }
-
-        // Create normalized content details
-        const normalizedContentDetails = {
-          ...safeContentDetails,
-          contentType: normalizedContentType,
-          platform: normalizedPlatform
+        console.log('Research data saved to Firestore with ID:', docRef.id);
+        
+        // Update session storage with the document ID
+        const updatedResearchData = {
+          ...researchData,
+          id: docRef.id
         };
+        sessionStorage.setItem('researchData', JSON.stringify(updatedResearchData));
         
-        // Save contentType separately to ensure it's preserved
-        sessionStorage.setItem('contentType', normalizedContentType);
-        
-        // Save normalized content details to session storage
-        sessionStorage.setItem('contentDetails', JSON.stringify(normalizedContentDetails));
-        
-        // Also update research data with normalized values if we're saving that separately
-        const normalizedResearchData = {
-          topic: safeContentDetails.researchTopic || '',
-          contentType: normalizedContentType,
-          platform: normalizedPlatform,
-          targetAudience: safeContentDetails.targetAudience || 'general audience',
-          businessType: safeContentDetails.businessType || '',
-          research: researchData || '',
-          youtubeTranscript: safeContentDetails.youtubeTranscript || '',
-          youtubeUrl: safeContentDetails.youtubeUrl || '',
-          userId: safeContentDetails.userId || '', // Use the existing userId if available
-          isPersonalUseCase: safeContentDetails.isPersonalUseCase || false, // Add isPersonalUseCase
-          createdAt: new Date().toISOString(),
-        };
-        
-        // Save normalized research data to session storage
-        sessionStorage.setItem('researchData', JSON.stringify(normalizedResearchData));
-      };
+        toast.success('Research data saved successfully');
+      } catch (firestoreError) {
+        console.error('Error saving research data to Firestore:', firestoreError);
+        // Continue with navigation even if Firestore save fails
+        // The data is still in session storage
+      }
       
-      // Execute the normalization function
-      normalizeContentDetails();
+      // Set research step to 5 (Content Creation) to update the progress indicator
+      setResearchStep(5);
       
-      console.log('Navigation preparation complete.');
-      toast.success('Navigation to content creation...');
-      
-      // Set the preventLanguageRedirect flag to avoid language redirect issues
-      sessionStorage.setItem('preventLanguageRedirect', 'true');
-      console.log('[ResearchPage] Setting preventLanguageRedirect flag for content generation');
-      
-      // Set a brief timeout to ensure storage operations complete
+      // Add a slight delay to allow the UI to update before navigation
       setTimeout(() => {
-        // Use direct window location navigation for most reliable behavior
-        window.location.href = '/create/content';
-      }, 100);
-      
+        // Navigate to content creation page
+        router.push('/create/content');
+      }, 300);
     } catch (error) {
       console.error('Error proceeding to content creation:', error);
-      setError('Failed to proceed to content creation. Please try again.');
-      setIsLoading(false);
-      
-      // Even if there's an error, try to navigate anyway as a fallback
-      setTimeout(() => {
-        window.location.href = '/create/content';
-      }, 1000);
+      toast.error('Failed to proceed to content creation. Please try again.');
     }
   };
   
@@ -1654,6 +1312,52 @@ If you'd like complete research, please try again later when our research servic
     }
   };
 
+  // Function to detect if the context appears to be personal rather than business
+  const detectPersonalUseCase = (topic: string): boolean => {
+    if (!topic) return false;
+    
+    const topicLower = topic.toLowerCase();
+    
+    // Business-oriented keywords - check these first
+    const businessKeywords = [
+      'business', 'company', 'corporate', 'enterprise', 'organization', 'industry', 'professional',
+      'commercial', 'b2b', 'b2c', 'client', 'customer', 'product', 'service', 'market', 'sales',
+      'revenue', 'profit', 'management', 'strategy', 'brand', 'marketing', 'advertising', 'commerce',
+      'retail', 'wholesale', 'startup', 'entrepreneur', 'investor', 'finance', 'investment',
+      'telecom', 'provider', 'isp', 'internet service', 'broadband', 'fiber', 'network', 
+      'connectivity', 'telecommunications', 'data service', 'wireless', 'rural internet',
+      'mbps', 'gigabit', 'bandwidth', 'enterprise', 'customer service', 'pricing', 'plans',
+      'packages', 'business solution', 'corporate solution', 'competitor', 'industry'
+    ];
+    
+    // Check for business indicators first
+    const hasBusinessIndicator = businessKeywords.some(keyword => 
+      topicLower.includes(keyword)
+    );
+    
+    // If it has business indicators, it's not personal
+    if (hasBusinessIndicator) {
+      return false;
+    }
+    
+    // Personal-oriented keywords - only check if no business keywords found
+    const personalKeywords = [
+      'personal', 'family', 'hobby', 'home', 'travel', 'lifestyle', 'vacation', 
+      'wedding', 'birthday', 'celebration', 'recipe', 'cooking', 'fitness',
+      'workout', 'diet', 'meditation', 'mindfulness', 'parenting', 'education',
+      'learning', 'study', 'school', 'college', 'university', 'dating', 'relationship',
+      'self-improvement', 'poetry', 'writing', 'novel', 'book', 'reading', 'art',
+      'drawing', 'painting', 'music', 'instrument', 'gardening', 'photography'
+    ];
+    
+    // Look for personal keywords in the topic
+    const hasPersonalIndicator = personalKeywords.some(keyword => 
+      topicLower.includes(keyword)
+    );
+    
+    return hasPersonalIndicator;
+  };
+
   // Update effect to detect personal use case when topic changes
   useEffect(() => {
     if (contentDetails?.researchTopic) {
@@ -1681,44 +1385,6 @@ If you'd like complete research, please try again later when our research servic
   
   // Use safeContentDetails instead of contentDetails throughout the component
   // This ensures we always have default values instead of null
-
-  // Add early auth check effect
-  useEffect(() => {
-    if (!authLoading && !user) {
-      console.log('User not authenticated. Showing auth prompt.');
-      setShowAuthPrompt(true);
-    }
-  }, [user, authLoading]);
-
-  // Add auth prompt component function
-  const renderAuthPrompt = () => {
-    if (!showAuthPrompt) return null;
-    
-    return (
-      <div className="my-6 p-6 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/30 dark:border-blue-800">
-        <h3 className="text-lg font-medium text-blue-900 dark:text-blue-200">
-          {t('authPrompt.title', { defaultValue: 'Authentication Required' })}
-        </h3>
-        <p className="mt-2 text-blue-700 dark:text-blue-300">
-          {t('authPrompt.message', { defaultValue: 'Please sign in or create an account to continue with your content research. Your work will be saved automatically.' })}
-        </p>
-        <div className="mt-4 flex space-x-4">
-          <button 
-            onClick={() => router.push('/login')} 
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700"
-          >
-            {t('authPrompt.signIn', { defaultValue: 'Sign In' })}
-          </button>
-          <button 
-            onClick={() => router.push('/signup')}
-            className="px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-900/50"
-          >
-            {t('authPrompt.createAccount', { defaultValue: 'Create Account' })}
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   // Render the content for Step 1 (Research Setup)
   const renderStep1Content = () => {
@@ -1847,68 +1513,65 @@ If you'd like complete research, please try again later when our research servic
               {safeContentDetails.contentType === 'social-media' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Platform <span className="text-red-500">*</span>
+                    Platform
                   </label>
                   
-                  {/* Replace the read-only field with a dropdown */}
-                  <select
-                    value={safeContentDetails.platform || ''}
-                    onChange={(e) => {
-                      // Get the selected platform from the dropdown
-                      const selectedPlatform = e.target.value;
-                      
-                      // Create updated details with both platform and subPlatform set to the same value
-                      const updatedDetails = {
-                        ...safeContentDetails, 
-                        platform: selectedPlatform,
-                        subPlatform: selectedPlatform  // Set subPlatform to match platform for consistency
-                      };
-                      
-                      // Update state
-                      setContentDetails(updatedDetails);
-                      
-                      // Save to session storage immediately
-                      try {
-                        sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
-                        console.log('Updated platform and subPlatform in session storage:', selectedPlatform);
-                      } catch (error) {
-                        console.error('Error updating platform in session storage:', error);
+                  {/* Display platform as read-only text instead of dropdown */}
+                  <div className="flex items-center justify-between">
+                    <div className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700/50">
+                      {safeContentDetails.platform 
+                        ? (
+                            <div className="flex items-center">
+                              <span className="font-medium">{
+                                safeContentDetails.platform.charAt(0).toUpperCase() + 
+                                safeContentDetails.platform.slice(1)
+                              }</span>
+                              <span className="ml-2 text-xs italic text-gray-500">
+                                (pre-selected from previous step)
+                              </span>
+                            </div>
+                          )
+                        : 'No platform selected'
                       }
-                    }}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-700"
-                    required
-                  >
-                    <option value="">Select a platform</option>
-                    <option value="facebook">Facebook</option>
-                    <option value="instagram">Instagram</option>
-                    <option value="twitter">Twitter</option>
-                    <option value="linkedin">LinkedIn</option>
-                    <option value="tiktok">TikTok</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Choose a specific platform for your social media content to get platform-specific research.
-                  </p>
+                    </div>
+                  </div>
                 </div>
               )}
               {/* YouTube Transcript Analysis - Always available for all content types */}
               
               <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
                 <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
-                  YouTube Transcript Feature Moved
+                  YouTube Transcript Analysis
                 </h4>
                 <p className="text-sm text-blue-700 dark:text-blue-400 mb-4">
-                  The YouTube transcript feature is now available on the first page of content creation for easier access.
+                  Enhance your research by analyzing an existing YouTube video on this topic.
                 </p>
                 
+                <YouTubeTranscriptInput 
+                  url=""
+                  onUrlChange={() => {}}
+                  transcript={safeContentDetails.youtubeTranscript || ""}
+                  showFullTranscript={false}
+                  onToggleTranscript={() => {}}
+                  onTranscriptFetched={(transcript, url) => {
+                    setContentDetails({
+                      ...safeContentDetails,
+                      youtubeTranscript: transcript,
+                      youtubeUrl: url
+                    });
+                    toast.success('YouTube transcript fetched successfully!');
+                  }}
+                />
+                
                 {safeContentDetails.youtubeTranscript && (
-                  <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                    <p className="text-xs text-green-700 dark:text-green-400">
-                      <span className="font-semibold">Transcript included:</span> The transcript from {safeContentDetails.youtubeUrl} has been included in your research.
+                  <div className="mt-2">
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      <span className="font-semibold">Transcript added:</span> {safeContentDetails.youtubeUrl}
                     </p>
                   </div>
                 )}
               </div>
-              
+
               {/* YouTube transcript feature message */}
               <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
                 <div className="flex items-center">
@@ -1967,60 +1630,6 @@ If you'd like complete research, please try again later when our research servic
 
   // Render the content for Step 2 (Follow-up Questions)
   const renderFollowUpQuestionsContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center p-8">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Generating tailored questions...</p>
-          </div>
-        </div>
-      );
-    }
-    
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center p-8">
-          <div className="text-center mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <h3 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-2">Question Generation Failed</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              The Claude API could not generate follow-up questions. Please check your API configuration or try again.
-            </p>
-            <button
-              onClick={() => generateFollowUpQuestions()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={() => router.push('/create')}
-              className="px-4 py-2 ml-4 border border-gray-300 text-gray-700 dark:text-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Back to Content Setup
-            </button>
-          </div>
-        </div>
-      );
-    }
-    
-    if (!followUpQuestions || followUpQuestions.length === 0) {
-      return (
-        <div className="text-center p-8">
-          <p className="text-gray-600 dark:text-gray-400">No follow-up questions available. Please try generating them again.</p>
-          <button
-            onClick={() => generateFollowUpQuestions()}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Generate Questions
-          </button>
-        </div>
-      );
-    }
-    
     return (
       <div className="space-y-8">
         <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
@@ -2053,7 +1662,10 @@ If you'd like complete research, please try again later when our research servic
                   <div>
                     <span className="font-medium text-gray-600 dark:text-gray-400">Platform:</span>{' '}
                     <span className="text-gray-800 dark:text-gray-200">
-                      {safeContentDetails.platform.charAt(0).toUpperCase() + safeContentDetails.platform.slice(1)}
+                      {safeContentDetails.platform 
+                        ? safeContentDetails.platform.charAt(0).toUpperCase() + 
+                          safeContentDetails.platform.slice(1)
+                        : 'Not specified'}
                     </span>
                   </div>
                 )}
@@ -2093,10 +1705,10 @@ If you'd like complete research, please try again later when our research servic
             
             <div className="mt-6 flex justify-end space-x-4">
               <button
-                onClick={() => router.push('/create')}
+                onClick={() => setResearchStep(1)}
                 className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
               >
-                Back to Content Setup
+                Back
               </button>
               
               <button
@@ -2112,610 +1724,451 @@ If you'd like complete research, please try again later when our research servic
     );
   };
 
-  // Add a simple debug handler for the research button
-  const debugButtonClick = () => {
-    console.log('DEBUG: Button clicked!');
-    
-    // Check if button should be disabled
-    if (isGenerating || isLoading) {
-      console.log('DEBUG: Button is disabled - isGenerating:', isGenerating, 'isLoading:', isLoading);
-      return;
-    }
-    
-    // If not disabled, proceed with the actual handler
-    console.log('DEBUG: Proceeding with handleDeepAnalysisClick');
-    handleDeepAnalysisClick();
-  };
-
-  // Add state for company research warning
-  const [companyResearchWarning, setCompanyResearchWarning] = useState<string | null>(null);
-  
-  // Check for company research warning in session storage when component mounts
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const warning = sessionStorage.getItem('companyResearchWarning');
-      if (warning) {
-        setCompanyResearchWarning(warning);
-        // Clear the warning from session storage
-        sessionStorage.removeItem('companyResearchWarning');
-      }
-    }
-  }, []);
-
-  // Component to display company research warning
-  const CompanyResearchWarning = () => {
-    if (!companyResearchWarning) return null;
-    
+  // Render the content for Step 3 (Research Generation)
+  const renderStep3Content = () => {
     return (
-      <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md dark:bg-yellow-900/20 dark:border-yellow-800">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
-              {language === 'es' ? 'Advertencia sobre la investigación de empresa' : 'Company Research Warning'}
-            </h3>
-            <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-200">
-              <p>{companyResearchWarning}</p>
+      <div className="space-y-8">
+        <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
+          <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-gray-100">
+            Generate Detailed Research
+          </h3>
+
+          <div className="space-y-4">
+            {/* Add a summary of current content details */}
+            <div className="mb-6 rounded-md bg-gray-50 p-4 dark:bg-gray-700/50">
+              <h4 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Your Content Summary
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Content Type:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.contentType === 'social-media' 
+                      ? 'Social Media Post' 
+                      : safeContentDetails.contentType === 'blog-post'
+                        ? 'Blog Post'
+                        : safeContentDetails.contentType === 'email'
+                          ? isPersonalUseCase ? 'Email/Newsletter' : 'Email'
+                          : safeContentDetails.contentType === 'video-script'
+                            ? isPersonalUseCase ? 'Video Script/Vlog' : 'Video Script'
+                            : safeContentDetails.contentType || 'Not specified'}
+                  </span>
+                </div>
+                {safeContentDetails.contentType === 'social-media' && (
+                  <div>
+                    <span className="font-medium text-gray-600 dark:text-gray-400">Platform:</span>{' '}
+                    <span className="text-gray-800 dark:text-gray-200">
+                      {safeContentDetails.platform 
+                        ? safeContentDetails.platform.charAt(0).toUpperCase() + 
+                          safeContentDetails.platform.slice(1)
+                        : 'Not specified'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Target Audience:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.targetAudience || 'Not specified'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Research Topic:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.researchTopic || 'Not specified'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="mt-3">
-              <button
-                onClick={() => setCompanyResearchWarning(null)}
-                className="text-sm font-medium text-yellow-800 hover:text-yellow-600 dark:text-yellow-300 dark:hover:text-yellow-400"
+
+            <div className="mb-6">
+              <h4 className="mb-2 text-md font-medium">Research Information</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                We'll use Perplexity Deep Research to generate detailed, high-quality research for your content.
+                This research will form the foundation of your content creation process.
+              </p>
+            </div>
+
+            {error && (
+              <div className="rounded-md bg-red-50 p-4 dark:bg-red-900/30">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <span className="h-5 w-5 text-red-400">⚠️</span>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                      Error generating research
+                    </h3>
+                    <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                      <p>{error}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end space-x-4">
+              <button 
+                onClick={() => setResearchStep(2)} 
+                className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                disabled={isGenerating}
               >
-                {language === 'es' ? 'Entendido' : 'Dismiss'}
+                Back
+              </button>
+              
+              <button
+                onClick={handleDeepAnalysisClick}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                disabled={isLoading || isGenerating}
+              >
+                {isGenerating ? (
+                  <div className="flex items-center space-x-2">
+                    <span className="animate-spin">⏳</span>
+                    <span>Generating Research...</span>
+                  </div>
+                ) : (
+                  'Generate Research'
+                )}
               </button>
             </div>
           </div>
         </div>
+
+        {/* Progress indicator during generation */}
+        {isGenerating && (
+          <div className="mt-4 rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress: {Math.round(generationProgress)}%</span>
+                <div className="flex items-center space-x-3">
+                  {retryCount > 0 && (
+                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                      Retry {retryCount}/{MAX_RETRIES}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleCancelResearch}
+                    className="rounded bg-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div 
+                  className="h-2 rounded-full bg-indigo-600 transition-all duration-300 ease-in-out" 
+                  style={{ width: `${generationProgress}%` }}
+                ></div>
+              </div>
+              <div className="flex flex-col space-y-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">{statusMessage}</p>
+                
+                {/* Additional information for users */}
+                <div className="mt-2 rounded-md bg-blue-50 p-3 dark:bg-blue-900/30">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <span className="h-5 w-5 text-blue-400">ℹ️</span>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Research generation typically takes 4-6 minutes to complete. This is because we're conducting a thorough analysis across multiple sources to provide you with high-quality, up-to-date information.
+                      </p>
+                      <div className="mt-2">
+                        <ul className="list-disc pl-5 text-xs text-blue-600 dark:text-blue-400">
+                          <li>Finding and analyzing the latest sources</li>
+                          <li>Extracting key insights and statistics</li>
+                          <li>Identifying current best practices and trends</li>
+                          <li>Formatting the research in a structured way</li>
+                        </ul>
+                      </div>
+                      <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">
+                        You can continue using other parts of the application while research is being generated.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Dynamic research tips based on the current research topic */}
+                {safeContentDetails.researchTopic?.toLowerCase().includes('chicken') && 
+                 safeContentDetails.researchTopic?.toLowerCase().includes('cook') && (
+                  <div className="mt-2 rounded-md bg-amber-50 p-3 dark:bg-amber-900/30">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <span className="h-5 w-5 text-amber-500">💡</span>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                          Cooking Chicken Content Tips
+                        </p>
+                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                          While we're generating your research, here are some content formats that work well for cooking demonstrations:
+                        </p>
+                        <ul className="mt-1 list-disc pl-5 text-xs text-amber-600 dark:text-amber-400">
+                          <li>Step-by-step visual guides with closeups of important techniques</li>
+                          <li>Before/after comparisons showing texture changes</li>
+                          <li>Temperature check moments for food safety emphasis</li>
+                          <li>Common mistake callouts and how to avoid them</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Estimated time remaining */}
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Estimated time remaining: {Math.max(0, Math.ceil(6 - (generationProgress / 100 * 6)))} minutes
+                  </span>
+                  {generationProgress >= 95 && (
+                    <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                      Almost there!
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
   // Render the content for Step 4 (Research Results)
   const renderStep4Content = () => {
-    // Use the existing deepResearch state variable
-    const research = deepResearch || '';
+    const isFallbackContent = error !== null;
     
-    return (
-      <div className="mb-12">
-        <h2 className="text-2xl md:text-3xl font-bold mb-4">{safeTranslate('researchPage.researchResults.title', 'Research Results')}</h2>
+    // Add debug logging
+    console.log('[DEBUG] Rendering research results, step:', researchStep);
+    console.log('[DEBUG] Research data available:', !!deepResearch);
+    console.log('[DEBUG] Research data length:', deepResearch?.length || 0);
+    console.log('[DEBUG] Is fallback content:', isFallbackContent);
+    
+    // Function to get condensed version of the research
+    const getCondensedResearch = () => {
+      if (!deepResearch) return '';
+      
+      // If there's a title (starts with #), keep it
+      const lines = deepResearch.split('\n');
+      let result = '';
+      let foundFirstHeading = false;
+      
+      // Keep first heading, summary section, and first few paragraphs
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         
-        {/* Display company research warning if present */}
-        {companyResearchWarning && <CompanyResearchWarning />}
+        // Always include the title
+        if (line.startsWith('# ')) {
+          result += line + '\n\n';
+          foundFirstHeading = true;
+          continue;
+        }
         
-        <div className="bg-white rounded-lg p-6 shadow-lg mb-6">
-          {/* Research Summary at the top */}
-          <div className="research-summary mb-4 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-md">
-            <h4 className="text-md font-medium mb-2">{safeTranslate('researchPage.results.summary', 'Research Summary')}</h4>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <div>
-                <span className="font-medium">{safeTranslate('researchPage.results.topic', 'Topic:')} </span> 
-                <span>{safeContentDetails.researchTopic || 'Not specified'}</span>
-              </div>
-              <div>
-                <span className="font-medium">{safeTranslate('researchPage.results.contentType', 'Content Type:')} </span>
-                <span>
-                  {(() => {
-                    // Use the display names system for consistent display
-                    const { displayContentType } = getDisplayNames(
-                      safeContentDetails.contentType || '',
-                      safeContentDetails.platform || '',
-                      safeContentDetails.subPlatform || '',
-                      language
-                    );
-                    return displayContentType;
-                  })()}
-                </span>
-              </div>
-              <div>
-                <span className="font-medium">{safeTranslate('researchPage.results.targetAudience', 'Target Audience:')} </span>
-                <span>{safeContentDetails.targetAudience || (language === 'es' ? 'No especificado' : 'Not specified')}</span>
-              </div>
-              <div>
-                <span className="font-medium">{safeTranslate('researchPage.results.platform', 'Platform:')} </span>
-                <span>
-                  {(() => {
-                    // Display both platform and subPlatform when needed for clarity
-                    if (safeContentDetails.platform === 'blog' && safeContentDetails.subPlatform === 'company-blog') {
-                      return language === 'es' ? 'Blog de Empresa' : 'Company Blog';
-                    }
-                    
-                    // Use the display names system for consistent display
-                    const { displayPlatform } = getDisplayNames(
-                      safeContentDetails.contentType || '',
-                      safeContentDetails.platform || '',
-                      safeContentDetails.subPlatform || '',
-                      language
-                    );
-                    return displayPlatform;
-                  })()}
-                </span>
-              </div>
-            </div>
-          </div>
+        // Include the next heading (likely "Summary" or "Key Points")
+        if (foundFirstHeading && line.startsWith('## ')) {
+          result += line + '\n\n';
           
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-medium text-gray-900 dark:text-white">
-              {safeTranslate('researchPage.results.title', 'Generated Research')}
-            </h3>
+          // Get the next few paragraphs after this heading (3-4 paragraphs)
+          let paragraphCount = 0;
+          let j = i + 1;
+          
+          while (j < lines.length && paragraphCount < 3) {
+            // If we hit another heading, stop
+            if (lines[j].startsWith('#')) break;
             
-            <ResearchActionButtons 
-              research={research}
-              isExpanded={isResearchExpanded}
-              topicName={`research-${safeContentDetails.researchTopic || 'content'}`}
-              onToggleExpand={toggleResearchExpansion}
-              translationFunc={safeTranslate}
-            />
-          </div>
-          
-          {/* Display loading state if needed */}
-          {!research && <p className="text-gray-500">{language === 'es' ? 'Cargando resultados de investigación...' : 'Loading research results...'}</p>}
-          
-          {/* Display the actual research content with improved formatting */}
-          {research && (
-            <div 
-              ref={researchRef}
-              className={`prose max-w-none dark:prose-invert bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg ${
-                isResearchExpanded ? 'p-6' : 'p-6 max-h-96 overflow-hidden relative'
-              }`}
-            >
-              <div className="markdown-content research-content">
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw, rehypeSlug, rehypeSanitize]}
-                  components={{
-                    h1: ({children, ...props}) => <h1 className="text-2xl font-bold my-5 pb-2 border-b dark:border-gray-700 text-gray-900 dark:text-white" {...props}>{children}</h1>,
-                    h2: ({children, ...props}) => <h2 className="text-xl font-bold my-4 pt-2 pb-1 border-b dark:border-gray-700 text-gray-800 dark:text-gray-100" {...props}>{children}</h2>,
-                    h3: ({children, ...props}) => <h3 className="text-lg font-bold my-3 text-gray-800 dark:text-gray-200" {...props}>{children}</h3>,
-                    p: ({children, ...props}) => <p className="my-3 text-base leading-7 text-gray-700 dark:text-gray-300" {...props}>{children}</p>,
-                    ul: ({children, ...props}) => <ul className="list-disc pl-6 my-3 space-y-2 text-gray-700 dark:text-gray-300" {...props}>{children}</ul>,
-                    ol: ({children, ...props}) => <ol className="list-decimal pl-6 my-3 space-y-2 text-gray-700 dark:text-gray-300" {...props}>{children}</ol>,
-                    li: ({children, ...props}) => <li className="my-1.5" {...props}>{children}</li>,
-                    a: ({children, ...props}) => <a className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>,
-                    blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-indigo-300 dark:border-indigo-600 pl-4 italic my-3 text-gray-600 dark:text-gray-400" {...props}>{children}</blockquote>,
-                    code: ({children, inline, ...props}: CodeProps) => 
-                      inline 
-                        ? <code className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800 dark:text-gray-200" {...props}>{children}</code>
-                        : <code className="block bg-gray-200 dark:bg-gray-700 p-3 rounded my-3 text-sm font-mono overflow-x-auto text-gray-800 dark:text-gray-200" {...props}>{children}</code>,
-                    table: ({children, ...props}) => <table className="border-collapse border border-gray-300 dark:border-gray-700 my-4 min-w-full bg-white dark:bg-gray-900" {...props}>{children}</table>,
-                    th: ({children, ...props}) => <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 bg-gray-100 dark:bg-gray-800 font-semibold text-gray-800 dark:text-gray-200" {...props}>{children}</th>,
-                    td: ({children, ...props}) => <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-gray-700 dark:text-gray-300" {...props}>{children}</td>,
-                    hr: ({...props}) => <hr className="my-6 border-t border-gray-300 dark:border-gray-700" {...props} />,
-                    strong: ({children, ...props}) => <strong className="font-bold text-gray-900 dark:text-white" {...props}>{children}</strong>,
-                    em: ({children, ...props}) => <em className="italic text-gray-800 dark:text-gray-300" {...props}>{children}</em>
-                  }}
-                >
-                  {research}
-                </ReactMarkdown>
-              </div>
-              
-              {/* Enhanced gradient fade effect when collapsed */}
-              {!isResearchExpanded && (
-                <div className="absolute bottom-0 left-0 right-0 h-36 bg-gradient-to-t from-gray-50 to-transparent dark:from-gray-800 pointer-events-none"></div>
-              )}
-            </div>
-          )}
-          
-          {/* Show expand button at the bottom when collapsed */}
-          {research && !isResearchExpanded && (
-            <div className="mt-2 text-center">
-              <button
-                onClick={toggleResearchExpansion}
-                className="text-blue-600 hover:text-blue-800 text-sm inline-flex items-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                {safeTranslate('researchPage.results.expandResearch', 'Show full research')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 flex space-x-4">
-          <button
-            onClick={() => setResearchStep(3)}
-            className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-          >
-            {language === 'es' ? 'Atrás' : 'Back'}
-          </button>
-          <button
-            onClick={proceedToContentCreation}
-            className="rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 flex items-center"
-          >
-            {t('researchPage.buttons.continueToContent', { defaultValue: 'Proceed to Content Creation' })}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  // Inside the ResearchPage component, add the needsPerplexityResearch variable
-  const [researchMethod, setResearchMethod] = useState<'perplexity' | 'trending' | 'claude' | null>(null);
-
-  // First get perplexityResearch from results
-  const perplexityResearch = researchResults?.perplexityResearch;
-  
-  // Now use it in needsPerplexityResearch
-  const needsPerplexityResearch = selectedResearchMethods.includes('perplexity') && !perplexityResearch;
-
-  // Create a function to translate error messages
-  const getTranslatedError = (errorMessage: string | null): string => {
-    if (!errorMessage) return '';
-    
-    if (errorMessage.includes('Failed to fetch')) {
-      return t('errors.connectionFailed') || 'Error: Failed to fetch';
-    }
-    
-    if (errorMessage.includes('Research generation was canceled')) {
-      return t('errors.researchCanceled') || 'Research generation was canceled by user.';
-    }
-    
-    return errorMessage;
-  };
-
-  // Render a clean version of Step 3 for research generation
-  const renderMinimalStep3Content = () => {
-    // Remove any leftover debug components that might be in the session storage
-    if (typeof window !== 'undefined') {
-      // Clear any debug test components or data that might be causing issues
-      sessionStorage.removeItem('debugResearch');
-      sessionStorage.removeItem('debugButtons');
-      sessionStorage.removeItem('testComponent');
-    }
-    
-    return (
-      <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-        <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">
-          {(() => {
-            // First try the regular translation with safeTranslate
-            const translated = safeTranslate('researchPage.results.generatedResearch', 'Generate Research');
-            
-            // If the result still has the raw key, it means translation failed
-            if (translated.includes('researchPage.results.generatedResearch')) {
-              // Return a hardcoded value based on the language
-              return language === 'es' ? 'Generar Investigación' : 'Generate Research';
+            // Count a paragraph
+            if (lines[j].trim() !== '' && !lines[j].startsWith('-') && !lines[j].startsWith('*')) {
+              paragraphCount++;
             }
             
-            return translated;
-          })()}
-        </h3>
-        
-        <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg border border-blue-100 dark:border-blue-800">
-          <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3">
-            {language === 'es' ? 'Resumen de Investigación' : 'Research Summary'}
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Tema:' : 'Topic:'} <span className="font-normal ml-1">{safeContentDetails.researchTopic || (language === 'es' ? 'No especificado' : 'Not Specified')}</span>
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Tipo de Contenido:' : 'Content Type:'} <span className="font-normal ml-1">
-                  {(() => {
-                    // Use the display names system for consistent display
-                    const { displayContentType } = getDisplayNames(
-                      safeContentDetails.contentType || '',
-                      safeContentDetails.platform || '',
-                      safeContentDetails.subPlatform || '',
-                      language
-                    );
-                    return displayContentType;
-                  })()}
+            result += lines[j] + '\n';
+            j++;
+          }
+          
+          // Add an ellipsis to indicate there's more
+          result += '\n...\n';
+          break;
+        }
+      }
+      
+      return result || deepResearch.substring(0, 800) + '...';
+    };
+    
+    return (
+      <div className="space-y-8">
+        <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
+          <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-gray-100">
+            Research Results for {safeContentDetails.researchTopic || 'Your Topic'}
+          </h3>
+          
+          {/* Add a summary of current content details */}
+          <div className="mb-6 rounded-md bg-gray-50 p-4 dark:bg-gray-700/50">
+            <h4 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Your Content Summary
+            </h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="font-medium text-gray-600 dark:text-gray-400">Content Type:</span>{' '}
+                <span className="text-gray-800 dark:text-gray-200">
+                  {safeContentDetails.contentType === 'social-media' 
+                    ? 'Social Media Post' 
+                    : safeContentDetails.contentType === 'blog-post'
+                      ? 'Blog Post'
+                      : safeContentDetails.contentType === 'email'
+                        ? isPersonalUseCase ? 'Email/Newsletter' : 'Email'
+                        : safeContentDetails.contentType === 'video-script'
+                          ? isPersonalUseCase ? 'Video Script/Vlog' : 'Video Script'
+                          : safeContentDetails.contentType === 'youtube-script'
+                            ? 'YouTube Video'
+                            : safeContentDetails.contentType || 'Not specified'}
                 </span>
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Audiencia Objetivo:' : 'Target Audience:'} <span className="font-normal ml-1">{safeContentDetails.targetAudience || (language === 'es' ? 'No especificado' : 'Not Specified')}</span>
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {language === 'es' ? 'Plataforma:' : 'Platform:'} <span className="font-normal ml-1">
-                  {(() => {
-                    // Display both platform and subPlatform when needed for clarity
-                    if (safeContentDetails.platform === 'blog' && safeContentDetails.subPlatform === 'company-blog') {
-                      return language === 'es' ? 'Blog de Empresa' : 'Company Blog';
-                    }
-                    
-                    // Use the display names system for consistent display
-                    const { displayPlatform } = getDisplayNames(
-                      safeContentDetails.contentType || '',
-                      safeContentDetails.platform || '',
-                      safeContentDetails.subPlatform || '',
-                      language
-                    );
-                    return displayPlatform;
-                  })()}
+              </div>
+              {safeContentDetails.contentType === 'social-media' && (
+                <div>
+                  <span className="font-medium text-gray-600 dark:text-gray-400">Platform:</span>{' '}
+                  <span className="text-gray-800 dark:text-gray-200">
+                    {safeContentDetails.platform 
+                      ? safeContentDetails.platform.charAt(0).toUpperCase() + 
+                        safeContentDetails.platform.slice(1)
+                      : 'Not specified'}
+                  </span>
+                </div>
+              )}
+              <div>
+                <span className="font-medium text-gray-600 dark:text-gray-400">Target Audience:</span>{' '}
+                <span className="text-gray-800 dark:text-gray-200">
+                  {safeContentDetails.targetAudience || 'Not specified'}
                 </span>
-              </p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-600 dark:text-gray-400">Research Topic:</span>{' '}
+                <span className="text-gray-800 dark:text-gray-200">
+                  {safeContentDetails.researchTopic || 'Not specified'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-                
-        {error && (
-          error.includes('connection error') ? (
-            <ConnectionErrorMessage onRetry={() => {
-              setError(null);
-              handleDeepAnalysisClick();
-            }} />
-          ) : (
-            <div className="p-4 mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+          
+          {/* Show fallback content notice if applicable */}
+          {isFallbackContent && (
+            <div className="mb-6 rounded-md bg-blue-50 p-4 dark:bg-blue-900/30">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414-1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
+                  <span className="h-5 w-5 text-blue-400">ℹ️</span>
                 </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800 dark:text-red-300">{t('common.error')}</h3>
-                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">{getTranslatedError(error)}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    We've provided useful information below based on your topic. While our research API is currently unavailable, you can still use this content for your project.
+                  </p>
                 </div>
               </div>
             </div>
-          )
-        )}
-        
-        {/* Add topic suggestion component if we have a timeout error */}
-        {error && (error.includes('timeout') || error.includes('longer than expected')) && (
-          <SpecificTopicSuggestion 
-            originalTopic={contentDetails?.researchTopic || ''} 
-            contentDetails={contentDetails}
-            setContentDetails={setContentDetails}
-          />
-        )}
-                
-        <div className="flex justify-between items-center mt-8">
-          <button 
-            onClick={() => setResearchStep(2)}
-            type="button"
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-          >
-            {language === 'es' ? 'Volver' : 'Back'}
-          </button>
+          )}
           
-          <div className="flex space-x-4">
-            {/* Only show the generate research button */}
-            <button
-              onClick={handleDeepAnalysisClick}
-              className="flex items-center justify-center px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {language === 'es' ? 'Generando...' : 'Generating...'}
-                </>
-              ) : (
-                language === 'es' ? 'Generar Investigación' : 'Generate Research'
-              )}
-            </button>
-          </div>
-        </div>
-
-        {isGenerating && (
-          <div className="mt-8 p-5 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
-            <div className="flex flex-col items-center justify-center mb-8">
-              <div className="w-20 h-20 mb-4">
-                <div className="w-full h-full rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">
-                {language === 'es' ? 'Investigación en Progreso' : 'Research in Progress'}
-              </h3>
-              <p className="text-gray-500 mb-6">
-                {language === 'es' ? 'Comenzando investigación...' : 'Starting research...'}
-              </p>
-
-              <div className="w-full max-w-lg mb-4">
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium text-blue-600">
-                    {language === 'es' ? 'Progreso' : 'Progress'}
-                  </span>
-                  <span className="text-sm font-medium text-blue-600">{Math.round(generationProgress)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-blue-600 h-2.5 rounded-full" 
-                    style={{ width: `${generationProgress}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              <p className="text-gray-600">
-                {(() => {
-                  if (language === 'es') {
-                    if (generationProgress < 20) {
-                      return 'Consultando fuentes de datos...';
-                    } else if (generationProgress < 40) {
-                      return 'Analizando datos de fuentes...';
-                    } else if (generationProgress < 60) {
-                      return 'Sintetizando hallazgos de investigación...';
-                    } else if (generationProgress < 80) {
-                      return 'Organizando información clave...';
-                    } else {
-                      return 'Finalizando documento de investigación...';
-                    }
-                  } else {
-                    if (generationProgress < 20) {
-                      return 'Querying data sources...';
-                    } else if (generationProgress < 40) {
-                      return 'Analyzing data from sources...';
-                    } else if (generationProgress < 60) {
-                      return 'Synthesizing research findings...';
-                    } else if (generationProgress < 80) {
-                      return 'Organizing key insights...';
-                    } else {
-                      return 'Finalizing research document...';
-                    }
-                  }
-                })()}
-              </p>
-
-              {isGenerating && (
+          <div className="space-y-6">
+            {/* Research content - now with condensed view toggle */}
+            <div className="prose prose-lg max-w-none dark:prose-invert 
+              prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white 
+              prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h4:text-base 
+              prose-p:text-gray-700 prose-p:my-4 dark:prose-p:text-gray-300 
+              prose-a:text-indigo-600 dark:prose-a:text-indigo-400 
+              prose-li:text-gray-700 dark:prose-li:text-gray-300 
+              prose-ul:my-4 prose-ol:my-4
+              prose-strong:font-bold prose-strong:text-gray-900 dark:prose-strong:text-white">
+              <ReactMarkdown>
+                {showFullResearch 
+                  ? (deepResearch || 'No research data available. Please try again.') 
+                  : getCondensedResearch() || 'No research data available. Please try again.'}
+              </ReactMarkdown>
+            </div>
+            
+            {/* Toggle button for full/condensed view */}
+            {deepResearch && (
+              <div className="flex justify-center">
                 <button
-                  onClick={() => {
-                    if (abortControllerRef.current) {
-                      abortControllerRef.current.abort();
-                      console.log('Research generation was canceled by user');
-                      setIsGenerating(false);
-                      setIsLoading(false);
-                      setError(language === 'es' ? 'La generación de investigación fue cancelada.' : 'Research generation was canceled.');
-                    }
-                  }}
-                  className="mt-4 px-3 py-1 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded-md hover:bg-red-50 transition-colors"
+                  onClick={() => setShowFullResearch(!showFullResearch)}
+                  className="flex items-center gap-1 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
                 >
-                  {language === 'es' ? 'Cancelar' : 'Cancel'}
+                  {showFullResearch ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                      Show Less
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      Show Full Research
+                    </>
+                  )}
                 </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Add loader styles to ensure consistency with the content page
-  useEffect(() => {
-    // Add loader styles to document
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .loader {
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #3498db;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-      }
-      
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // Clean up function
-    return () => {
-      // Remove the style tag when component unmounts
-      const styleElement = document.head.querySelector('style:last-child');
-      if (styleElement && styleElement.innerHTML.includes('.loader')) {
-        document.head.removeChild(styleElement);
-      }
-    };
-  }, []);
-
-  // In the useEffect for loading stored research data
-  useEffect(() => {
-    // Skip if we're coming from a push state navigation
-    if (sessionStorage.getItem('navigationSource') === 'pushState') {
-      sessionStorage.removeItem('navigationSource');
-      return;
-    }
-    
-    // Try to load content details from session storage
-    try {
-      const storedContentDetails = sessionStorage.getItem('contentDetails');
-      
-      if (storedContentDetails) {
-        console.log('Loaded content details from session storage');
-        setContentDetails(JSON.parse(storedContentDetails));
-      }
-      
-      // Load research results if they exist
-      const storedResearchResults = sessionStorage.getItem('researchResults');
-      if (storedResearchResults) {
-        console.log('Loaded research results from session storage');
-        const parsedResults = JSON.parse(storedResearchResults);
-        
-        // Clean any research content that exists in the results
-        if (parsedResults.perplexityResearch) {
-          parsedResults.perplexityResearch = cleanResearchContent(parsedResults.perplexityResearch);
-        }
-        if (parsedResults.claudeResearch) {
-          parsedResults.claudeResearch = cleanResearchContent(parsedResults.claudeResearch);
-        }
-        
-        setResearchResults(parsedResults);
-      }
-      
-      // Load deep research if it exists
-      const storedDeepResearch = sessionStorage.getItem('deepResearch');
-      if (storedDeepResearch) {
-        console.log('Loaded deep research from session storage');
-        // Clean the research content before setting it
-        setDeepResearch(cleanResearchContent(storedDeepResearch));
-        // Auto-advance to step 3
-        setResearchStep(3);
-      }
-      
-      // Load basic research if it exists
-      const storedBasicResearch = sessionStorage.getItem('basicResearch');
-      if (storedBasicResearch) {
-        console.log('Loaded basic research from session storage');
-        // Clean the basic research content before setting it
-        setBasicResearch(cleanResearchContent(storedBasicResearch));
-      }
-      
-      // Load research step if it exists
-      const storedResearchStep = sessionStorage.getItem('researchStep');
-      if (storedResearchStep) {
-        console.log('Loaded research step from session storage:', storedResearchStep);
-        setResearchStep(parseInt(storedResearchStep, 10));
-      }
-      
-    } catch (error) {
-      console.error('Error loading data from session storage:', error);
-    }
-  }, []);
-
-  // Initialize window.researchEventSource if it doesn't exist
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.researchEventSource = window.researchEventSource || null;
-    }
-    
-    // Cleanup function to close any open connections when component unmounts
-    return () => {
-      if (typeof window !== 'undefined' && window.researchEventSource) {
-        window.researchEventSource.close();
-        window.researchEventSource = null;
-      }
-    };
-  }, []);
-
-  // Component for connection error message
-  const ConnectionErrorMessage = ({ onRetry }: { onRetry: () => void }) => {
-    return (
-      <div className="p-4 mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Connection Issue</h3>
-            <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-              <p>The research generation process takes about 6 minutes to complete. With your Pro plan, we're able to process complex requests up to 5 minutes.</p>
-              <p className="mt-2">Your connection was interrupted, but you have two options:</p>
-              <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Wait a few minutes and refresh the page to check if your results are ready</li>
-                <li>Try generating the research again</li>
-              </ul>
-            </div>
-            <div className="mt-4">
+              </div>
+            )}
+            
+            {/* AI-Recommended Content Types based on research */}
+            {deepResearch && safeContentDetails.targetAudience && (
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                  <IconArrowDown className="mr-2 text-indigo-600" size={20} />
+                  Next Step: Create Your Content
+                </h4>
+                <div className="mb-6 rounded-md bg-gray-50 p-4 dark:bg-gray-700/50">
+                  <h4 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Your Content Will Be Created As
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-600 dark:text-gray-400">Content Type:</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
+                        {safeContentDetails.contentType?.replace('-', ' ') || 'Not specified'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-600 dark:text-gray-400">Platform:</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
+                        {safeContentDetails.platform 
+                          ? safeContentDetails.platform.charAt(0).toUpperCase() + 
+                            safeContentDetails.platform.slice(1)
+                          : 'Not specified'}
+                      </span>
+                    </div>
+                    {safeContentDetails.subPlatform && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-600 dark:text-gray-400">Sub-Platform:</span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
+                          {safeContentDetails.subPlatform.charAt(0).toUpperCase() + 
+                           safeContentDetails.subPlatform.slice(1)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Your research is ready! Click "Create Content" below to start writing content based on the insights gathered.
+                </p>
+              </div>
+            )}
+            
+            {/* Navigation buttons */}
+            <div className="mt-6 flex justify-end space-x-4">
               <button
-                onClick={onRetry}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700"
+                onClick={() => setResearchStep(3)}
+                className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
+                disabled={isGenerating}
               >
-                Try Again
+                Back
+              </button>
+              
+              <button
+                onClick={proceedToContentCreation}
+                className="rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 flex items-center"
+                disabled={!deepResearch || isGenerating}
+              >
+                Create Content
+                <svg xmlns="http://www.w3.org/2000/svg" className="ml-2 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
               </button>
             </div>
           </div>
@@ -2724,792 +2177,12 @@ If you'd like complete research, please try again later when our research servic
     );
   };
 
-  // Add a progress simulation fallback 
-  useEffect(() => {
-    // Only run the fallback when actively generating and progress seems stuck
-    if (isGenerating && generationProgress <= 25) {
-      console.log('[DEBUG] Starting progress simulation fallback');
-      
-      // Start a timer that will increment progress if we don't get real updates
-      const simulationTimer = setTimeout(() => {
-        // Start a simulation interval that slowly increases progress
-        const simulationInterval = setInterval(() => {
-          setGenerationProgress(prev => {
-            // Slowly increase up to 90% maximum (leave room for the real completion)
-            if (prev < 90) {
-              const increment = Math.max(0.5, (90 - prev) / 50); // Faster at start, slower as it approaches 90%
-              return prev + increment;
-            }
-            return prev;
-          });
-          
-          // Also update status messages based on simulated progress
-          setStatusMessage(prevStatus => {
-            // Only update if it's one of our standard messages (not error messages)
-            if (prevStatus.includes('Analyzing') || 
-                prevStatus.includes('Querying') || 
-                prevStatus.includes('Synthesizing') || 
-                prevStatus.includes('Organizing') || 
-                prevStatus.includes('Finalizing')) {
-              
-              // Choose progress message based on current progress level
-              const progress = generationProgress;
-              if (progress < 40) {
-                return 'Querying knowledge databases...';
-              } else if (progress < 60) {
-                return 'Analyzing information sources...';
-              } else if (progress < 75) {
-                return 'Synthesizing research findings...';
-              } else if (progress < 85) {
-                return 'Organizing research insights...';
-              } else {
-                return 'Finalizing research document...';
-              }
-            }
-            return prevStatus;
-          });
-        }, 3000); // Update every 3 seconds
-        
-        // Cleanup function for the interval
-        return () => {
-          clearInterval(simulationInterval);
-        };
-      }, 15000); // Wait 15 seconds to see if real progress updates come in
-      
-      // Clean up the simulation timer if the component unmounts
-      return () => {
-        clearTimeout(simulationTimer);
-      };
-    }
-  }, [isGenerating, generationProgress]);
-
-  // Function to check if research has completed on the server
-  const checkForCompletedResearch = async () => {
-    try {
-      console.log('[DEBUG] Checking for completed research on server');
-      const response = await fetch('/api/perplexity/check-research', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic: safeContentDetails?.researchTopic || '',
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[DEBUG] Research check result:', data);
-        
-        // If research is found, display it
-        if (data.research) {
-          console.log('[DEBUG] Research was found on server!');
-          
-          // Clean the research content
-          const cleanedResearch = removeThinkingTags(data.research);
-          
-          // Save the research and update UI
-          setDeepResearch(cleanedResearch);
-          sessionStorage.setItem('deepResearch', cleanedResearch);
-          
-          // Save research results
-          const researchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: cleanedResearch
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          
-          // Update progress to 100%
-          setGenerationProgress(100);
-          setStatusMessage('Research complete!');
-          
-          // Show success toast
-          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-          
-          // Move to the next step
-          setResearchStep(4);
-          
-          // Reset states
-          setIsGenerating(false);
-          setIsLoading(false);
-          
-          return true;
-        }
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('[DEBUG] Error checking for completed research:', error);
-      return false;
-    }
-  };
-
-  // Add an effect to periodically check for research results when connection issues occur
-  useEffect(() => {
-    // Only run when research is generating and we haven't received updates for a while
-    if (isGenerating && generationProgress > 30 && error?.includes('connection')) {
-      console.log('[DEBUG] Starting periodic research result check due to connection error');
-      
-      // Check immediately
-      checkForCompletedResearch();
-      
-      // Then set up a periodic check
-      const checkInterval = setInterval(() => {
-        checkForCompletedResearch().then(found => {
-          if (found) {
-            // Clear the interval if research was found
-            clearInterval(checkInterval);
-          }
-        });
-      }, 30000); // Check every 30 seconds
-      
-      // Clean up the interval when component unmounts
-      return () => {
-        clearInterval(checkInterval);
-      };
-    }
-  }, [isGenerating, generationProgress, error]);
-
-  // Function to check if research has completed after a timeout or error
-  const checkForCompletedResearchAfterTimeout = async (topic: string) => {
-    if (!topic) return;
-    
-    try {
-      console.log('[RECOVERY] Checking for completed research after timeout:', topic);
-      setStatusMessage('Checking for completed research...');
-      
-      const response = await fetch('/api/perplexity/check-research', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic,
-          contentType: contentDetails?.contentType || 'social-post',
-          platform: contentDetails?.platform || 'facebook',
-          language: language || 'en'
-        }),
-      });
-      
-      // Check response status
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (data.research) {
-          console.log('[RECOVERY] Found completed research in cache!');
-          
-          // Clean and save the research
-          const cleanedResearch = removeThinkingTags(data.research);
-          setDeepResearch(cleanedResearch);
-          sessionStorage.setItem('deepResearch', cleanedResearch);
-          
-          // Save research results with fallback indicator
-          const researchResults = {
-            researchMethod: 'perplexity-fallback',
-            perplexityResearch: cleanedResearch
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          
-          // Update UI
-          setGenerationProgress(100);
-          setStatusMessage('Research recovered from cache!');
-          setError(null);
-          setResearchStep(4);
-          
-          // Show success toast
-          toast.success('Research was recovered successfully! Your results are ready.');
-          
-          return true;
-        }
-      }
-      
-      console.log('[RECOVERY] No completed research found in cache');
-      return false;
-    } catch (error) {
-      console.error('[RECOVERY] Error checking for completed research:', error);
-      return false;
-    }
-  };
-
-  // Add more specific error handling for research generation
-  const handleApiError = (error: any, status: number) => {
-    console.error('[DIAG] API error:', status, error);
-    
-    // Create user-friendly error message based on status and content
-    let errorMessage = 'An error occurred during research generation.';
-    let shouldAttemptRecovery = false;
-    
-    if (status === 504 || error.message?.includes('timeout') || error.message?.includes('timed out')) {
-      errorMessage = 'The research is taking longer than expected. Please try using a more specific topic like "Softcom Internet Service in Rural Montana" instead of just "Softcom Internet".';
-      shouldAttemptRecovery = true;
-    } else if (status === 500) {
-      errorMessage = 'The research service encountered a temporary error. We\'ll attempt to recover your research if it completed.';
-      shouldAttemptRecovery = true; 
-    } else if (status === 429) {
-      errorMessage = 'Usage limit reached. Please try again in a few minutes.';
-      shouldAttemptRecovery = false;
-    } else if (error.message) {
-      errorMessage = error.message;
-      shouldAttemptRecovery = true;
-    }
-    
-    // Show toast notification for immediate feedback
-    toast.error(errorMessage);
-    
-    // Set error state
-    setError(errorMessage);
-    
-    // Return whether recovery should be attempted
-    return { errorMessage, shouldAttemptRecovery };
-  };
-
-  // Function to handle network timeouts more gracefully
-  const handleNetworkTimeout = async (topic: string): Promise<boolean> => {
-    console.log('[RECOVERY] Handling network timeout for topic:', topic);
-    
-    // Show a more informative status message
-    setStatusMessage('The research request is taking longer than expected. Attempting recovery...');
-    
-    try {
-      // First, wait a moment to allow any in-progress operations to complete
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Check if we have any results stored on the server
-      console.log('[RECOVERY] Checking for any research results after timeout');
-      const recovered = await checkForCompletedResearchAfterTimeout(topic);
-      
-      if (recovered) {
-        console.log('[RECOVERY] Successfully recovered research after timeout');
-        return true;
-      }
-      
-      // If we couldn't recover anything, offer user a choice
-      setStatusMessage('Recovery attempt completed. Would you like to try again with a more specific topic?');
-      
-      // Create a more specific topic suggestion
-      let specificTopic = topic;
-      if (contentDetails?.platform) {
-        specificTopic = `${topic} for ${contentDetails.platform}`;
-      }
-      if (contentDetails?.targetAudience) {
-        specificTopic = `${specificTopic} targeting ${contentDetails.targetAudience}`;
-      }
-      
-      // Show toast with suggestion
-      toast.success(
-        <div>
-          <p>Research timed out. Try a more specific topic:</p>
-          <button 
-            onClick={() => {
-              if (contentDetails) {
-                setContentDetails({
-                  ...contentDetails,
-                  researchTopic: specificTopic
-                });
-                // Wait a moment then retry
-                setTimeout(() => {
-                  handleDeepAnalysisClick();
-                }, 500);
-              }
-            }}
-            className="mt-2 px-3 py-1 bg-blue-600 text-white rounded text-sm"
-          >
-            Use "{specificTopic}"
-          </button>
-        </div>,
-        { duration: 10000, position: 'bottom-center' }
-      );
-      
-      return false;
-    } catch (error) {
-      console.error('[RECOVERY] Error during timeout recovery:', error);
-      return false;
-    }
-  };
-
-  // Enhanced fallback research generator for emergency use
-  const generateEmergencyFallbackResearch = () => {
-    if (!safeContentDetails) return '';
-    
-    // Extract key details for the fallback
-    const topic = safeContentDetails.researchTopic || 'the topic';
-    const audience = safeContentDetails.targetAudience || 'general audience';
-    const platform = safeContentDetails.platform || 'social media';
-    const contentType = safeContentDetails.contentType || 'content';
-    
-    // Generate fallback headings based on topic
-    const words = topic.split(' ').filter(w => w.length > 3);
-    const keyTerms = words.slice(0, 3);
-    
-    // Current date for reference
-    const currentDate = new Date().toLocaleDateString();
-    
-    return `# Research Report: ${topic}
-
-## Executive Summary
-
-This research report provides a comprehensive analysis of ${topic} with a focus on applications for ${platform} ${contentType}. The target audience for this research is ${audience}. This report includes market analysis, audience insights, and strategic recommendations.
-
-## Market Overview
-
-${topic} represents a significant area of interest in today's market. Based on our research:
-
-- The market has shown steady growth over the past 3-5 years
-- Key players include established companies and innovative startups
-- Current market valuation is estimated to be substantial
-- Future projections indicate continued expansion and development
-
-### Key Trends
-
-1. Digital transformation is accelerating adoption in this space
-2. Customer expectations are evolving toward more personalized experiences
-3. Integration with mobile platforms is becoming increasingly important
-4. Data-driven approaches are providing competitive advantages
-
-## Target Audience Analysis
-
-The primary audience (${audience}) demonstrates these characteristics:
-
-### Demographics
-- Age range typically spans 25-54 years
-- Mix of professional and personal interests
-- Tech-savvy with regular online engagement
-- Active on multiple platforms including ${platform}
-
-### Pain Points
-- Information overload leading to decision fatigue
-- Difficulty finding reliable, specialized information
-- Time constraints limiting in-depth research
-- Concerns about reliability and trustworthiness
-
-## Content Strategy for ${platform}
-
-Based on our analysis, the following approaches are recommended for ${platform}:
-
-1. **Content Format**: ${contentType === 'presentation' ? 'Visual-heavy slides with minimal text per slide' : contentType === 'blog-post' ? 'Comprehensive yet scannable articles with subheadings' : contentType === 'email' ? 'Concise, action-oriented messaging with clear CTAs' : 'Engaging, visually appealing posts with clear messaging'}
-
-2. **Optimal Posting Frequency**: ${platform === 'linkedin' ? '2-3 times per week' : platform === 'instagram' ? 'Daily posts with 2-3 Stories' : platform === 'facebook' ? '3-5 times per week' : platform === 'twitter' ? '3-7 times daily' : '3-5 times per week'}
-
-3. **Best Performing Content Types**:
-   - Educational content explaining complex topics simply
-   - Behind-the-scenes insights
-   - Customer success stories and testimonials
-   - Trend analysis and forecasting
-
-## Key Recommendations
-
-1. Develop a consistent content calendar focused on addressing audience pain points
-2. Utilize a mix of formats including text, images, videos, and interactive elements
-3. Monitor engagement metrics to continuously refine your approach
-4. Position your content as authoritative by including research-backed information
-
-## Additional Resources
-
-Consider exploring these related topics for future content:
-${keyTerms.map(term => `- ${term.charAt(0).toUpperCase() + term.slice(1)} best practices and case studies`).join('\n')}
-- Industry benchmarks and performance metrics
-- Competitive landscape analysis
-
-*This report was generated on ${currentDate} as an emergency fallback due to research API limitations. You can still proceed with content creation using this foundational research.*`;
-  };
-
-  // Function to handle research generation and fallbacks with more robust error handling
-  const generateResearchWithFallbacks = async () => {
-    // Reset states
-    setError(null);
-    setDeepResearch('');
-    setIsLoading(true);
-    setIsGenerating(true);
-    setGenerationProgress(0);
-    setStatusMessage(language === 'es' ? 'Preparando la solicitud de investigación...' : 'Preparing research request...');
-    
-    // Track retry count
-    let currentRetryCount = 0;
-    const MAX_RETRIES = 2;
-    
-    // Create abort controller for cancellation
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-    
-    // Store interval IDs for cleanup
-    let progressIntervalId: ReturnType<typeof setInterval> | undefined;
-    
-    try {
-      // Set timeout for cancellation (3 minutes max to prevent browser timeout)
-      const fetchTimeoutId = setTimeout(() => {
-        console.log('[ROBUST] Research generation timed out after 3 minutes - aborting');
-        if (abortController && !abortController.signal.aborted) {
-          abortController.abort('timeout');
-        }
-      }, 180000); // 3 minutes
-      
-      // Extract follow-up answers if they exist
-      let followUpSection = '';
-      if (safeContentDetails?.followUp?.questions && safeContentDetails?.followUp?.answers) {
-        const { questions, answers } = safeContentDetails.followUp;
-        
-        // Format only questions with actual answers
-        const answeredQuestions = questions
-          .map((q: string, i: number) => answers[i] && answers[i].trim() ? `Q: ${q}\nA: ${answers[i]}` : null)
-          .filter(Boolean);
-        
-        if (answeredQuestions.length > 0) {
-          followUpSection = "\n\nFollow-up Answers:\n" + answeredQuestions.join("\n\n");
-          console.log('[ROBUST] Including follow-up answers in research context');
-        }
-      }
-      
-      // Build context - include language in the context to ensure it processes correctly
-      const contextString = `Topic: "${safeContentDetails?.researchTopic || ''}"
-Platform: ${safeContentDetails?.platform || 'facebook'}, 
-Content Type: ${safeContentDetails?.contentType || 'social-post'},
-Target Audience: ${safeContentDetails?.targetAudience || 'general'}
-Language: ${language || 'en'}${followUpSection}`;
-
-      // Log the context being sent (truncated for clarity)
-      console.log(`[ROBUST] Research context in ${language} mode (first 200 chars):`, contextString.substring(0, 200));
-      if (followUpSection) {
-        console.log('[ROBUST] Follow-up answers included in context');
-      }
-      
-      // Set up progress tracking
-      progressIntervalId = setInterval(() => {
-        setGenerationProgress(prev => {
-          // More gradual progress simulation up to 85%
-          if (prev < 85) {
-            const increment = Math.random() * 3 + 1; // Random increment between 1-4%
-            return Math.min(85, prev + increment);
-          }
-          return prev;
-        });
-      }, 10000); // Every 10 seconds
-
-      // Add failsafe timeout - if we reach 85% progress, start emergency fallback
-      const emergencyFallbackId = setTimeout(() => {
-        if (generationProgress >= 85 && isGenerating) {
-          console.log('[ROBUST] Emergency fallback triggered - generating local research');
-          
-          // Clear the progress interval if it exists
-          if (progressIntervalId) {
-            clearInterval(progressIntervalId);
-            progressIntervalId = undefined;
-          }
-          
-          // Generate emergency fallback and use it
-          const emergencyContent = generateEmergencyFallbackResearch();
-          setDeepResearch(emergencyContent);
-          sessionStorage.setItem('deepResearch', emergencyContent);
-          
-          // Save as research results
-          const emergencyResults = {
-            researchMethod: 'emergency-fallback',
-            perplexityResearch: emergencyContent
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(emergencyResults));
-          
-          // Complete progress
-          setGenerationProgress(100);
-          setStatusMessage(language === 'es' ? 'Investigación completada (contenido alternativo)' : 'Research completed (fallback content)');
-          
-          // Move to results step ONLY AFTER research is done
-          setResearchStep(4);
-          setIsGenerating(false);
-          setIsLoading(false);
-          
-          toast.success(language === 'es' ? 'Investigación completada con contenido alternativo' : 'Research generation completed with fallback content');
-        }
-      }, 60000);
-      
-      try {
-        // Attempt API request with shorter timeout
-        console.log(`[ROBUST] Making research API request in ${language} mode with 45-second timeout`);
-        
-        // Make the API request - explicitly pass language parameter
-        const response = await fetch('/api/perplexity/research', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            topic: safeContentDetails?.researchTopic || '',
-            context: contextString,
-            sources: ['recent', 'scholar'],
-            language: language || 'en', // Explicitly pass language parameter
-            signal: abortController.signal
-          }),
-          // We don't pass the signal to avoid duplicate aborts
-        });
-        
-        // Process response
-        if (!response.ok) {
-          // Clear the progress interval if it exists
-          if (progressIntervalId) {
-            clearInterval(progressIntervalId);
-            progressIntervalId = undefined;
-          }
-          
-          throw new Error(`API error: ${response.status}`);
-        }
-        
-        // Parse response
-        const data = await response.json();
-        
-        // Clear intervals since we succeeded
-        clearInterval(progressIntervalId);
-        clearTimeout(emergencyFallbackId);
-        
-        if (!data || !data.research) {
-          throw new Error('Empty response from research API');
-        }
-        
-        // Process the research content
-        const cleanedResearch = removeThinkingTags(data.research);
-        
-        // Save research
-        setDeepResearch(cleanedResearch);
-        sessionStorage.setItem('deepResearch', cleanedResearch);
-        
-        // Save research results
-        const researchResults = {
-          researchMethod: 'perplexity',
-          perplexityResearch: cleanedResearch
-        };
-        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-        
-        // Complete progress
-        setGenerationProgress(100);
-        setStatusMessage(language === 'es' ? '¡Investigación completa!' : 'Research complete!');
-        
-        // NOW move to results AFTER research is complete
-        setResearchStep(4);
-        
-        // Success notification
-        toast.success(language === 'es' ? '¡Investigación completada exitosamente!' : 'Research completed successfully!');
-        
-      } catch (apiError: any) {
-        // Clear interval
-        clearInterval(progressIntervalId);
-        
-        console.error('[ROBUST] API request failed:', apiError.message);
-        
-        // Check if we should retry
-        if (currentRetryCount < MAX_RETRIES) {
-          currentRetryCount++;
-          console.log(`[ROBUST] Retrying (${currentRetryCount}/${MAX_RETRIES})`);
-          
-          // Show retry status
-          setStatusMessage(language === 'es' 
-            ? `Reintentando (intento ${currentRetryCount}/${MAX_RETRIES})...` 
-            : `Retrying (attempt ${currentRetryCount}/${MAX_RETRIES})...`);
-          
-          // Restart progress simulation for retry
-          progressIntervalId = setInterval(() => {
-            setGenerationProgress(prev => {
-              if (prev < 85) {
-                return prev + (Math.random() * 0.8 + 0.2); // Slower progress
-              }
-              return prev;
-            });
-          }, 2000);
-          
-          // Wait before retry
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Make one more attempt with shorter timeout
-          try {
-            const retryResponse = await fetch('/api/perplexity/research', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                topic: safeContentDetails?.researchTopic || '',
-                context: contextString,
-                sources: ['recent'],
-                language: language || 'en' // Explicitly set language for retry
-              })
-            });
-            
-            // Clear interval
-            clearInterval(progressIntervalId);
-            
-            // Process retry response
-            if (!retryResponse.ok) {
-              throw new Error(`Retry failed: ${retryResponse.status}`);
-            }
-            
-            const retryData = await retryResponse.json();
-            
-            if (!retryData || !retryData.research) {
-              throw new Error('Empty response from retry');
-            }
-            
-            // Process the research content
-            const cleanedResearch = removeThinkingTags(retryData.research);
-            
-            // Save research
-            setDeepResearch(cleanedResearch);
-            sessionStorage.setItem('deepResearch', cleanedResearch);
-            
-            // Save research results
-            const researchResults = {
-              researchMethod: 'perplexity',
-              perplexityResearch: cleanedResearch
-            };
-            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-            
-            // Complete progress
-            setGenerationProgress(100);
-            setStatusMessage('Research complete (retry succeeded)!');
-            
-            // Move to results
-            setResearchStep(4);
-            
-            // Success notification
-            toast.success('Research completed successfully after retry!');
-            
-          } catch (retryError) {
-            console.error('[ROBUST] Retry failed:', retryError);
-            
-            // Clear interval
-            clearInterval(progressIntervalId);
-            
-            // Generate fallback content
-            console.log('[ROBUST] All API attempts failed, using fallback generator');
-            const fallbackContent = generateEmergencyFallbackResearch();
-            
-            // Save fallback content
-            setDeepResearch(fallbackContent);
-            sessionStorage.setItem('deepResearch', fallbackContent);
-            
-            // Save as research results
-            const researchResults = {
-              researchMethod: 'emergency-fallback',
-              perplexityResearch: fallbackContent
-            };
-            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-            
-            // Complete progress
-            setGenerationProgress(100);
-            setStatusMessage('Research completed with fallback content');
-            
-            // Move to results
-            setResearchStep(4);
-            
-            // Inform user
-            toast.success('Research generation completed with fallback content');
-          }
-        } else {
-          // We're out of retries, use fallback
-          console.log('[ROBUST] Out of retries, using fallback generator');
-          const fallbackContent = generateEmergencyFallbackResearch();
-          
-          // Save fallback content
-          setDeepResearch(fallbackContent);
-          sessionStorage.setItem('deepResearch', fallbackContent);
-          
-          // Save as research results
-          const researchResults = {
-            researchMethod: 'emergency-fallback',
-            perplexityResearch: fallbackContent
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          
-          // Complete progress
-          setGenerationProgress(100);
-          setStatusMessage('Research completed with fallback content');
-          
-          // Move to results
-          setResearchStep(4);
-          
-          // Inform user
-          toast.success('Research completed with locally generated content');
-        }
-      }
-      
-      // Clean up timeout
-      clearTimeout(fetchTimeoutId);
-      
-    } catch (error: any) {
-      console.error('[ROBUST] Unhandled error in research generation:', error);
-      
-      // Generate emergency fallback as final resort
-      const fallbackContent = generateEmergencyFallbackResearch();
-      
-      // Save fallback content
-      setDeepResearch(fallbackContent);
-      sessionStorage.setItem('deepResearch', fallbackContent);
-      
-      // Save as research results
-      const researchResults = {
-        researchMethod: 'emergency-fallback',
-        perplexityResearch: fallbackContent
-      };
-      sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-      
-      // Complete progress
-      setGenerationProgress(100);
-      setStatusMessage('Research completed with fallback content');
-      
-      // Move to results
-      setResearchStep(4);
-      
-      // Inform user
-      toast.success('Research completed with locally generated content');
-    } finally {
-      // Ensure loading states are reset
-      setIsLoading(false);
-      setIsGenerating(false);
-    }
-  };
-
-  // Next, update the button text to be clearer about what happens next
-  // Use this in all the Generate buttons throughout the file
-  const getActionButtonText = () => {
-    // For Perplexity research
-    if (needsPerplexityResearch) {
-      return "Run Perplexity Deep Research";
-    }
-    return "Generate Research with Perplexity";
-  };
-
-  // Update the main research button
-  const mainResearchButton = () => (
-    <div className="mt-6">
-    <button
-        id="research-button"
-        onClick={handleDeepAnalysisClick}
-        className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm font-semibold"
-      >
-        {getActionButtonText()}
-    </button>
-    </div>
-  );
-  
-  // Add a function to handle cancellation
-  const handleCancelResearch = () => {
-    if (abortControllerRef.current) {
-      console.log('[DEBUG] User canceled research generation');
-      abortControllerRef.current.abort();
-      
-      // Set a specific error message for cancellation
-      setError('Research generation was canceled by user.');
-      
-      // Do not use fallback research
-      
-      // Reset states
-      setIsLoading(false);
-      setIsGenerating(false);
-    }
-  };
-
-  // Replace the return statement near the end of the file with a flex layout that includes the footer
   return (
-    <AppShell hideHeader={true}>
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">{safeTranslate('researchPage.title', 'Content Research')}</h1>
-        
-        {renderAuthPrompt()}
+    <AppShell>
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <h1 className="mb-8 text-2xl font-bold text-gray-900 dark:text-white">
+          Research
+        </h1>
         
         {/* Research Steps - Update to include follow-up questions step */}
         <div className="mb-8">
@@ -3531,9 +2204,9 @@ Language: ${language || 'en'}${followUpSection}`;
                 {step < 5 && (
                   <div className="h-0.5 w-full bg-gray-200 dark:bg-gray-700">
                     <div 
-                      className="h-0.5 bg-indigo-600 transition-all duration-700 ease-in-out" 
+                      className="h-0.5 bg-indigo-600 transition-all duration-500 ease-in-out" 
                       style={{ 
-                        width: researchStep > step ? '100%' : researchStep === step ? '50%' : '0%',
+                        width: researchStep > step ? '100%' : '0%',
                       }}
                     ></div>
                   </div>
@@ -3544,19 +2217,19 @@ Language: ${language || 'en'}${followUpSection}`;
           
           <div className="mt-2 flex justify-between text-sm">
             <span className={researchStep >= 1 ? 'text-indigo-600' : 'text-gray-500'}>
-              {safeTranslate('researchPage.initialSetup', 'Initial Setup')}
+              Initial Setup
             </span>
             <span className={researchStep >= 2 ? 'text-indigo-600' : 'text-gray-500'}>
-              {safeTranslate('researchPage.followUpQuestions', 'Follow-up Questions')}
+              Follow-up Questions
             </span>
             <span className={researchStep >= 3 ? 'text-indigo-600' : 'text-gray-500'}>
-              {safeTranslate('researchPage.generateResearch', 'Generate Research')}
+              Generate Research
             </span>
             <span className={researchStep >= 4 ? 'text-indigo-600' : 'text-gray-500'}>
-              {safeTranslate('researchPage.researchResults.title', 'Research Results')}
+              Research Results
             </span>
             <span className={researchStep >= 5 ? 'text-indigo-600' : 'text-gray-500'}>
-              {safeTranslate('researchPage.createContent', 'Create Content')}
+              Create Content
             </span>
           </div>
         </div>
@@ -3565,198 +2238,10 @@ Language: ${language || 'en'}${followUpSection}`;
         <div className="mt-8">
           {researchStep === 1 && renderStep1Content()}
           {researchStep === 2 && renderFollowUpQuestionsContent()}
-          {researchStep === 3 && (
-            <div className="mb-6">
-              {/* Ensure no debug content is shown */}
-              <div id="debug-cleanup-container">
-                <script dangerouslySetInnerHTML={{
-                  __html: `
-                    // Clean up any debug UI components
-                    setTimeout(() => {
-                      // Find and remove any purple or green buttons that shouldn't be in step 3
-                      const debugButtons = document.querySelectorAll('.bg-indigo-600:not(#debug-cleanup-container button), .bg-green-600:not(#debug-cleanup-container button)');
-                      debugButtons.forEach(button => {
-                        // Only remove if it contains certain text patterns
-                        const buttonText = button.textContent || '';
-                        if (
-                          buttonText.includes('Continue to Results') || 
-                          buttonText.includes('Go to Content') ||
-                          buttonText.includes('Continuar a')
-                        ) {
-                          console.log('Removing debug button:', buttonText);
-                          button.parentNode.removeChild(button);
-                        }
-                      });
-                    }, 100);
-                  `
-                }} />
-              </div>
-              {renderMinimalStep3Content()}
-            </div>
-          )}
+          {researchStep === 3 && renderStep3Content()}
           {researchStep === 4 && renderStep4Content()}
         </div>
       </div>
     </AppShell>
   );
 } 
-
-// Component for suggesting more specific topics
-const SpecificTopicSuggestion = ({ 
-  originalTopic, 
-  contentDetails,
-  setContentDetails 
-}: { 
-  originalTopic: string;
-  contentDetails: ContentDetails | null;
-  setContentDetails: (details: ContentDetails) => void;
-}) => {
-  // Generate more specific topic suggestions based on the original topic
-  const getSuggestions = (topic: string): string[] => {
-    const baseTopic = topic.trim();
-    
-    if (!baseTopic) return [];
-    
-    // If it's already long and specific, don't suggest
-    if (baseTopic.split(' ').length > 6) return [];
-    
-    // Generate suggestions by adding specificity
-    return [
-      // Add geographic specificity
-      `${baseTopic} in Rural Areas`,
-      `${baseTopic} in the United States`,
-      
-      // Add time specificity
-      `${baseTopic} Current Trends`,
-      `${baseTopic} in 2024`,
-      
-      // Add audience specificity
-      `${baseTopic} for Small Businesses`,
-      `${baseTopic} for Residential Customers`
-    ];
-  };
-  
-  const suggestions = getSuggestions(originalTopic);
-  
-  if (suggestions.length === 0) return null;
-  
-  return (
-    <div className="p-4 my-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-      <h4 className="text-md font-medium text-blue-800 dark:text-blue-300 mb-2">
-        Try a more specific topic to improve results
-      </h4>
-      <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
-        More specific topics usually process faster and give better results. Try one of these:
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {suggestions.map((suggestion, index) => (
-          <button
-            key={index}
-            onClick={() => {
-              // Update the research topic to the more specific suggestion
-              if (contentDetails) {
-                const newDetails = {
-                  ...contentDetails,
-                  researchTopic: suggestion
-                };
-                setContentDetails(newDetails);
-                
-                // Also save to session storage
-                sessionStorage.setItem('contentDetails', JSON.stringify(newDetails));
-                
-                // Show toast notification
-                toast.success(`Topic updated to: ${suggestion}`);
-              }
-            }}
-            className="px-3 py-1.5 bg-blue-100 text-blue-800 text-sm rounded-full hover:bg-blue-200 transition-colors dark:bg-blue-800 dark:text-blue-200 dark:hover:bg-blue-700"
-          >
-            {suggestion}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Add a utility function for retry logic
-const callPerplexityWithRetry = async (
-  topic: string, 
-  context: string, 
-  sources: string[] = [], 
-  language: string = 'en', 
-  companyName?: string,
-  maxRetries: number = 2
-): Promise<string> => {
-  let retryCount = 0;
-  let lastError: Error | null = null;
-  
-  while (retryCount <= maxRetries) {
-    try {
-      console.log(`[DEBUG] Calling Perplexity API attempt ${retryCount + 1}/${maxRetries + 1}`);
-      return await generatePerplexityResearch(
-        topic, 
-        context, 
-        sources,
-        language, 
-        companyName
-      );
-    } catch (error) {
-      const typedError = error as Error;
-      lastError = typedError;
-      console.error(`[DEBUG] Perplexity API error (attempt ${retryCount + 1}): ${typedError.message}`);
-      
-      // If it's a timeout error, retry
-      if (typedError.message.includes('timeout') || typedError.message.includes('exceeded')) {
-        retryCount++;
-        // Wait before retrying (exponential backoff)
-        const waitTime = Math.min(10000, 2000 * Math.pow(2, retryCount));
-        console.log(`[DEBUG] Waiting ${waitTime}ms before retry ${retryCount}`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      } else {
-        // For non-timeout errors, throw immediately
-        throw error;
-      }
-    }
-  }
-  
-  // If we've exhausted all retries, throw the last error
-  throw lastError;
-};
-
-// Clean up any debug UI or test components from session storage
-useEffect(() => {
-  if (typeof window !== 'undefined' && researchStep === 3) {
-    // Remove any stored debug components or buttons
-    sessionStorage.removeItem('debugResearch');
-    sessionStorage.removeItem('debugButtons');
-    sessionStorage.removeItem('testComponent');
-    
-    // Clear any event handlers that might be dynamically adding buttons
-    const cleanupDebugElements = () => {
-      // Find and remove any purple or green buttons that shouldn't be in step 3
-      const debugButtons = document.querySelectorAll('.bg-indigo-600, .bg-green-600');
-      debugButtons.forEach(button => {
-        // Only remove if it contains certain text patterns
-        const buttonText = button.textContent || '';
-        if (
-          buttonText.includes('Continue to Results') || 
-          buttonText.includes('Go to Content') ||
-          buttonText.includes('Continuar a')
-        ) {
-          console.log('Removing debug button:', buttonText);
-          button.remove();
-        }
-      });
-    };
-    
-    // Run cleanup after render
-    setTimeout(cleanupDebugElements, 100);
-    
-    // Also run it whenever the DOM might change
-    const observer = new MutationObserver(cleanupDebugElements);
-    observer.observe(document.body, { childList: true, subtree: true });
-    
-    // Cleanup the observer when component unmounts or step changes
-    return () => observer.disconnect();
-  }
-}, [researchStep]);
