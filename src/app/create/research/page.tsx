@@ -1334,6 +1334,16 @@ If you'd like complete research, please try again later when our research servic
 
   // Update this useEffect to handle empty research results
   useEffect(() => {
+    // First check URL parameters - these always take precedence
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    
+    // If URL explicitly requests step 3, respect it and don't auto-transition
+    if (stepParam === '3') {
+      console.log('[DEBUG] URL explicitly requests step 3, preventing auto-transition');
+      return; // Exit early and don't auto-transition
+    }
+    
     // Check state changes that should trigger a transition
     if (deepResearch && researchStep < 4) {
       
@@ -1357,7 +1367,12 @@ If you'd like complete research, please try again later when our research servic
         
         return () => clearTimeout(timer);
       } else if (researchStep === 3) {
-        // Auto-transition from step 3
+        // Don't auto-transition from step 3 if URL explicitly requests it
+        if (stepParam === '3') {
+          return;
+        }
+        
+        // Auto-transition from step 3 only if not coming from follow-up questions
         const timer = setTimeout(() => {
           setResearchStep(4);
           
