@@ -1305,7 +1305,21 @@
     "copyToClipboard": "Copiar al Portapapeles",
     "exportAsText": "Exportar como Texto",
     "saveToPanel": "Guardar en el Panel",
-    "creatingWith": "Creando contenido con {persona}..."
+    "creatingWith": "Creando contenido con {persona}...",
+    "refinementError": "Error al refinar el contenido. Por favor, inténtalo de nuevo.",
+    "refinementFailure": "No se pudo refinar el contenido. Por favor, inténtalo de nuevo.",
+    "contentLength": "Longitud del Contenido",
+    "emptyFeedbackError": "Por favor, proporciona comentarios para el refinamiento",
+    "refiningContent": "Refinando contenido según tus comentarios...",
+    "noRefinedContent": "No se recibió contenido refinado",
+    "refinementSuccess": "¡Contenido refinado con éxito!",
+    "refining": "Refinando Contenido...",
+    "backToResearch": "Volver a Investigación",
+    "choosePersona": "Elige una Persona IA para tu Contenido",
+    "selectStyleText": "Selecciona el estilo de escritura que mejor se adapte a tus necesidades",
+    "regenerateText": "Regenera tu contenido con cualquier voz de Persona IA (incluyendo la actual para nuevas variaciones)",
+    "settings": "Configuración de Contenido",
+    "currentStyle": "Estilo Actual"
   },
   "refineContent": {
     "title": "Refinar Contenido",
@@ -1341,16 +1355,5 @@
     "synthesis_maker": {
       "description": "Tono perspicaz para conectar ideas entre dominios"
     }
-  },
-  "contentGeneration": {
-    "refinementError": "Error al refinar el contenido. Por favor, inténtalo de nuevo.",
-    "refinementFailure": "No se pudo refinar el contenido. Por favor, inténtalo de nuevo.",
-    "contentLength": "Longitud del Contenido",
-    "emptyFeedbackError": "Por favor, proporciona comentarios para el refinamiento",
-    "refiningContent": "Refinando contenido según tus comentarios...",
-    "noRefinedContent": "No se recibió contenido refinado",
-    "refinementSuccess": "¡Contenido refinado con éxito!",
-    "refining": "Refinando Contenido...",
-    "backToResearch": "Volver a Investigación"
   }
 } 
