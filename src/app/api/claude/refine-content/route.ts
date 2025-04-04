@@ -5,6 +5,12 @@ import { enhanceWithPersonaTraits, getPersonaDisplayName } from '@/app/lib/perso
 // Constants - Using the correct Claude model identifier
 const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
 
+// Set increased route config for timeout - extending to 5 minutes max (like content generation)
+export const maxDuration = 300; // 5 minutes maximum (limit for Vercel Pro plan)
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0; // No revalidation
+
 // Optimize for speed in serverless environment (Vercel has 15s timeout for hobby tier)
 export async function POST(req: NextRequest) {
   try {
@@ -70,8 +76,14 @@ ${isSpanishMode ? 'Aplica este feedback al contenido en español. Mantén el est
       4000 // Cap at 4000
     );
     
-    // Make API call with optimal settings
-    const response = await anthropicClient.messages.create({
+    // Set longer timeout for generation
+    const startTime = Date.now();
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Claude API request timed out after 5 minutes')), 300000); // 5 minute timeout
+    });
+    
+    // Create the API request promise
+    const apiRequestPromise = anthropicClient.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: Math.round(estimatedMaxTokens),
       temperature: 0.4, // Lower temperature for more predictable, faster responses
@@ -79,7 +91,11 @@ ${isSpanishMode ? 'Aplica este feedback al contenido en español. Mantén el est
       messages: [{ role: "user", content: prompt }]
     });
     
-    console.log('Claude API response received');
+    // Race the API request against the timeout
+    const response = await Promise.race([apiRequestPromise, timeoutPromise]) as Awaited<typeof apiRequestPromise>;
+    
+    const responseTime = Date.now() - startTime;
+    console.log(`Refinement completed in ${responseTime}ms`);
     
     // Process the response - simplified parsing
     let refinedContent = "";
