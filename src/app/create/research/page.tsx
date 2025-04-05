@@ -950,9 +950,22 @@ export default function ResearchPage() {
         console.log('[DEBUG] SSE connection opened successfully');
         retryCount = 0; // Reset retry count on successful connection
         
-        // After connection is established, send the actual request
-        console.log(`[DEBUG] Sending API request with language=${language === 'es' ? 'es' : 'en'}`);
-          
+        // Determine if we're in Spanish mode (robust detection)
+        const isSpanishMode = language === 'es' || 
+                          urlParams.get('language') === 'es' || 
+                          localStorage.getItem('language') === 'es' || 
+                          localStorage.getItem('preferred_language') === 'es' || 
+                          document.documentElement.lang === 'es';
+                          
+        console.log(`[DEBUG] Spanish mode detection: ${isSpanishMode ? 'YES' : 'NO'} (context: ${language})`);
+        
+        // Set effective language for API calls
+        const effectiveLanguage = isSpanishMode ? 'es' : 'en';
+        console.log(`[DEBUG] Using language "${effectiveLanguage}" for API calls`);
+        
+        // After connection is established, send the actual request          
+        console.log(`[DEBUG] Sending API request with language=${effectiveLanguage}`);
+            
         fetch('/api/perplexity/research-sse', {
           method: 'POST',
           headers: {
@@ -969,8 +982,8 @@ Target Audience: ${safeContentDetails.targetAudience || 'general'},
 Business Name: ${safeContentDetails.businessName || ''}`
               : '', 
             sources: ['recent', 'scholar', 'news'],
-            // Simple direct language detection without IIFE
-            language: language === 'es' ? 'es' : 'en',
+            // Always use effectiveLanguage to ensure Spanish works correctly
+            language: effectiveLanguage,
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
           }),

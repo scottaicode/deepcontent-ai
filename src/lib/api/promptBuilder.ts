@@ -236,7 +236,24 @@ YOUR RESEARCH MUST BE BASED ON AND DIRECTLY CITE:
 
   // Add language instruction (keep the original language handling)
   if (language === 'es') {
-    prompt += `\n\nIMPORTANTE: Tu respuesta COMPLETA debe estar escrita en español. No uses inglés en absoluto. Esto incluye TODOS los encabezados, datos, estadísticas, citas y texto explicativo.`;
+    prompt += `\n\n====================
+INSTRUCCIONES DE IDIOMA - CRÍTICO
+====================
+
+EXTREMADAMENTE IMPORTANTE: Tu respuesta COMPLETA debe estar escrita en español. NO uses inglés en absoluto. 
+Esto incluye:
+- TODOS los encabezados de sección
+- Títulos y subtítulos
+- Datos y estadísticas
+- Citas y referencias
+- Todo el texto explicativo
+- Toda la investigación y análisis
+- Cualquier recomendación o conclusión
+
+Esta investigación está dirigida a usuarios de habla hispana y debe ser totalmente accesible para ellos.
+Debes traducir y adaptar culturalmente cualquier referencia, término o concepto para la audiencia hispanohablante.
+
+Responde COMPLETAMENTE en español desde el principio hasta el final del documento sin excepción.`;
   } else if (language !== 'en') {
     prompt += `\n\nIMPORTANT: Your entire response MUST be written in ${language}. Do not use English at all. This includes ALL headings, data points, citations, and explanatory text.`;
   }
