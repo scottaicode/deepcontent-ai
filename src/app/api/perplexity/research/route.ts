@@ -278,29 +278,19 @@ export async function POST(request: NextRequest) {
   const perplexity = new PerplexityClient(apiKey);
   logSection(requestId, 'CLIENT', `Perplexity client initialized successfully`);
   
-  // Set up options for the API call
-  const options = {
-    maxTokens: 4000,
-    temperature: 0.2,
-    language
-  };
-  
-  // Log clearly that we're generating fresh research
-  console.log(`=== GENERATING FRESH RESEARCH ===`);
-  console.log(`Topic: ${topic}`);
-  console.log(`Content Type: ${extractedContentType}`);
-  console.log(`Platform: ${extractedPlatform}`);
-  console.log(`Request ID: ${requestId}`);
-  console.log(`Timestamp: ${new Date().toISOString()}`);
-  console.log(`==============================`);
-
   // Return the research data directly - no job ID or polling mechanism
   try {
     // Log that we're calling the Perplexity API for Deep Research
     logSection(requestId, 'API_CALL', `Calling Perplexity API for Deep Research using sonar-deep-research model`);
+    logSection(requestId, 'LANGUAGE', `Using language: ${language}`);
     
     // Make the direct API call - not using jobs
-    const research = await perplexity.generateResearch(promptText, options);
+    const research = await perplexity.generateResearch(promptText, {
+      maxTokens: 4000,
+      temperature: 0.2,
+      language: language, // Explicitly pass language parameter 
+      timeoutMs: 240000 // 4 minutes timeout
+    });
     
     // Log success clearly
     console.log(`=== FRESH RESEARCH GENERATED SUCCESSFULLY ===`);
@@ -333,26 +323,11 @@ export async function POST(request: NextRequest) {
       { status: 200, headers: noCacheHeaders }
     );
   } catch (error: any) {
-    // Log detailed error information
-    logSection(requestId, 'ERROR', `Error generating research: ${error.message}`);
-    console.error(`[DIAG] [${requestId}] Error details:`, error);
-    
-    // Remove fallback logic that creates mockup softcom content, keeping only essential code
-    if (error.name === 'AbortError' || error.message?.includes('timeout')) {
-      console.error(`Research API timeout: ${error.message}`);
-      return new Response(
-        JSON.stringify({ error: 'Research generation timed out. Please try again.' }),
-        { status: 504, headers: noCacheHeaders }
-      );
-    } else {
-      console.error(`Research API error: ${error.message}`);
-      
-      // Return appropriate error
-      return new Response(
-        JSON.stringify({ error: `${error.message}` }),
-        { status: 500, headers: noCacheHeaders }
-      );
-    }
+    console.error(`Error generating research:`, error);
+    return new Response(
+      JSON.stringify({ error: error.message || 'An error occurred generating research' }),
+      { status: 500, headers: noCacheHeaders }
+    );
   }
 }
 

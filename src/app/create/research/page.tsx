@@ -965,13 +965,11 @@ export default function ResearchPage() {
         
         // After connection is established, send the actual request          
         console.log(`[DEBUG] Sending API request with language=${effectiveLanguage}`);
-            
-        fetch('/api/perplexity/research-sse', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        
+        // Send the research request as a JSON post
+        try {
+          const sessionId = generateSessionId(10);
+          const body = JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
             context: safeContentDetails?.researchTopic 
               ? `Topic: "${safeContentDetails.researchTopic}"
@@ -986,14 +984,26 @@ Business Name: ${safeContentDetails.businessName || ''}`
             language: effectiveLanguage,
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
-          }),
-        }).catch(error => {
-          console.error('[DEBUG] Error initiating research request:', error);
-          eventSource.close();
-          setError('Failed to start research process. Please try again.');
-          setIsGenerating(false);
-          setIsLoading(false);
-        });
+          });
+          
+          fetch('/api/perplexity/research-sse', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: body,
+          }).catch(error => {
+            console.error('[DEBUG] Error initiating research request:', error);
+            eventSource.close();
+            setError('Failed to start research process. Please try again.');
+            setIsGenerating(false);
+            setIsLoading(false);
+          });
+          
+          // ... rest of the code ...
+        } catch (error) {
+          // ... handle error ...
+        }
       };
       
       // Define interface for SSE event with data property

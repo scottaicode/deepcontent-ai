@@ -279,7 +279,12 @@ export async function POST(request: NextRequest) {
     console.log(`[DIAG] [${requestId}] Sending request to Perplexity API at ${new Date().toISOString()}`);
     try {
       console.time(`[DIAG] [${requestId}] Perplexity API call`);
-      const response = await perplexity.generateResearch(promptText);
+      const response = await perplexity.generateResearch(promptText, {
+        language: language, // Explicitly pass language parameter
+        maxTokens: 4000,
+        temperature: 0.2,
+        timeoutMs: 240000 // 4 minutes timeout
+      });
       console.timeEnd(`[DIAG] [${requestId}] Perplexity API call`);
       
       // Clear the progress interval once we have a response
