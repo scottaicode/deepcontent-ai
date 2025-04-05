@@ -142,19 +142,6 @@ const detectPersonalUseCase = (topic: string): boolean => {
   return personalKeywords.some(keyword => topicLower.includes(keyword));
 };
 
-/**
- * Generate a random session ID of specified length
- */
-const generateSessionId = (length: number): string => {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
-};
-
 export default function ResearchPage() {
   const router = useRouter();
   const { t, language } = useTranslation();
@@ -688,62 +675,27 @@ export default function ResearchPage() {
         // Check for the explicit forceStep3 flag set during Spanish navigation
         const forceStep3 = sessionStorage.getItem('forceStep3') === 'true';
         
-        // More robust Spanish language detection
-        const urlLangParam = urlParams.get('language');
-        const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
-        const documentLang = document.documentElement.lang;
-        const isSpanishVersion = 
-          urlLangParam === 'es' || 
-          storedLanguage === 'es' || 
-          documentLang === 'es' || 
-          language === 'es';
-        
-        console.log(`[DEBUG] Auto-transition language detection: URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language}, isSpanish=${isSpanishVersion}`);
-        
-        // Check for permanent blocking flag to prevent infinite loops
-        const permanentlyBlocked = sessionStorage.getItem('permanentlyBlockAutoAdvance') === 'true';
-        
-        // Stay on Generate Research step if:
-        // 1. URL explicitly states step=3, OR
-        // 2. The forceStep3 flag is set, OR 
-        // 3. We're in Spanish mode, OR
-        // 4. We have a permanent block flag set
-        if (stepParam === '3' || forceStep3 || isSpanishVersion || permanentlyBlocked) {
-          console.log('[DEBUG] Explicitly staying on Generate Research step (3)');
-          
-          // Clear the forceStep3 flag since we've used it
-          if (forceStep3) {
-            sessionStorage.removeItem('forceStep3');
-          }
-          
-          // Set a permanent flag to prevent future auto-transitions for this session
-          // This prevents infinite loops of storing/restoring research data
-          if (isSpanishVersion) {
-            console.log('[DEBUG] Setting permanent flag to block auto-advancing for Spanish version');
-            sessionStorage.setItem('permanentlyBlockAutoAdvance', 'true');
-          }
-          
-          // Make sure we save the research results again just in case
-          const researchResults: ResearchResults = {
-            researchMethod: 'perplexity',
-            perplexityResearch: deepResearch,
-            trendingTopics: [],
-            dataSources: {
-              reddit: true,
-              rss: true
-            }
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          console.log('Research step set to 3 (complete) and data saved');
-          return;
+        // Only auto-advance if not explicitly told to stay on step 3
+        // Add additional check for forceStep3 flag to handle Spanish version
+        if (stepParam !== '3' && !forceStep3) {
+          console.log('[DEBUG] Auto-advancing to step 3 - No URL step=3 or forceStep3 flag');
+          setResearchStep(3);
+        } else {
+          console.log('[DEBUG] Not auto-advancing - URL step=3 or forceStep3 flag is set');
         }
         
-        // Otherwise transition to step 4
-        console.log('Auto-transitioning to research step 4');
-        setResearchStep(4);
-        
-        // Save current research step to session storage
-        sessionStorage.setItem('researchStep', '4');
+        // Make sure we save the research results again just in case
+        const researchResults: ResearchResults = {
+          researchMethod: 'perplexity',
+          perplexityResearch: deepResearch,
+          trendingTopics: [],
+          dataSources: {
+            reddit: true,
+            rss: true
+          }
+        };
+        sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+        console.log('Research step set to 3 (complete) and data saved');
       }, 500);
       
       return () => clearTimeout(timer);
@@ -752,32 +704,21 @@ export default function ResearchPage() {
   
   // Update the handleGenerateDeepResearch function to use Perplexity instead of Claude
   const handleGenerateDeepResearch = async () => {
-    // Skip if we're already generating research
-    if (isGenerating) {
+    // Prevent multiple simultaneous calls using debounce
+    if (isGenerating || isGenerateDeepResearchDebounced) {
       console.log('[DEBUG] Skipping research generation - already in progress');
       return;
     }
     
+    console.log('[DEBUG] Button clicked! Starting research generation with Perplexity');
+    
+    // Reset error state at the beginning
+    setErrorState({
+      hasError: false,
+      message: ''
+    });
+    
     try {
-      setIsGenerating(true);
-      setDeepResearch(null);
-      setStatusMessage('');
-      
-      // Robust language detection using multiple sources
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlLangParam = urlParams.get('language');
-      const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
-      const documentLang = document.documentElement.lang;
-      const effectiveLanguage = 
-        urlLangParam === 'es' || 
-        storedLanguage === 'es' || 
-        documentLang === 'es' || 
-        language === 'es' 
-          ? 'es' 
-          : 'en';
-      
-      console.log(`[DEBUG] Research generation using language: ${effectiveLanguage} (URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language})`);
-      
       // Set debounce flag to prevent multiple calls
       setIsGenerateDeepResearchDebounced(true);
       
@@ -938,15 +879,10 @@ export default function ResearchPage() {
       const eventSourceUrl = `/api/perplexity/research-sse?t=${Date.now()}`;
       console.log(`[DEBUG] Opening SSE connection to: ${eventSourceUrl}`);
       
-      // Create event source (SSE connection)
-      if (typeof window !== 'undefined') {
-        // Close any existing connection first
-        if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
-          console.log('[DEBUG] Closing existing EventSource connection');
-          if (window.researchEventSource) {
-            window.researchEventSource.close();
-          }
-        }
+      // Close any existing connection first
+      if (window.researchEventSource && window.researchEventSource.readyState !== 2) {
+        console.log('[DEBUG] Closing existing EventSource connection');
+        window.researchEventSource.close();
       }
       
       // Create new connection with proper error handling
@@ -963,28 +899,11 @@ export default function ResearchPage() {
         console.log('[DEBUG] SSE connection opened successfully');
         retryCount = 0; // Reset retry count on successful connection
         
-        // Determine if we're in Spanish mode (robust detection)
-        const isSpanishMode = language === 'es' || 
-                          urlParams.get('language') === 'es' || 
-                          localStorage.getItem('language') === 'es' || 
-                          localStorage.getItem('preferred_language') === 'es' || 
-                          document.documentElement.lang === 'es';
-                          
-        console.log(`[DEBUG] Spanish mode detection: ${isSpanishMode ? 'YES' : 'NO'} (context: ${language})`);
-        
-        // Set effective language for API calls
-        const effectiveLanguage = isSpanishMode ? 'es' : 'en';
-        console.log(`[DEBUG] Using language "${effectiveLanguage}" for API calls`);
-        
-        // After connection is established, send the actual request          
-        console.log(`[DEBUG] Sending API request with language=${effectiveLanguage}`);
-        
-        // Send the research request
+        // After connection is established, send the actual request
         fetch('/api/perplexity/research-sse', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Request-ID': generateSessionId(10) // Add a unique request ID
           },
           body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
@@ -994,14 +913,14 @@ Platform: ${safeContentDetails.platform || 'facebook'},
 Sub-Platform: ${safeContentDetails.subPlatform || ''},
 Content Type: ${safeContentDetails.contentType || 'social-post'},
 Target Audience: ${safeContentDetails.targetAudience || 'general'},
-Business Name: ${safeContentDetails.businessName || ''}`
+Business Name: ${safeContentDetails.businessName || ''},
+Language: ${language || 'en'}`
               : '', 
             sources: ['recent', 'scholar', 'news'],
-            // Always use effectiveLanguage to ensure Spanish works correctly
-            language: effectiveLanguage,
+            language,
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
-          })
+          }),
         }).catch(error => {
           console.error('[DEBUG] Error initiating research request:', error);
           eventSource.close();
@@ -1009,8 +928,6 @@ Business Name: ${safeContentDetails.businessName || ''}`
           setIsGenerating(false);
           setIsLoading(false);
         });
-        
-        // ... rest of the code ...
       };
       
       // Define interface for SSE event with data property
@@ -1031,73 +948,50 @@ Business Name: ${safeContentDetails.businessName || ''}`
         }
       });
       
-      // Handle completion
-      eventSource.addEventListener('complete', (event) => {
+      eventSource.addEventListener('complete', (event: Event) => {
+        const messageEvent = event as MessageEvent;
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(messageEvent.data);
+          console.log('[DEBUG] Research complete:', data);
           
-          console.log('Research generation complete, closing EventSource');
-          if (window.researchEventSource) {
-            window.researchEventSource.close();
-          }
-          
-          // Check if we have valid research data
-          if (!data.research) {
-            throw new Error('No research data returned');
-          }
-          
-          const cleanedResearch = removeThinkingTags(data.research);
-          researchText = cleanedResearch;
-          setDeepResearch(cleanedResearch);
-          
-          // Store the clean research in session storage
-          sessionStorage.setItem('deepResearch', cleanedResearch);
-          
-          // Save research results
-          const researchResults = {
-            topic,
-            perplexityResearch: cleanedResearch
-          };
-          sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
-          
-          // Set progress to 100% and clear status
-          setGenerationProgress(100);
-          
-          // More robust Spanish language detection
-          const urlParams = new URLSearchParams(window.location.search);
-          const urlLangParam = urlParams.get('language');
-          const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
-          const documentLang = document.documentElement.lang;
-          const isSpanishVersion = 
-            urlLangParam === 'es' || 
-            storedLanguage === 'es' || 
-            documentLang === 'es' || 
-            language === 'es';
-          
-          console.log(`[DEBUG] Complete handler language detection: URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language}, isSpanish=${isSpanishVersion}`);
-          
-          // For Spanish version, set the forceStep3 flag to prevent auto-advancing
-          if (isSpanishVersion) {
-            console.log('[DEBUG] Spanish version detected, setting forceStep3 flag');
-            sessionStorage.setItem('forceStep3', 'true');
+          // Save the full research
+          if (data.research) {
+            // Clean the research text and store it
+            const cleanedResearch = removeThinkingTags(data.research);
+            researchText = cleanedResearch;
+            setDeepResearch(cleanedResearch);
             
-            // Also set the permanent blocking flag to prevent infinite loops
-            console.log('[DEBUG] Setting permanent flag to block auto-advancing for Spanish version');
-            sessionStorage.setItem('permanentlyBlockAutoAdvance', 'true');
-          } else {
-            // If not Spanish, ensure the flags are cleared to prevent issues if language is changed
-            sessionStorage.removeItem('forceStep3');
-            sessionStorage.removeItem('permanentlyBlockAutoAdvance');
+            // Store the clean research in session storage
+            sessionStorage.setItem('deepResearch', cleanedResearch);
+            
+            // Save research results
+            const researchResults = {
+              researchMethod: 'perplexity',
+              perplexityResearch: cleanedResearch
+            };
+            sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
+            
+            // Move to the next step
+            setResearchStep(4);
+            
+            // Show success toast
+            toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
+            
+            // Update progress to 100%
+            setGenerationProgress(100);
+            setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
           }
           
-          toast.success(safeTranslate('researchPage.researchCompleteToast', 'Perplexity Deep Research completed successfully!'));
-          
+          // Close the connection when complete
+          eventSource.close();
           setIsGenerating(false);
-          setStatusMessage(safeTranslate('researchPage.progress.complete', 'Research complete!'));
-        } catch (error) {
-          console.error('Error processing research results:', error);
+          setIsLoading(false);
+        } catch (e) {
+          console.error('[DEBUG] Error parsing complete event data:', e);
           setError('Error processing research results. Please try again.');
+          eventSource.close();
           setIsGenerating(false);
+          setIsLoading(false);
         }
       });
       
@@ -2878,28 +2772,6 @@ If you'd like complete research, please try again later when our research servic
       const urlParams = new URLSearchParams(window.location.search);
       const stepParam = urlParams.get('step');
       
-      // Robust language detection using multiple sources
-      const urlLangParam = urlParams.get('language');
-      const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
-      const documentLang = document.documentElement.lang;
-      const isSpanishVersion = 
-        urlLangParam === 'es' || 
-        storedLanguage === 'es' || 
-        documentLang === 'es' || 
-        language === 'es';
-      
-      console.log(`[DEBUG] Language detection: URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language}, isSpanish=${isSpanishVersion}`);
-      
-      // Set or clear auto-advance blocking flags based on language
-      if (isSpanishVersion) {
-        console.log('[DEBUG] Spanish version detected on initial load - setting blocking flags');
-        sessionStorage.setItem('permanentlyBlockAutoAdvance', 'true');
-      } else {
-        // If we're not in Spanish mode, clean up any leftover flags
-        console.log('[DEBUG] Non-Spanish version detected - clearing blocking flags');
-        sessionStorage.removeItem('permanentlyBlockAutoAdvance');
-      }
-      
       // If step is explicitly set in URL, it takes priority over everything else
       if (stepParam) {
         const parsedStep = parseInt(stepParam, 10);
@@ -2938,11 +2810,7 @@ If you'd like complete research, please try again later when our research servic
     if (typeof window !== 'undefined' && researchStep === 3) {
       // If we're in step 3 and we have temporarily stored research data, restore it
       const tempResearch = sessionStorage.getItem('tempDeepResearch');
-      
-      // Check if we have the permanent block flag set - if so, skip restoration to prevent loops
-      const permanentlyBlocked = sessionStorage.getItem('permanentlyBlockAutoAdvance') === 'true';
-      
-      if (tempResearch && !deepResearch && !permanentlyBlocked) {
+      if (tempResearch && !deepResearch) {
         console.log('[DEBUG] Restoring temporarily stored research data');
         // Delay the restoration slightly to ensure step is fully respected
         setTimeout(() => {
@@ -2950,10 +2818,6 @@ If you'd like complete research, please try again later when our research servic
           // Clean up the temporary storage
           sessionStorage.removeItem('tempDeepResearch');
         }, 500);
-      } else if (permanentlyBlocked && tempResearch) {
-        console.log('[DEBUG] Skipping research data restoration due to permanent block flag');
-        // Still clean up the temporary storage to prevent future issues
-        sessionStorage.removeItem('tempDeepResearch');
       }
     }
   }, [researchStep, deepResearch]);
@@ -3345,25 +3209,37 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       
       try {
         // Make the API request
-        const research = await generatePerplexityResearch(
-          safeContentDetails?.researchTopic || '',
-          contextString,
-          ['recent', 'scholar'],
-          // Get language from URL for Spanish support
-          new URLSearchParams(window.location.search).get('language') || 'en',
-          safeContentDetails?.businessName || ''
-        );
+        const response = await fetch('/api/perplexity/research', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            topic: safeContentDetails?.researchTopic || '',
+            context: contextString,
+            sources: ['recent', 'scholar'],
+            language
+          })
+        });
         
         // Clear message interval
         clearInterval(messageInterval);
         
         // Process response
-        if (!research) {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `API error: ${response.status}`);
+        }
+        
+        // Parse response
+        const data = await response.json();
+        
+        if (!data || !data.research) {
           throw new Error('Empty response from research API');
         }
         
         // Process the research content
-        const cleanedResearch = removeThinkingTags(research);
+        const cleanedResearch = removeThinkingTags(data.research);
         
         // Save research
         setDeepResearch(cleanedResearch);
@@ -3624,7 +3500,7 @@ const callPerplexityWithRetry = async (
   language: string = 'en', 
   companyName?: string,
   maxRetries: number = 2
-): Promise<string | never> => {
+): Promise<string> => {
   let retryCount = 0;
   let lastError: Error | null = null;
   

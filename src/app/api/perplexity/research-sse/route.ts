@@ -27,28 +27,6 @@ export async function POST(request: NextRequest) {
   const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || 'unknown';
   console.log(`[DIAG] [${requestId}] Received ${request.method} request at ${new Date().toISOString()}`);
   
-  // Debug language parameter early
-  const getLanguageFromRequest = async () => {
-    try {
-      const body = await request.clone().json();
-      const language = body.language || 'en';
-      console.log(`[DIAG] [${requestId}] [LANGUAGE] Research language parameter: "${language}"`);
-      
-      // Force explicit handling of Spanish
-      if (language === 'es') {
-        console.log(`[DIAG] [${requestId}] [LANGUAGE] Spanish detected - using Spanish system prompt and instructions`);
-      }
-      
-      return language;
-    } catch (err) {
-      console.error(`[DIAG] [${requestId}] Error checking language parameter:`, err);
-      return 'en';
-    }
-  };
-  
-  // Execute language check right away (async but we don't need to wait for result)
-  getLanguageFromRequest();
-  
   // Create a TransformStream for SSE
   const encoder = new TextEncoder();
   const stream = new TransformStream();
@@ -121,9 +99,6 @@ export async function POST(request: NextRequest) {
     
     const { topic, context, sources = ['recent', 'scholar'], companyName, websiteContent, language = 'en' } = body;
     
-    // Log language parameter to help with debugging
-    console.log(`[DIAG] [${requestId}] Language parameter: "${language}"`);
-    
     if (!topic) {
       console.error(`[DIAG] [${requestId}] Missing required parameter: topic`);
       await handleError('Topic is required');
@@ -131,11 +106,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Send initial progress
-    let progressMessage = 'Initializing research request...';
-    if (language === 'es') {
-      progressMessage = 'Inicializando solicitud de investigación...';
-    }
-    await sendProgress(5, progressMessage);
+    await sendProgress(5, 'Initializing research request...');
     
     // Extract audience, content type, and platform from context
     let audience = 'general audience';
@@ -169,8 +140,7 @@ export async function POST(request: NextRequest) {
       hasWebsiteContent: !!websiteContent
     });
     
-    progressMessage = language === 'es' ? 'Conectando a bases de datos de investigación...' : 'Connecting to research databases...';
-    await sendProgress(10, progressMessage);
+    await sendProgress(10, 'Connecting to research databases...');
     
     // Get API key from environment variables
     const apiKey = process.env.PERPLEXITY_API_KEY;
@@ -181,8 +151,7 @@ export async function POST(request: NextRequest) {
       return new Response(stream.readable, { headers });
     }
     
-    progressMessage = language === 'es' ? 'Construyendo consulta de investigación...' : 'Building research query...';
-    await sendProgress(15, progressMessage);
+    await sendProgress(15, 'Building research query...');
     
     // Build the prompt
     const promptText = getPromptForTopic(topic, {
@@ -190,14 +159,13 @@ export async function POST(request: NextRequest) {
       contentType,
       platform,
       sources,
-      language, // Ensure language is passed to the prompt builder
+      language,
       companyName,
       websiteContent
     });
     
     console.log(`[DIAG] [${requestId}] Prompt built, length: ${promptText.length} characters`);
-    progressMessage = language === 'es' ? 'Enviando solicitud a Perplexity...' : 'Sending request to Perplexity...';
-    await sendProgress(20, progressMessage);
+    await sendProgress(20, 'Sending request to Perplexity...');
     
     // Create Perplexity client
     let perplexity;
@@ -279,12 +247,7 @@ export async function POST(request: NextRequest) {
     console.log(`[DIAG] [${requestId}] Sending request to Perplexity API at ${new Date().toISOString()}`);
     try {
       console.time(`[DIAG] [${requestId}] Perplexity API call`);
-      const response = await perplexity.generateResearch(promptText, {
-        language: language, // Explicitly pass language parameter
-        maxTokens: 4000,
-        temperature: 0.2,
-        timeoutMs: 240000 // 4 minutes timeout
-      });
+      const response = await perplexity.generateResearch(promptText);
       console.timeEnd(`[DIAG] [${requestId}] Perplexity API call`);
       
       // Clear the progress interval once we have a response
