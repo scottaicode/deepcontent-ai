@@ -124,8 +124,8 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   const playerInstanceRef = React.useRef<YouTubePlayer | null>(null);
 
   // **** FEATURE FLAG ****
-  // Feature is now fixed and enabled for production
-  const isYouTubeFeatureEnabled = true;
+  // Feature temporarily disabled but visible
+  const isYouTubeFeatureEnabled = false;
 
   useEffect(() => {
     // Reset error when URL changes
@@ -974,20 +974,25 @@ For your research, consider watching the video with captions enabled and taking 
     );
   };
 
-  // Render a placeholder if the feature is disabled
+  // Render a more polished placeholder if the feature is disabled
   if (!isYouTubeFeatureEnabled) {
     return (
       <div className={`overflow-hidden ${className}`}>
-        <div className="mt-2 flex flex-col items-center justify-center p-6 text-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-          <div className="p-3 mb-3 bg-gray-100 dark:bg-gray-700 rounded-full">
-            <Youtube className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+        <div className="mt-2 border border-blue-100 dark:border-blue-800/30 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 p-4">
+          <div className="flex items-center">
+            <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-800/30 p-2 rounded-full">
+              <Youtube className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">YouTube Transcript Analysis</h3>
+              <div className="mt-1 text-sm text-blue-600 dark:text-blue-400">
+                <p>This feature will allow you to analyze YouTube video transcripts to enhance your content.</p>
+                <div className="mt-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-800/40 text-blue-800 dark:text-blue-300">
+                  <span className="mr-1">🚧</span> Coming Soon
+                </div>
+              </div>
+            </div>
           </div>
-          <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-            YouTube Transcript Analysis
-          </h4>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            This feature is temporarily unavailable. Coming soon!
-          </p>
         </div>
       </div>
     );
