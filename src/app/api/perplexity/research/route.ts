@@ -299,6 +299,9 @@ export async function POST(request: NextRequest) {
     // Log that we're calling the Perplexity API for Deep Research
     logSection(requestId, 'API_CALL', `Calling Perplexity API for Deep Research using sonar-deep-research model`);
     
+    // Add language to logs
+    console.log(`Language for research request: ${language || 'en'}`);
+    
     // Make the direct API call - not using jobs
     const research = await perplexity.generateResearch(promptText, options);
     
@@ -306,30 +309,18 @@ export async function POST(request: NextRequest) {
     console.log(`=== FRESH RESEARCH GENERATED SUCCESSFULLY ===`);
     console.log(`Research length: ${research.length} characters`);
     console.log(`Response time: ${Date.now() - new Date(requestUrl.searchParams.get('timestamp') || Date.now()).getTime()}ms`);
+    console.log(`Language: ${language || 'en'}`);
     console.log(`=========================================`);
     
-    // Cache the successful result if possible
-    try {
-      /*
-      if (kv && research) {
-        await kv.set(cacheKey, research, { ex: 86400 }); // Cache for 24 hours
-        logSection(requestId, 'CACHE', `Cached research result with key ${cacheKey}`);
-        
-        // Also create a simplified key entry pointing to the same research
-        const simplifiedKey = createSimplifiedTopicKey(topic);
-        if (simplifiedKey !== cacheKey) {
-          await kv.set(`${simplifiedKey}:${Date.now()}`, research, { ex: 86400 });
-          logSection(requestId, 'CACHE', `Also cached with simplified key ${simplifiedKey}`);
-        }
-      }
-      */
-      logSection(requestId, 'CACHE', `Caching disabled to ensure fresh research is generated each time`);
-    } catch (err) {
-      console.warn(`[DIAG] [${requestId}] Failed to cache research:`, err);
-    }
+    // No caching at all - always generate fresh results
+    logSection(requestId, 'CACHE', `Caching disabled to ensure fresh research is generated each time`);
     
     return new Response(
-      JSON.stringify({ research }),
+      JSON.stringify({ 
+        research,
+        fromCache: false,
+        language: language || 'en'
+      }),
       { status: 200, headers: noCacheHeaders }
     );
   } catch (error: any) {
@@ -337,22 +328,14 @@ export async function POST(request: NextRequest) {
     logSection(requestId, 'ERROR', `Error generating research: ${error.message}`);
     console.error(`[DIAG] [${requestId}] Error details:`, error);
     
-    // Remove fallback logic that creates mockup softcom content, keeping only essential code
-    if (error.name === 'AbortError' || error.message?.includes('timeout')) {
-      console.error(`Research API timeout: ${error.message}`);
-      return new Response(
-        JSON.stringify({ error: 'Research generation timed out. Please try again.' }),
-        { status: 504, headers: noCacheHeaders }
-      );
-    } else {
-      console.error(`Research API error: ${error.message}`);
-      
-      // Return appropriate error
-      return new Response(
-        JSON.stringify({ error: `${error.message}` }),
-        { status: 500, headers: noCacheHeaders }
-      );
-    }
+    // No fallbacks - simply return the error
+    console.error(`Research API error: ${error.message}`);
+    
+    // Return appropriate error
+    return new Response(
+      JSON.stringify({ error: `${error.message}` }),
+      { status: 500, headers: noCacheHeaders }
+    );
   }
 }
 
@@ -420,19 +403,10 @@ export async function GET(request: NextRequest) {
     );
   }
   
-  try {
-    // Always return "not found" response to force fresh research generation
-    console.log(`Cache lookup disabled for topic: ${topic}`);
-    return new Response(
-      JSON.stringify({ available: false }),
-      { status: 404, headers: noCacheHeaders }
-    );
-  } catch (error: any) {
-    console.error(`Error checking research availability:`, error);
-    
-    return new Response(
-      JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
-      { status: 500, headers: noCacheHeaders }
-    );
-  }
+  // Always return "not found" response to force fresh research generation
+  console.log(`Cache lookup disabled for topic: ${topic}, language: ${language}`);
+  return new Response(
+    JSON.stringify({ available: false }),
+    { status: 404, headers: noCacheHeaders }
+  );
 }

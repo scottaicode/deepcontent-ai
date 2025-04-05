@@ -3098,6 +3098,9 @@ If you'd like complete research, please try again later when our research servic
       const fetchTimeoutId = setTimeout(() => {
         if (abortController && !abortController.signal.aborted) {
           abortController.abort('timeout');
+          setError('Research generation timed out. Please try again with a more specific topic.');
+          setIsLoading(false);
+          setIsGenerating(false);
         }
       }, 240000); // 4 minutes
       
@@ -3140,6 +3143,16 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         'Finalizando documento de investigación...'
       ];
       
+      // Progress simulation
+      const progressIntervalId = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev < 95) {
+            return prev + (Math.random() * 0.8 + 0.2); // Slower, consistent progress
+          }
+          return prev;
+        });
+      }, 2000);
+      
       // Update status message every 30 seconds
       const messageInterval = setInterval(() => {
         const messages = language === 'es' ? spanishStatusMessages : statusMessages;
@@ -3149,21 +3162,26 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       
       try {
         // Make the API request
+        console.log(`Making research API request for language: ${language}`);
         const response = await fetch('/api/perplexity/research', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache'
           },
           body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
             context: contextString,
             sources: ['recent', 'scholar'],
-            language
+            language,
+            timestamp: Date.now() // Add timestamp to prevent caching
           })
         });
         
-        // Clear message interval
+        // Clear intervals
         clearInterval(messageInterval);
+        clearInterval(progressIntervalId);
         
         // Process response
         if (!response.ok) {
@@ -3196,14 +3214,15 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         setGenerationProgress(100);
         setStatusMessage('Research complete!');
         
-        // IMPORTANT: Don't auto-advance to step 4, stay on step 3 and show "Continue to Results" button
-        // Remove this line: setResearchStep(4);
+        // Advance to results page
+        setResearchStep(4);
         
-        // Success notification with instructions
-        toast.success('Research completed successfully! Click "Continue to Results" to view your research.');
+        // Success notification
+        toast.success('Research completed successfully!');
       } catch (error: any) {
-        // Clear interval
+        // Clear intervals
         clearInterval(messageInterval);
+        clearInterval(progressIntervalId);
         
         // Set error message
         const errorMessage = error.message || 'Unknown error occurred';
