@@ -159,6 +159,28 @@ export default function ResearchPage() {
     message: ''
   });
   
+  // BUGFIX: Check for force flags on initial load to control flow
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Check if we need to forcibly show the generate step and clear cache
+    const forceGenerateStep = sessionStorage.getItem('forceShowGenerateStep') === 'true';
+    if (forceGenerateStep) {
+      console.log('[BUGFIX] Forcing research generate step (step 3)');
+      
+      // Set research step to 3 (Generate Research)
+      setResearchStep(3);
+      
+      // Clear any existing research to force fresh generation
+      sessionStorage.removeItem('deepResearch');
+      sessionStorage.removeItem('researchResults');
+      sessionStorage.removeItem('basicResearch');
+      
+      // Clear the flag after using it
+      sessionStorage.removeItem('forceShowGenerateStep');
+    }
+  }, []);
+  
   // Helper function to ensure we always get a string from translation
   const safeTranslate = (key: string, fallback: string): string => {
     const translated = t(key);
@@ -671,10 +693,21 @@ export default function ResearchPage() {
         // This happens when coming from followup page with step=3 in URL
         const urlParams = new URLSearchParams(window.location.search);
         const stepParam = urlParams.get('step');
+        const skipGeneration = sessionStorage.getItem('skipResearchGeneration') !== 'false';
         
-        // Only auto-advance if not explicitly told to stay on step 3
-        if (stepParam !== '3') {
+        // Do not auto-advance if any of these conditions are true:
+        // 1. URL explicitly specifies step=3
+        // 2. forceShowGenerateStep flag is true
+        // 3. skipResearchGeneration is set to false
+        if (stepParam === '3' || 
+            sessionStorage.getItem('forceShowGenerateStep') === 'true' ||
+            !skipGeneration) {
+          console.log('[BUGFIX] Preventing auto-advancement to research results - showing Generate Research step');
+          // Stay on step 3 (Generate Research)
           setResearchStep(3);
+        } else {
+          // Otherwise proceed to step 4 (Research Results)
+          setResearchStep(4);
         }
         
         // Make sure we save the research results again just in case

@@ -114,6 +114,16 @@ export default function FollowUpPage() {
     };
     sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
     
+    // IMPORTANT: Clear any cached research to force fresh generation
+    sessionStorage.removeItem('deepResearch');
+    sessionStorage.removeItem('researchResults');
+    sessionStorage.removeItem('basicResearch');
+    
+    // Force research step 3 (Generate Research) and prevent auto-advancement
+    sessionStorage.setItem('researchStep', '3');
+    sessionStorage.setItem('skipResearchGeneration', 'false');
+    sessionStorage.setItem('forceShowGenerateStep', 'true');
+    
     // Make sure we explicitly preserve the step parameter to ensure
     // the Spanish version behaves the same as English
     // This is important to prevent skipping the Generate Research step
