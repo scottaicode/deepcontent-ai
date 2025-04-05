@@ -964,8 +964,7 @@ Platform: ${safeContentDetails.platform || 'facebook'},
 Sub-Platform: ${safeContentDetails.subPlatform || ''},
 Content Type: ${safeContentDetails.contentType || 'social-post'},
 Target Audience: ${safeContentDetails.targetAudience || 'general'},
-Business Name: ${safeContentDetails.businessName || ''},
-Language: ${language || 'en'}`
+Business Name: ${safeContentDetails.businessName || ''}`
               : '', 
             sources: ['recent', 'scholar', 'news'],
             // Use robust language detection for the API call
@@ -974,10 +973,11 @@ Language: ${language || 'en'}`
               const urlLangParam = new URLSearchParams(window.location.search).get('language');
               const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
               const documentLang = document.documentElement.lang;
-              // If any source indicates Spanish, use Spanish
-              return (urlLangParam === 'es' || storedLanguage === 'es' || documentLang === 'es' || language === 'es') 
+              const effectiveLanguage = urlLangParam === 'es' || storedLanguage === 'es' || documentLang === 'es' || language === 'es'
                 ? 'es' 
                 : 'en';
+              console.log(`[DEBUG] API call using language: ${effectiveLanguage} (URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language})`);
+              return effectiveLanguage;
             })(),
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
