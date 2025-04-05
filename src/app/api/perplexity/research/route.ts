@@ -1,9 +1,11 @@
 /**
  * Perplexity Deep Research API Route
  * 
- * This API route handles integration with Perplexity's Deep Research API.
+ * This API endpoint handles integration with Perplexity's Deep Research API.
  * It takes a topic and context, performs deep research using Perplexity's API,
  * and returns structured research results.
+ * 
+ * IMPORTANT: This route is configured to ALWAYS generate fresh research and never use cached results.
  */
 
 import { NextRequest } from 'next/server';
@@ -119,7 +121,10 @@ async function checkJobStatus(jobId: string): Promise<Job | null> {
 export async function POST(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const requestId = request.headers.get('X-Request-ID') || requestUrl.searchParams.get('requestId') || `req_${Date.now()}`;
+  const forceHeader = request.headers.get('X-Force-Fresh');
+  
   logSection(requestId, 'INIT', `Received research request at ${new Date().toISOString()}`);
+  logSection(requestId, 'CACHE', `Force fresh research: ${forceHeader ? 'YES (header)' : 'YES (default)'}`);
 
   // Parse the request body outside the try block so it's available in the catch block
   let body;
@@ -143,7 +148,9 @@ export async function POST(request: NextRequest) {
     companyName = '',
     websiteContent,
     contentType = 'article',
-    platform = 'general'
+    platform = 'general',
+    timestamp = Date.now(), // Include timestamp to track request time
+    forceNew = true // Default to true, always force new research
   } = body;
   
   if (!topic) {
@@ -185,7 +192,9 @@ export async function POST(request: NextRequest) {
     contentType: extractedContentType,
     platform: extractedPlatform,
     hasCompanyInfo: !!companyName,
-    hasWebsiteContent: !!websiteContent
+    hasWebsiteContent: !!websiteContent,
+    timestamp,
+    forceNew
   }));
   
   // Get API key from environment variables
@@ -201,64 +210,8 @@ export async function POST(request: NextRequest) {
   
   logSection(requestId, 'API_KEY', `API key validation: ${apiKey.startsWith('pplx-') ? 'VALID FORMAT' : 'INVALID FORMAT'}`);
 
-  // Create a cache key for this research request
-  const cacheKey = createCacheKey(topic, extractedContentType, extractedPlatform, language);
-  logSection(requestId, 'CACHE', `Cache key: ${cacheKey}`);
-  
-  // Check if research is already cached
-  let cachedResult = null;
-  try {
-    if (kv) {
-      // Commented out cache lookup to always generate fresh research
-      // const cachedResult = await kv.get(cacheKey);
-      
-      // If exact match not found, try a simplified key lookup
-      /*
-      if (!cachedResult) {
-        const simplifiedKey = createSimplifiedTopicKey(topic);
-        logSection(requestId, 'CACHE', `Exact cache miss, trying simplified key: ${simplifiedKey}`);
-        
-        // Try to get any keys that start with the simplified pattern
-        try {
-          const keys = await kv.keys(`${simplifiedKey}*`);
-          if (keys && keys.length > 0) {
-            logSection(requestId, 'CACHE', `Found ${keys.length} potential matches with simplified key pattern`);
-            // Get the first match (could improve this to get the most recent one)
-            cachedResult = await kv.get(keys[0]);
-            if (cachedResult) {
-              logSection(requestId, 'CACHE', `Found partial match with key: ${keys[0]}`);
-            }
-          }
-        } catch (err) {
-          console.warn(`[DIAG] [${requestId}] Error searching for partial matches:`, err);
-        }
-      }
-      */
-      
-      // Disable cache return by setting cachedResult to null
-      cachedResult = null;
-      logSection(requestId, 'CACHE', `Cache disabled, always generating fresh research`);
-      
-      /*
-      // Return cached result if found
-      if (cachedResult) {
-        logSection(requestId, 'CACHE', `Found cached research result, length: ${(cachedResult as string).length}`);
-        return new Response(
-          JSON.stringify({ 
-            research: cachedResult,
-            fromCache: true,
-            cacheKey 
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      } else {
-        logSection(requestId, 'CACHE', `No cached research found, proceeding with job creation`);
-      }
-      */
-    }
-  } catch (err) {
-    console.warn(`[DIAG] [${requestId}] Cache check failed, continuing with job creation:`, err);
-  }
+  // CACHE COMPLETELY DISABLED - Always generate fresh research
+  logSection(requestId, 'CACHE', `Cache disabled, always generating fresh research (timestamp: ${timestamp})`);
   
   // Build the prompt
   const promptText = getPromptForTopic(topic, {
@@ -291,7 +244,8 @@ export async function POST(request: NextRequest) {
   console.log(`Content Type: ${extractedContentType}`);
   console.log(`Platform: ${extractedPlatform}`);
   console.log(`Request ID: ${requestId}`);
-  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`Timestamp: ${new Date(timestamp).toISOString()}`);
+  console.log(`Force New: ${forceNew}`);
   console.log(`==============================`);
 
   // Return the research data directly - no job ID or polling mechanism
@@ -308,18 +262,19 @@ export async function POST(request: NextRequest) {
     // Log success clearly
     console.log(`=== FRESH RESEARCH GENERATED SUCCESSFULLY ===`);
     console.log(`Research length: ${research.length} characters`);
-    console.log(`Response time: ${Date.now() - new Date(requestUrl.searchParams.get('timestamp') || Date.now()).getTime()}ms`);
+    console.log(`Response time: ${Date.now() - timestamp}ms`);
     console.log(`Language: ${language || 'en'}`);
     console.log(`=========================================`);
     
     // No caching at all - always generate fresh results
-    logSection(requestId, 'CACHE', `Caching disabled to ensure fresh research is generated each time`);
+    logSection(requestId, 'CACHE', `Fresh research generated, no caching performed`);
     
     return new Response(
       JSON.stringify({ 
         research,
         fromCache: false,
-        language: language || 'en'
+        language: language || 'en',
+        timestamp: Date.now() // Return current timestamp to track when generated
       }),
       { status: 200, headers: noCacheHeaders }
     );
@@ -342,71 +297,19 @@ export async function POST(request: NextRequest) {
 // Handler for GET requests to check job status
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const jobId = url.searchParams.get('jobId');
-  
-  // If jobId is provided, check specific job status
-  if (jobId) {
-    try {
-      const job = await checkJobStatus(jobId);
-      
-      if (!job) {
-        return new Response(
-          JSON.stringify({ error: 'Job not found' }),
-          { status: 404, headers: noCacheHeaders }
-        );
-      }
-      
-      // If job is completed, also return the research content
-      if (job.status === 'completed' && job.resultKey) {
-        try {
-          const research = await kv.get(job.resultKey);
-          if (research) {
-            return new Response(
-              JSON.stringify({ 
-                ...job,
-                research,
-                isFallback: job.isFallback === 'true'
-              }),
-              { status: 200, headers: noCacheHeaders }
-            );
-          }
-        } catch (err) {
-          console.warn(`Error retrieving research for completed job ${jobId}:`, err);
-        }
-      }
-      
-      // Return job status without research content
-      const responseBody = JSON.stringify(job || {}); // Stringify first, ensuring not null
-      return new Response(
-        responseBody, // Pass the pre-stringified body
-        { status: 200, headers: noCacheHeaders }
-      );
-    } catch (error: any) {
-      console.error(`Error checking job status for ${jobId}:`, error);
-      return new Response(
-        JSON.stringify({ error: error.message || 'An error occurred checking job status' }),
-        { status: 500, headers: noCacheHeaders }
-      );
-    }
-  }
-  
-  // If no jobId, check for cached research by topic
   const topic = url.searchParams.get('topic');
   const contentType = url.searchParams.get('contentType') || 'article';
   const platform = url.searchParams.get('platform') || 'general';
   const language = url.searchParams.get('language') || 'en';
   
-  if (!topic) {
-    return new Response(
-      JSON.stringify({ error: 'Either jobId or topic parameter is required' }),
-      { status: 400, headers: noCacheHeaders }
-    );
-  }
-  
   // Always return "not found" response to force fresh research generation
-  console.log(`Cache lookup disabled for topic: ${topic}, language: ${language}`);
+  console.log(`Cache lookup explicitly disabled for topic: ${topic}, language: ${language}`);
   return new Response(
-    JSON.stringify({ available: false }),
+    JSON.stringify({ 
+      available: false, 
+      message: 'Cache is disabled, fresh research will be generated for all requests',
+      timestamp: Date.now()
+    }),
     { status: 404, headers: noCacheHeaders }
   );
 }

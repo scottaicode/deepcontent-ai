@@ -184,6 +184,21 @@ export default function FollowupPage() {
       // and not skipped in any language version
       sessionStorage.setItem('researchStep', '3');
       
+      // IMPORTANT: Set flags to force fresh research generation and prevent skipping
+      // These flags prevent caching issues when moving from Follow-up to Generate Research
+      sessionStorage.setItem('skipResearchGeneration', 'false');
+      sessionStorage.setItem('forceShowGenerateStep', 'true');
+      sessionStorage.setItem('forceResearchGeneration', 'true');
+      
+      // Clear any existing research to force fresh generation
+      sessionStorage.removeItem('deepResearch');
+      sessionStorage.removeItem('researchResults');
+      
+      // Add a marker to indicate we're coming from the follow-up page
+      sessionStorage.setItem('comingFromFollowUp', 'true');
+      
+      console.log('[FollowupPage] Set flags to force fresh research generation');
+      
       // Navigate to the research page and indicate to start at the Generate Research step
       // This will ensure the user goes through the Generate Research UI
       router.push('/create/research?step=3');

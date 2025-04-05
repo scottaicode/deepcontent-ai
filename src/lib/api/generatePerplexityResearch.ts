@@ -6,6 +6,9 @@
 /**
  * Generate research on a specific topic using Perplexity API
  * This implementation uses a job-based pattern with polling to avoid timeouts
+ * 
+ * IMPORTANT: This function is configured to ALWAYS request fresh research
+ * and bypass any caching mechanisms.
  */
 export async function generatePerplexityResearch(
   topic: string,
@@ -36,13 +39,18 @@ export async function generatePerplexityResearch(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'X-Force-Fresh': 'true'
       },
       body: JSON.stringify({
         topic: topic.trim(), // Ensure clean topic
         context: context.trim(),
         sources: sources || [],
         language,
-        companyName // Pass company name to the API route
+        companyName, // Pass company name to the API route
+        timestamp: Date.now(), // Add timestamp to prevent caching
+        forceNew: true // Explicitly indicate we want fresh research
       }),
     });
     
@@ -129,11 +137,13 @@ export async function generatePerplexityResearch(
       await new Promise(resolve => setTimeout(resolve, delayTime));
       
       try {
-        // Check job status
-        const statusResponse = await fetch(`/api/perplexity/research?jobId=${jobData.jobId}`, {
+        // Check job status with cache busting parameters
+        const statusResponse = await fetch(`/api/perplexity/research?jobId=${jobData.jobId}&timestamp=${Date.now()}`, {
           method: 'GET',
           headers: {
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'X-Force-Fresh': 'true'
           }
         });
         

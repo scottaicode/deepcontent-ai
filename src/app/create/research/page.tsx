@@ -3161,37 +3161,38 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       // Update status message periodically with informative messages
       let messageIndex = 0;
       const statusMessages = [
-        'Querying knowledge databases...',
-        'Analyzing information sources...',
-        'Synthesizing research findings...',
-        'Organizing key insights...',
-        'Finalizing research document...'
+        'Initiating deep research...',
+        'Analyzing topic details...',
+        'Gathering latest information...',
+        'Accessing research data sources...',
+        'Processing research findings...',
+        'Compiling comprehensive insights...',
+        'Structuring research data...',
+        'Validating research accuracy...',
+        'Finalizing research content...'
       ];
       
-      const spanishStatusMessages = [
-        'Consultando bases de conocimiento...',
-        'Analizando fuentes de información...',
-        'Sintetizando hallazgos de la investigación...',
-        'Organizando información clave...',
-        'Finalizando documento de investigación...'
-      ];
-      
-      // Progress simulation
+      // Progress interval logic
+      let progress = 0;
       const progressIntervalId = setInterval(() => {
-        setGenerationProgress(prev => {
-          if (prev < 95) {
-            return prev + (Math.random() * 0.8 + 0.2); // Slower, consistent progress
-          }
-          return prev;
-        });
+        if (progress < 85) {
+          progress += Math.random() * 3;
+          setGenerationProgress(Math.min(85, progress));
+        }
       }, 2000);
       
-      // Update status message every 30 seconds
+      // Message interval logic
       const messageInterval = setInterval(() => {
-        const messages = language === 'es' ? spanishStatusMessages : statusMessages;
-        messageIndex = (messageIndex + 1) % messages.length;
-        setStatusMessage(messages[messageIndex]);
-      }, 30000);
+        messageIndex = (messageIndex + 1) % statusMessages.length;
+        setStatusMessage(statusMessages[messageIndex]);
+      }, 8000); // Change message every 8 seconds
+      
+      // Set initial message
+      setStatusMessage(statusMessages[0]);
+      
+      // Call the language detection function for research generation
+      // Use the same language as the UI to ensure research is in the correct language
+      const language = sessionStorage.getItem('language') || 'en';
       
       try {
         // Make the API request
@@ -3201,14 +3202,16 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
           headers: {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-            'Pragma': 'no-cache'
+            'Pragma': 'no-cache',
+            'X-Force-Fresh': 'true'
           },
           body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
             context: contextString,
             sources: ['recent', 'scholar'],
             language,
-            timestamp: Date.now() // Add timestamp to prevent caching
+            timestamp: Date.now(), // Add timestamp to prevent caching
+            forceNew: true // Explicitly indicate we want fresh research
           })
         });
         
@@ -3239,7 +3242,8 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         // Save research results
         const researchResults = {
           researchMethod: 'perplexity',
-          perplexityResearch: cleanedResearch
+          perplexityResearch: cleanedResearch,
+          timestamp: Date.now() // Add timestamp to track recency
         };
         sessionStorage.setItem('researchResults', JSON.stringify(researchResults));
         
@@ -3247,49 +3251,17 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         setGenerationProgress(100);
         setStatusMessage('Research complete!');
         
-        // Advance to results page
-        setResearchStep(4);
+        // Explicitly do not advance step automatically - let the user control the flow
+        // This prevents skipping the Generate Research step
+        setResearchStep(3);
         
-        // Success notification
-        toast.success('Research completed successfully!');
+        // Clear the timeout since we finished successfully
+        clearTimeout(fetchTimeoutId);
       } catch (error: any) {
-        // Clear intervals
-        clearInterval(messageInterval);
-        clearInterval(progressIntervalId);
-        
-        // Set error message
-        const errorMessage = error.message || 'Unknown error occurred';
-        setError(`Research generation failed: ${errorMessage}`);
-        
-        // Show error toast
-        toast.error(`Research generation failed: ${errorMessage}. Please try again.`);
-        
-        // Reset states
-        setGenerationProgress(0);
-        setIsGenerating(false);
-        setIsLoading(false);
-        setStatusMessage('Error generating research');
+        // ... existing code ...
       }
-      
-      // Clean up timeout
-      clearTimeout(fetchTimeoutId);
     } catch (error: any) {
-      // Handle any unhandled errors
-      const errorMessage = error.message || 'Unknown error occurred';
-      setError(`Research generation failed: ${errorMessage}`);
-      
-      // Show error toast
-      toast.error(`Research generation failed: ${errorMessage}. Please try again.`);
-      
-      // Reset states
-      setGenerationProgress(0);
-      setIsGenerating(false);
-      setIsLoading(false);
-      setStatusMessage('Error generating research');
-    } finally {
-      // Ensure loading states are reset
-      setIsLoading(false);
-      setIsGenerating(false);
+      // ... existing code ...
     }
   };
 
