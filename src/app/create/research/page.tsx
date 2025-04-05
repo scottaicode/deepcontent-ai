@@ -142,6 +142,19 @@ const detectPersonalUseCase = (topic: string): boolean => {
   return personalKeywords.some(keyword => topicLower.includes(keyword));
 };
 
+/**
+ * Generate a random session ID of specified length
+ */
+const generateSessionId = (length: number): string => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const charactersLength = characters.length;
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+};
+
 export default function ResearchPage() {
   const router = useRouter();
   const { t, language } = useTranslation();
@@ -966,10 +979,14 @@ export default function ResearchPage() {
         // After connection is established, send the actual request          
         console.log(`[DEBUG] Sending API request with language=${effectiveLanguage}`);
         
-        // Send the research request as a JSON post
-        try {
-          const sessionId = generateSessionId(10);
-          const body = JSON.stringify({
+        // Send the research request
+        fetch('/api/perplexity/research-sse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-ID': generateSessionId(10) // Add a unique request ID
+          },
+          body: JSON.stringify({
             topic: safeContentDetails?.researchTopic || '',
             context: safeContentDetails?.researchTopic 
               ? `Topic: "${safeContentDetails.researchTopic}"
@@ -984,26 +1001,16 @@ Business Name: ${safeContentDetails.businessName || ''}`
             language: effectiveLanguage,
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
-          });
-          
-          fetch('/api/perplexity/research-sse', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: body,
-          }).catch(error => {
-            console.error('[DEBUG] Error initiating research request:', error);
-            eventSource.close();
-            setError('Failed to start research process. Please try again.');
-            setIsGenerating(false);
-            setIsLoading(false);
-          });
-          
-          // ... rest of the code ...
-        } catch (error) {
-          // ... handle error ...
-        }
+          })
+        }).catch(error => {
+          console.error('[DEBUG] Error initiating research request:', error);
+          eventSource.close();
+          setError('Failed to start research process. Please try again.');
+          setIsGenerating(false);
+          setIsLoading(false);
+        });
+        
+        // ... rest of the code ...
       };
       
       // Define interface for SSE event with data property
