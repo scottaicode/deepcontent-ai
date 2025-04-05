@@ -25,6 +25,11 @@ export default function SignUp() {
     e.preventDefault();
     setError('');
     
+    // Always show the invitation-only message instead of processing signup
+    setError('Registration is currently by invitation only. Please contact your administrator for access.');
+    return;
+    
+    // This code won't execute due to the return above
     // Validate password match
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -66,6 +71,12 @@ export default function SignUp() {
         </div>
 
         <div className="mt-8">
+          {/* Always show the invitation-only message */}
+          <div className="mb-4 p-4 text-sm bg-amber-50 text-amber-700 rounded-lg dark:bg-amber-900/30 dark:text-amber-400" role="alert">
+            <div className="font-medium mb-1">Registration by invitation only</div>
+            <p>For security reasons, we've limited new account creation. If you need access, please contact your administrator.</p>
+          </div>
+
           {error && (
             <div className="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900/30 dark:text-red-400" role="alert">
               {error}
@@ -86,7 +97,9 @@ export default function SignUp() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700"
+                  disabled={true}
+                  placeholder="example@company.com"
                 />
               </div>
             </div>
@@ -104,7 +117,8 @@ export default function SignUp() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700"
+                  disabled={true}
                 />
               </div>
             </div>
@@ -122,7 +136,8 @@ export default function SignUp() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700"
+                  disabled={true}
                 />
               </div>
             </div>
@@ -130,11 +145,12 @@ export default function SignUp() {
             <div>
               <button
                 type="submit"
-                disabled={isLoading}
-                className="flex w-full justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="flex w-full justify-center rounded-md border border-transparent bg-gray-400 py-2 px-4 text-sm font-medium text-white shadow-sm cursor-not-allowed"
+                disabled={true}
               >
-                {isLoading ? 'Creating account...' : 'Create account'}
+                Registration disabled
               </button>
+              <p className="mt-2 text-xs text-center text-gray-500">Contact your administrator for access</p>
             </div>
           </form>
 
@@ -152,7 +168,7 @@ export default function SignUp() {
 
             <div className="mt-6">
               <div className="flex justify-center">
-                <SignInWithGoogle />
+                <SignInWithGoogle disabled={true} disabledMessage="Google registration disabled" />
               </div>
             </div>
           </div>
