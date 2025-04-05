@@ -739,21 +739,38 @@ export default function ResearchPage() {
   
   // Update the handleGenerateDeepResearch function to use Perplexity instead of Claude
   const handleGenerateDeepResearch = async () => {
-    // Prevent multiple simultaneous calls using debounce
-    if (isGenerating || isGenerateDeepResearchDebounced) {
+    // Skip if we're already generating research
+    if (isGenerating) {
       console.log('[DEBUG] Skipping research generation - already in progress');
       return;
     }
     
-    console.log('[DEBUG] Button clicked! Starting research generation with Perplexity');
-    
-    // Reset error state at the beginning
-    setErrorState({
-      hasError: false,
-      message: ''
-    });
-    
     try {
+      setIsGenerating(true);
+      setDeepResearch(null);
+      setStatusMessage('');
+      
+      // Robust language detection using multiple sources
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLangParam = urlParams.get('language');
+      const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
+      const documentLang = document.documentElement.lang;
+      const effectiveLanguage = 
+        urlLangParam === 'es' || 
+        storedLanguage === 'es' || 
+        documentLang === 'es' || 
+        language === 'es' 
+          ? 'es' 
+          : 'en';
+      
+      console.log(`[DEBUG] Research generation using language: ${effectiveLanguage} (URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language})`);
+      
+      // Store companyName from context
+      let companyName = '';
+      if (safeContentDetails.businessName) {
+        companyName = safeContentDetails.businessName;
+      }
+      
       // Set debounce flag to prevent multiple calls
       setIsGenerateDeepResearchDebounced(true);
       
@@ -957,7 +974,17 @@ Business Name: ${safeContentDetails.businessName || ''},
 Language: ${language || 'en'}`
               : '', 
             sources: ['recent', 'scholar', 'news'],
-            language,
+            // Use robust language detection for the API call
+            language: (() => {
+              // Get language from multiple sources
+              const urlLangParam = new URLSearchParams(window.location.search).get('language');
+              const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
+              const documentLang = document.documentElement.lang;
+              // If any source indicates Spanish, use Spanish
+              return (urlLangParam === 'es' || storedLanguage === 'es' || documentLang === 'es' || language === 'es') 
+                ? 'es' 
+                : 'en';
+            })(),
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
           }),
