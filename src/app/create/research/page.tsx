@@ -765,12 +765,6 @@ export default function ResearchPage() {
       
       console.log(`[DEBUG] Research generation using language: ${effectiveLanguage} (URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language})`);
       
-      // Store companyName from context
-      let companyName = '';
-      if (safeContentDetails.businessName) {
-        companyName = safeContentDetails.businessName;
-      }
-      
       // Set debounce flag to prevent multiple calls
       setIsGenerateDeepResearchDebounced(true);
       
