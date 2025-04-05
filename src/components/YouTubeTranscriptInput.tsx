@@ -124,8 +124,8 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
   const playerInstanceRef = React.useRef<YouTubePlayer | null>(null);
 
   // **** FEATURE FLAG ****
-  // Set this to true to enable the YouTube feature when fixed
-  const isYouTubeFeatureEnabled = false; 
+  // Feature is now fixed and enabled for production
+  const isYouTubeFeatureEnabled = true;
 
   useEffect(() => {
     // Reset error when URL changes
