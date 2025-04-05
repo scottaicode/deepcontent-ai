@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Research - DeepContent</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+      <div class="flex items-center">
+        <span class="text-blue-600 text-2xl font-bold">DeepContent</span>
+      </div>
+    </div>
+  </header>
+  
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Content Research</h1>
+    
+    <div class="mb-8">
+      <ol class="flex items-center">
+        <li class="flex items-center w-full">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-indigo-600 bg-indigo-600 text-white">1</span>
+          <div class="h-0.5 w-full bg-gray-200">
+            <div class="h-0.5 bg-indigo-600" style="width: 100%;"></div>
+          </div>
+        </li>
+        <li class="flex items-center w-full">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-indigo-600 bg-indigo-600 text-white">2</span>
+          <div class="h-0.5 w-full bg-gray-200">
+            <div class="h-0.5 bg-indigo-600" style="width: 100%;"></div>
+          </div>
+        </li>
+        <li class="flex items-center w-full">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-indigo-600 bg-indigo-600 text-white">3</span>
+          <div class="h-0.5 w-full bg-gray-200">
+            <div class="h-0.5 bg-indigo-600" style="width: 50%;"></div>
+          </div>
+        </li>
+        <li class="flex items-center w-full">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500">4</span>
+          <div class="h-0.5 w-full bg-gray-200">
+            <div class="h-0.5 bg-indigo-600" style="width: 0%;"></div>
+          </div>
+        </li>
+        <li class="flex items-center">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500">5</span>
+        </li>
+      </ol>
+      
+      <div class="mt-2 flex justify-between text-sm">
+        <span class="text-indigo-600">Initial Setup</span>
+        <span class="text-indigo-600">Follow-up Questions</span>
+        <span class="text-indigo-600">Generate Research</span>
+        <span class="text-gray-500">Research Results</span>
+        <span class="text-gray-500">Create Content</span>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <div class="mb-6">
+        <h2 class="text-xl font-bold mb-4">Generate Research</h2>
+        <p class="mb-4 text-gray-700">Press the button below to generate deep research for your content.</p>
+        
+        <div id="content-details" class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-md">
+          <h3 class="text-md font-medium mb-2">Your Content Details</h3>
+          <div id="details-container" class="text-sm">
+            <p>Loading content details...</p>
+          </div>
+        </div>
+        
+        <button 
+          id="generate-btn"
+          class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Generate Research
+        </button>
+      </div>
+      
+      <div class="flex justify-between mt-8">
+        <a 
+          href="/create/follow-up" 
+          class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+        >
+          Back to Follow-up
+        </a>
+        <a 
+          href="/create/content" 
+          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Skip to Content Creation
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Display content details from session storage
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        const contentDetails = JSON.parse(sessionStorage.getItem('contentDetails')) || {};
+        const detailsContainer = document.getElementById('details-container');
+        
+        if (contentDetails && detailsContainer) {
+          detailsContainer.innerHTML = `
+            <p><strong>Topic:</strong> ${contentDetails.researchTopic || 'Not specified'}</p>
+            <p><strong>Audience:</strong> ${contentDetails.targetAudience || 'Not specified'}</p>
+            <p><strong>Platform:</strong> ${contentDetails.platform || 'Not specified'}</p>
+          `;
+        }
+      } catch (error) {
+        console.error('Error loading content details:', error);
+      }
+    });
+
+    // Handle generate button click
+    document.getElementById('generate-btn').addEventListener('click', function() {
+      this.disabled = true;
+      this.innerHTML = 'Generating...';
+      
+      // Wait a moment then redirect to content
+      setTimeout(() => {
+        window.location.href = '/create/content';
+      }, 1500);
+    });
+  </script>
+</body>
+</html> 
