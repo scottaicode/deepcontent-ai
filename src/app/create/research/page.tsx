@@ -951,6 +951,8 @@ export default function ResearchPage() {
         retryCount = 0; // Reset retry count on successful connection
         
         // After connection is established, send the actual request
+        console.log(`[DEBUG] Sending API request with language=${language === 'es' ? 'es' : 'en'}`);
+          
         fetch('/api/perplexity/research-sse', {
           method: 'POST',
           headers: {
@@ -967,18 +969,8 @@ Target Audience: ${safeContentDetails.targetAudience || 'general'},
 Business Name: ${safeContentDetails.businessName || ''}`
               : '', 
             sources: ['recent', 'scholar', 'news'],
-            // Use robust language detection for the API call
-            language: (() => {
-              // Get language from multiple sources
-              const urlLangParam = new URLSearchParams(window.location.search).get('language');
-              const storedLanguage = localStorage.getItem('language') || localStorage.getItem('preferred_language');
-              const documentLang = document.documentElement.lang;
-              const effectiveLanguage = urlLangParam === 'es' || storedLanguage === 'es' || documentLang === 'es' || language === 'es'
-                ? 'es' 
-                : 'en';
-              console.log(`[DEBUG] API call using language: ${effectiveLanguage} (URL=${urlLangParam}, stored=${storedLanguage}, document=${documentLang}, context=${language})`);
-              return effectiveLanguage;
-            })(),
+            // Simple direct language detection without IIFE
+            language: language === 'es' ? 'es' : 'en',
             companyName: safeContentDetails?.businessName || '',
             websiteContent: safeContentDetails?.websiteContent || null
           }),
