@@ -539,7 +539,8 @@ ${addPersonaSpecificResearchInstruction(style, platform)}
 
 `;
 
-  // Add platform-specific instructions
+  // --- MUTUALLY EXCLUSIVE PLATFORM/FORMAT INSTRUCTIONS ---
+  // Prioritize Email explicitly first
   if (platform === 'email' || contentType === 'email') {
     promptBuilder += `
 # EMAIL FORMAT REQUIREMENTS (STRICT)
@@ -569,7 +570,9 @@ ${businessType && (businessType.toLowerCase().includes('freedom') || businessTyp
 Even though the topic involves business opportunities or specific products, STRICTLY adhere to the EMAIL format described above. Do NOT default to a presentation structure.
 ` : ''}
 `;
-  } else if (platform === 'facebook' || (isSocialMedia && dominantSocialPlatform === 'facebook')) {
+  }
+  // --- Then check for other specific platforms/types ---
+  else if (platform === 'facebook' || (isSocialMedia && dominantSocialPlatform === 'facebook')) {
     promptBuilder += `
 # FACEBOOK POST FORMAT
 -   Conversational, authentic tone.
@@ -578,7 +581,8 @@ Even though the topic involves business opportunities or specific products, STRI
 -   1-2 relevant emojis.
 -   Clear call to action.
 `;
-  } else if (platform === 'instagram' || (isSocialMedia && dominantSocialPlatform === 'instagram')) {
+  }
+  else if (platform === 'instagram' || (isSocialMedia && dominantSocialPlatform === 'instagram')) {
     promptBuilder += `
 For Instagram, create content that:
 - Is visually descriptive and emotionally appealing
@@ -587,7 +591,8 @@ For Instagram, create content that:
 - Has a clear call to engagement
 - Follows a structure suitable for carousel posts if educational
 `;
-  } else if (platform === 'linkedin' || (isSocialMedia && dominantSocialPlatform === 'linkedin')) {
+  }
+  else if (platform === 'linkedin' || (isSocialMedia && dominantSocialPlatform === 'linkedin')) {
     promptBuilder += `
 For LinkedIn, create content that:
 - Is professional and value-driven
@@ -596,7 +601,8 @@ For LinkedIn, create content that:
 - Has a compelling hook that appeals to professionals
 - Includes 3-5 relevant hashtags
 `;
-  } else if (platform === 'twitter' || (isSocialMedia && dominantSocialPlatform === 'twitter')) {
+  }
+  else if (platform === 'twitter' || (isSocialMedia && dominantSocialPlatform === 'twitter')) {
     promptBuilder += `
 For Twitter, create content that:
 - Is concise and impactful
@@ -605,7 +611,8 @@ For Twitter, create content that:
 - Can be expanded into a thread format if needed
 - Focuses on timely, shareable insights
 `;
-  } else if (platform === 'tiktok' || (isSocialMedia && dominantSocialPlatform === 'tiktok')) {
+  }
+  else if (platform === 'tiktok' || (isSocialMedia && dominantSocialPlatform === 'tiktok')) {
     promptBuilder += `
 For TikTok, create script-style content with:
 - A hook within the first 7 seconds
@@ -614,7 +621,8 @@ For TikTok, create script-style content with:
 - A strong call to action
 - Trend-aware approach
 `;
-  } else if (platform === 'google-ads' || platform === 'search-ads' || platform === 'display-ads' || platform.includes('google')) {
+  }
+  else if (platform === 'google-ads' || platform === 'search-ads' || platform === 'display-ads' || platform.includes('google')) {
     promptBuilder += `
 # GOOGLE ADS FORMAT REQUIREMENTS (STRICT)
 Create actual Google Ads content formatted exactly as follows:
@@ -655,7 +663,8 @@ DESCRIPTIONS (4 total, 90 char max):
 
 Do NOT write an educational article about Google Ads. Create ONLY the actual ad content that could be directly copied into Google Ads Manager.
 `;
-  } else if (platform === 'blog' || contentType === 'blog-post') {
+  }
+  else if (platform === 'blog' || contentType === 'blog-post') {
     promptBuilder += `
 For a blog post, create content that:
 - Has a strong, SEO-friendly headline
@@ -665,7 +674,8 @@ For a blog post, create content that:
 - Has a clear conclusion with a call to action
 - Is formatted for online readability
 `;
-  } else if (platform === 'presentation' || contentType.includes('presentation')) {
+  }
+  else if (platform === 'presentation' || contentType.includes('presentation')) {
     promptBuilder += `
 # PRESENTATION FORMAT REQUIREMENTS
 For a modern business presentation, create content that:
@@ -705,7 +715,8 @@ Special formatting requirements:
   * [IMAGE: Description of appropriate supporting visual]
   * [ICON: Type of icon needed here]
 `;
-  } else if (platform === 'youtube' || contentType === 'video-script' || contentType === 'youtube-script') {
+  }
+  else if (platform === 'youtube' || contentType === 'video-script' || contentType === 'youtube-script') {
     promptBuilder += `
 # VIDEO SCRIPT FORMAT
 -   Hook viewer in first 15 seconds.
@@ -715,11 +726,13 @@ Special formatting requirements:
 -   Has a clear call to action for engagement
 -   Is formatted as a proper script with scene/shot guidance
 `;
-  } else {
+  }
+  else {
+    // Fallback for any other unhandled types
     promptBuilder += `\n# GENERAL CONTENT FORMAT\nFollow standard best practices for ${contentType} on the ${platform} platform.\n`;
   }
 
-  // Add style-specific instructions
+  // --- Style/Persona Instructions (Append after format instructions) ---
   promptBuilder += `
 
 # CONTENT STYLE: ${style}
@@ -866,7 +879,7 @@ Write as if you're a masterful pattern-recognizer revealing the elegant simplici
     promptBuilder += `Use a professional, authoritative tone with industry-appropriate terminology.`;
   }
 
-  // Add research data and context
+  // --- Research Data Append ---
   promptBuilder += `
 
 # RESEARCH DATA & CONTEXT
@@ -880,7 +893,7 @@ ${prompt ? `ADDITIONAL CONTEXT:
 ${prompt}` : ""}
 
 # FINAL INSTRUCTION
-Create content that is engaging, platform-optimized (strictly adhering to the format requested above), and highly relevant to the target audience. Focus on providing value and driving audience action. ${languageInstruction}`;
+Create content that is engaging, platform-optimized (strictly adhering to the single format requested above), and highly relevant to the target audience. Focus on providing value and driving audience action. ${languageInstruction}`;
 
   return promptBuilder;
 }
