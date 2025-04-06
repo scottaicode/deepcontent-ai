@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ContentForm } from '@/components/ContentForm';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -11,6 +11,19 @@ export default function CreateContentPage() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Add useEffect to clean up image analysis data when component unmounts
+  useEffect(() => {
+    // This function runs when the component mounts
+    console.log('Create page mounted - initializing');
+
+    // Return cleanup function that runs when component unmounts
+    return () => {
+      console.log('Create page unmounting - cleaning up image analysis data');
+      // Clear any remaining image analysis data to ensure a fresh start next time
+      sessionStorage.removeItem('imageAnalysisResult');
+    };
+  }, []);
 
   const handleContentCreationSuccess = () => {
     console.log('Content creation success handler called');

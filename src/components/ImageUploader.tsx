@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Camera, X } from 'lucide-react';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useToast } from '@/lib/hooks/useToast';
@@ -31,6 +31,23 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [preview, setPreview] = useState<string | null>(initialImage || null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Add effect to clear any stored image data when the component mounts
+  useEffect(() => {
+    // Clear any previous image analysis related data
+    if (typeof window !== 'undefined' && !initialImage) {
+      console.log('ImageUploader mounted - ensuring clean state');
+      // If we're mounting without an initialImage, make sure we're in a clean state
+      setPreview(null);
+    }
+    
+    // Clean up preview URLs on unmount to prevent memory leaks
+    return () => {
+      if (preview && preview.startsWith('blob:')) {
+        URL.revokeObjectURL(preview);
+      }
+    };
+  }, [initialImage]);
 
   const handleFileSelect = (file: File) => {
     // Validate file type

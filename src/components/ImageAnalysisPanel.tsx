@@ -201,19 +201,20 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({
 
       // Store directly in sessionStorage to avoid the redirect system entirely
       try {
-        // First store our own copy in sessionStorage
-        sessionStorage.setItem('imageAnalysisResult', data.analysis);
-        console.log('Stored image analysis in sessionStorage directly');
+        // Remove the storage in sessionStorage since we want to clear data between sessions
+        // sessionStorage.setItem('imageAnalysisResult', data.analysis);
+        // console.log('Stored image analysis in sessionStorage directly');
         
         // If we have an onAnalysisComplete callback, call it directly with the analysis text
         // but ONLY if it's not going to cause a redirect
         if (onAnalysisComplete && typeof onAnalysisComplete === 'function') {
           // To avoid potential redirects, we'll just update local state
-          // Don't call the callback method that causes redirects
-          console.log('Not calling onAnalysisComplete to prevent redirects');
+          // Call the callback method without storing in sessionStorage
+          console.log('Calling onAnalysisComplete with analysis result');
+          onAnalysisComplete(data.analysis);
         }
       } catch (storageError) {
-        console.error('Failed to store analysis in sessionStorage:', storageError);
+        console.error('Failed to handle analysis result:', storageError);
       }
 
       toast({
@@ -380,28 +381,40 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({
       
       // Update the stored language
       sessionStorage.setItem('last_language', currentLang);
-      
-      // If language is the same, check for stored analysis result
-      if (!analysis) {
-        const storedAnalysis = sessionStorage.getItem('imageAnalysisResult');
-        if (storedAnalysis) {
-          console.log('Found stored image analysis, restoring it');
-          setAnalysis(storedAnalysis);
-        }
-      }
     } catch (error) {
       console.error('Error handling image analysis with language changes:', error);
     }
   }, [analysis, language]);
 
-  // Add a new useEffect hook to clear the analysis when the component is mounted
+  // Modify the useEffect hook to always clear data on mount or when route changes
   useEffect(() => {
-    // Clear previous image analysis when component mounts (page is loaded/reloaded)
+    // Always clear previous image analysis when component mounts (page is loaded/reloaded)
     console.log('ImageAnalysisPanel mounted - clearing previous analysis');
     sessionStorage.removeItem('imageAnalysisResult');
     setAnalysis('');
     setImageFile(null);
     setImagePreview(null);
+    
+    // Also clear on route changes
+    const handleRouteChange = () => {
+      console.log('Route changed - clearing image analysis data');
+      sessionStorage.removeItem('imageAnalysisResult');
+      setAnalysis('');
+      setImageFile(null);
+      setImagePreview(null);
+    };
+
+    // Add event listener for route changes if in browser environment
+    if (typeof window !== 'undefined') {
+      window.addEventListener('popstate', handleRouteChange);
+    }
+
+    return () => {
+      // Cleanup event listener on component unmount
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('popstate', handleRouteChange);
+      }
+    };
   }, []);
 
   return (

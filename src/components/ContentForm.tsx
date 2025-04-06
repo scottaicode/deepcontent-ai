@@ -613,6 +613,7 @@ export const ContentForm: React.FC<ContentFormProps> = ({
   
   // In the handleImageAnalysis handler
   const handleImageAnalysis = (analysis: string) => {
+    console.log('Image analysis received in ContentForm:', analysis.substring(0, 50) + '...');
     setImageAnalysis(analysis);
     
     // Append the analysis to the research data if it's valuable
@@ -622,6 +623,7 @@ export const ContentForm: React.FC<ContentFormProps> = ({
       
       // Store the analysis in sessionStorage for use in research instead of redirecting
       try {
+        // Only store temporarily while the user is in the current session
         const existingDetails = sessionStorage.getItem('contentDetails');
         if (existingDetails) {
           const details = JSON.parse(existingDetails);
