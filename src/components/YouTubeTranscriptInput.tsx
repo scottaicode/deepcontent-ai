@@ -155,6 +155,47 @@ const YouTubeTranscriptInput: React.FC<YouTubeTranscriptInputProps> = ({
     setShowAdminTools(isDevOrDebug);
   }, []);
 
+  // Add a useEffect hook to clear YouTube transcript data from sessionStorage on component mount
+  useEffect(() => {
+    console.log('YouTubeTranscriptInput mounted - clearing previous transcript data');
+    
+    // Clear YouTube transcript data from contentDetails in sessionStorage
+    try {
+      const contentDetailsStr = sessionStorage.getItem('contentDetails');
+      if (contentDetailsStr) {
+        const contentDetails = JSON.parse(contentDetailsStr);
+        if (contentDetails.youtubeTranscript || contentDetails.youtubeUrl) {
+          // Remove YouTube data but keep other content details
+          const updatedDetails = {
+            ...contentDetails,
+            youtubeTranscript: '',
+            youtubeUrl: ''
+          };
+          sessionStorage.setItem('contentDetails', JSON.stringify(updatedDetails));
+          console.log('Cleared YouTube data from contentDetails in sessionStorage');
+        }
+      }
+      
+      // Clear YouTube transcript data from researchData in sessionStorage
+      const researchDataStr = sessionStorage.getItem('researchData');
+      if (researchDataStr) {
+        const researchData = JSON.parse(researchDataStr);
+        if (researchData.youtubeTranscript || researchData.youtubeUrl) {
+          // Remove YouTube data but keep other research data
+          const updatedResearchData = {
+            ...researchData,
+            youtubeTranscript: '',
+            youtubeUrl: ''
+          };
+          sessionStorage.setItem('researchData', JSON.stringify(updatedResearchData));
+          console.log('Cleared YouTube data from researchData in sessionStorage');
+        }
+      }
+    } catch (error) {
+      console.error('Error clearing YouTube transcript data from sessionStorage:', error);
+    }
+  }, []);
+
   // Load YouTube iframe API
   useEffect(() => {
     // Only load this in browser environments
