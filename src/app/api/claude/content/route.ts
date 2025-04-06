@@ -471,9 +471,9 @@ When using the research data, extract information that aligns with the ${style} 
 
 // Enhance the prompt building with platform-specific instructions
 function buildPrompt(
-  contentType: string, 
-  platform: string, 
-  audience: string, 
+  contentType: string,
+  platform: string,
+  audience: string,
   researchData: string,
   youtubeTranscript: string,
   prompt: string,
@@ -484,9 +484,9 @@ function buildPrompt(
 ): string {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+  let languageInstruction = "";
   
   // Start with strong language instruction if not English
-  let languageInstruction = "";
   if (language && language !== 'en') {
     if (language === 'es') {
       languageInstruction = `INSTRUCCIÓN CRÍTICA: Este contenido DEBE estar completamente en ESPAÑOL. No uses inglés en absoluto.
@@ -499,10 +499,7 @@ CRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not
     }
   }
   
-  // Check platform relevance to add warnings or special instructions
   const platformRelevance = verifyPlatformRelevance(platform, researchData);
-
-  // Determine if we're dealing with social media and need specific platform instructions
   const isSocialMedia = platform === 'social';
   
   // For social media, get specific platform info from subPlatform
@@ -543,15 +540,43 @@ ${addPersonaSpecificResearchInstruction(style, platform)}
 `;
 
   // Add platform-specific instructions
-  if (platform === 'facebook' || (isSocialMedia && dominantSocialPlatform === 'facebook')) {
+  if (platform === 'email' || contentType === 'email') {
     promptBuilder += `
-For Facebook, create content that:
-- Uses a conversational, authentic tone
-- Includes questions to encourage engagement
-- Keeps paragraphs short and accessible
-- Includes 1-2 relevant emojis where appropriate
-- Creates an emotional connection
-- Has a clear call to action
+# EMAIL FORMAT REQUIREMENTS (STRICT)
+This content MUST be formatted as a standard EMAIL. Do NOT use presentation format.
+
+## Structure:
+1.  **Subject Line:** Compelling and concise.
+2.  **Greeting:** Personalized (e.g., "Hi [Name]" or appropriate)
+3.  **Body:** Clear purpose, concise paragraphs or bullet points. Deliver value quickly.
+4.  **Call to Action (CTA):** Strong, clear, single action desired.
+5.  **Signature:** Professional closing.
+
+## Critical Constraints:
+-   **NO SLIDES:** Do not include "SLIDE 1:", "Slide Title:", "Slide Notes:", etc.
+-   **NO PRESENTATION ELEMENTS:** Avoid [GRAPH], [CHART], [IMAGE], [ICON] placeholders.
+-   **STANDARD EMAIL FORMAT ONLY:** Ensure the output looks like a typical email communication.
+
+${subPlatform === 'sales' ? `
+### Sales Email Specifics:
+-   Focus on value proposition and offer.
+-   Keep concise (approx. 250-350 words).
+-   Maintain conversational yet professional tone.
+` : ''}
+
+${businessType && (businessType.toLowerCase().includes('freedom') || businessType.toLowerCase().includes('opportunity') || businessType.toLowerCase().includes('skin care') || businessType.toLowerCase().includes('skincare')) ? `
+### Business Opportunity/Product Note:
+Even though the topic involves business opportunities or specific products, STRICTLY adhere to the EMAIL format described above. Do NOT default to a presentation structure.
+` : ''}
+`;
+  } else if (platform === 'facebook' || (isSocialMedia && dominantSocialPlatform === 'facebook')) {
+    promptBuilder += `
+# FACEBOOK POST FORMAT
+-   Conversational, authentic tone.
+-   Include questions for engagement.
+-   Short paragraphs.
+-   1-2 relevant emojis.
+-   Clear call to action.
 `;
   } else if (platform === 'instagram' || (isSocialMedia && dominantSocialPlatform === 'instagram')) {
     promptBuilder += `
@@ -640,64 +665,9 @@ For a blog post, create content that:
 - Has a clear conclusion with a call to action
 - Is formatted for online readability
 `;
-  } else if (platform === 'email' || contentType === 'email') {
-    promptBuilder += `
-For an email, create content that:
-- Has a compelling subject line
-- Opens with a personalized, engaging greeting
-- Delivers value immediately and maintains a clear purpose
-- Uses concise paragraphs and bulleted lists
-- Includes a strong, clear call to action
-- Has a professional signature
-
-CRITICAL FORMAT INSTRUCTION: This content MUST be formatted as an EMAIL, not a presentation, blog post, or any other format. Do not include slides, slide numbers, or presentation elements. Format as a standard email with:
-- Subject line at the top
-- A personalized greeting/salutation
-- Email body with paragraphs and possibly bullet points
-- Closing with signature
-
-${subPlatform === 'sales' ? `
-SALES EMAIL SPECIFIC GUIDANCE:
-- Focus on a clear value proposition and compelling offer
-- Highlight specific benefits relevant to the recipient
-- Use a conversational but professional tone
-- Include a specific, action-oriented CTA
-- Keep the email concise (250-350 words)
-- Even if discussing business opportunities or products, maintain EMAIL format
-- Do NOT format as a presentation with slides under any circumstances
-` : ''}
-
-${businessType && (businessType.toLowerCase().includes('freedom') || businessType.toLowerCase().includes('opportunity') || businessType.toLowerCase().includes('skin care') || businessType.toLowerCase().includes('skincare')) ? `
-IMPORTANT FORMAT OVERRIDE: Although this email discusses business opportunities or skin care products, it MUST be formatted as a standard EMAIL, not a presentation. Do not include slides, slide numbers, or presentation elements. 
-
-FORMAT REQUIREMENTS:
-- Subject line at the beginning
-- Personalized greeting
-- 3-5 short paragraphs or bullet points in the body
-- Single call-to-action
-- Professional signature
-
-STRICTLY AVOID:
-- Slide numbers (like "SLIDE 1:")
-- Slide titles
-- Presentation formatting
-- Notes sections
-- Speaker guidance
-- Anything that resembles a slideshow or presentation
-` : ''}
-`;
-  } else if (platform === 'youtube' || contentType === 'video-script' || contentType === 'youtube-script') {
-    promptBuilder += `
-For a video script, create content that:
-- Hooks the viewer in the first 15 seconds
-- Follows a clear structure with intro, body, and conclusion
-- Uses conversational language suitable for speaking
-- Includes cues for visuals or B-roll where appropriate
-- Has a clear call to action for engagement
-- Is formatted as a proper script with scene/shot guidance
-`;
   } else if (platform === 'presentation' || contentType.includes('presentation')) {
     promptBuilder += `
+# PRESENTATION FORMAT REQUIREMENTS
 For a modern business presentation, create content that:
 - Follows a clear, logical structure (intro, main points, conclusion)
 - Uses the "one idea per slide" principle to maintain focus
@@ -735,12 +705,24 @@ Special formatting requirements:
   * [IMAGE: Description of appropriate supporting visual]
   * [ICON: Type of icon needed here]
 `;
+  } else if (platform === 'youtube' || contentType === 'video-script' || contentType === 'youtube-script') {
+    promptBuilder += `
+# VIDEO SCRIPT FORMAT
+-   Hook viewer in first 15 seconds.
+-   Follow a clear structure with intro, body, and conclusion
+-   Use conversational language suitable for speaking
+-   Includes cues for visuals or B-roll where appropriate
+-   Has a clear call to action for engagement
+-   Is formatted as a proper script with scene/shot guidance
+`;
+  } else {
+    promptBuilder += `\n# GENERAL CONTENT FORMAT\nFollow standard best practices for ${contentType} on the ${platform} platform.\n`;
   }
 
   // Add style-specific instructions
   promptBuilder += `
 
-CONTENT STYLE:
+# CONTENT STYLE: ${style}
 `;
 
   // Add detailed persona-specific instructions based on the selected style
@@ -884,8 +866,10 @@ Write as if you're a masterful pattern-recognizer revealing the elegant simplici
     promptBuilder += `Use a professional, authoritative tone with industry-appropriate terminology.`;
   }
 
+  // Add research data and context
   promptBuilder += `
 
+# RESEARCH DATA & CONTEXT
 RESEARCH DATA:
 ${researchData || "No specific research data provided."}
 
@@ -895,19 +879,8 @@ ${youtubeTranscript}` : ""}
 ${prompt ? `ADDITIONAL CONTEXT:
 ${prompt}` : ""}
 
-Create content that is engaging, platform-optimized, and highly relevant to the target audience. Focus on providing value and driving audience action.`;
-
-  // Add a final language reminder if not English
-  if (language && language !== 'en') {
-    if (language === 'es') {
-      promptBuilder += `
-
-RECORDATORIO FINAL: Todo el contenido DEBE estar en ESPAÑOL, no en inglés. 
-FINAL REMINDER: All content MUST be in SPANISH, not English.`;
-    } else {
-      promptBuilder += `\n\nFINAL REMINDER: All content must be in ${language} language.`;
-    }
-  }
+# FINAL INSTRUCTION
+Create content that is engaging, platform-optimized (strictly adhering to the format requested above), and highly relevant to the target audience. Focus on providing value and driving audience action. ${languageInstruction}`;
 
   return promptBuilder;
 }
