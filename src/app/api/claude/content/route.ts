@@ -479,7 +479,8 @@ function buildPrompt(
   prompt: string,
   style: string,
   language: string,
-  subPlatform: string = ''
+  subPlatform: string = '',
+  businessType: string = ''
 ): string {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().toLocaleString('default', { month: 'long' });
@@ -648,6 +649,42 @@ For an email, create content that:
 - Uses concise paragraphs and bulleted lists
 - Includes a strong, clear call to action
 - Has a professional signature
+
+CRITICAL FORMAT INSTRUCTION: This content MUST be formatted as an EMAIL, not a presentation, blog post, or any other format. Do not include slides, slide numbers, or presentation elements. Format as a standard email with:
+- Subject line at the top
+- A personalized greeting/salutation
+- Email body with paragraphs and possibly bullet points
+- Closing with signature
+
+${subPlatform === 'sales' ? `
+SALES EMAIL SPECIFIC GUIDANCE:
+- Focus on a clear value proposition and compelling offer
+- Highlight specific benefits relevant to the recipient
+- Use a conversational but professional tone
+- Include a specific, action-oriented CTA
+- Keep the email concise (250-350 words)
+- Even if discussing business opportunities or products, maintain EMAIL format
+- Do NOT format as a presentation with slides under any circumstances
+` : ''}
+
+${businessType && (businessType.toLowerCase().includes('freedom') || businessType.toLowerCase().includes('opportunity') || businessType.toLowerCase().includes('skin care') || businessType.toLowerCase().includes('skincare')) ? `
+IMPORTANT FORMAT OVERRIDE: Although this email discusses business opportunities or skin care products, it MUST be formatted as a standard EMAIL, not a presentation. Do not include slides, slide numbers, or presentation elements. 
+
+FORMAT REQUIREMENTS:
+- Subject line at the beginning
+- Personalized greeting
+- 3-5 short paragraphs or bullet points in the body
+- Single call-to-action
+- Professional signature
+
+STRICTLY AVOID:
+- Slide numbers (like "SLIDE 1:")
+- Slide titles
+- Presentation formatting
+- Notes sections
+- Speaker guidance
+- Anything that resembles a slideshow or presentation
+` : ''}
 `;
   } else if (platform === 'youtube' || contentType === 'video-script' || contentType === 'youtube-script') {
     promptBuilder += `
@@ -1093,7 +1130,8 @@ Return ONLY the transformed content in the new persona voice, with no explanatio
         prompt,
         style,
         language,
-        subPlatform
+        subPlatform,
+        businessType
       );
     }
     
