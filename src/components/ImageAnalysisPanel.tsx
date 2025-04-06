@@ -394,6 +394,16 @@ const ImageAnalysisPanel: React.FC<ImageAnalysisPanelProps> = ({
     }
   }, [analysis, language]);
 
+  // Add a new useEffect hook to clear the analysis when the component is mounted
+  useEffect(() => {
+    // Clear previous image analysis when component mounts (page is loaded/reloaded)
+    console.log('ImageAnalysisPanel mounted - clearing previous analysis');
+    sessionStorage.removeItem('imageAnalysisResult');
+    setAnalysis('');
+    setImageFile(null);
+    setImagePreview(null);
+  }, []);
+
   return (
     <div className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${className}`}>
       {/* Only show the header if not in the simplified mode */}
