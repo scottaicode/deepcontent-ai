@@ -215,9 +215,16 @@ function buildPrompt(topic: string, context?: string, trendingTopics: TrendingTo
     trendingTopicsSection += '\nIncorporate insights from these trending topics where relevant.\n';
   }
   
+  let languageInstruction = "";
+  // Add the strict language instruction if Spanish is selected
+  if (language === 'es') {
+    languageInstruction = `INSTRUCCIÓN CRÍTICA: Este contenido DEBE estar completamente en ESPAÑOL. No uses inglés en absoluto.\n\nCRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not use ANY English whatsoever in the final output.\n\n`;
+  }
+  
   // Build the prompt based on the language
   if (language === 'es') {
-    return `Generar una investigación exhaustiva sobre "${topic}" para crear contenido digital.
+    // Start with the critical language instruction for Spanish
+    return `${languageInstruction}Generar una investigación exhaustiva sobre "${topic}" para crear contenido digital.
 
 FECHA: ${dateString}
 AUDIENCIA OBJETIVO: ${audience}
@@ -248,14 +255,11 @@ Tu investigación debe incluir:
    - Temas específicos a cubrir
    - Elementos a evitar
 
-5. FUENTES Y CITAS:
-   - Fuentes confiables utilizadas para esta investigación
-   - Informes o estudios específicos consultados
-
-Prioriza insights específicos para ${platform} y contenido optimizado para ${audience}. Incluye datos y estadísticas actuales siempre que sea posible. Esta investigación se utilizará para crear contenido digital efectivo y actualizado.`;
+**RECUERDA: TODO el resultado DEBE estar en ESPAÑOL.**
+`;
   } else {
-    // Default English prompt
-    return `Generate comprehensive research on "${topic}" for digital content creation.
+    // Default English prompt (or potentially other languages if added later)
+    return `Generate comprehensive research about "${topic}" for creating digital content.
 
 DATE: ${dateString}
 TARGET AUDIENCE: ${audience}
@@ -266,31 +270,26 @@ ${trendingTopicsSection}
 
 Your research should include:
 
-1. CURRENT SIGNIFICANCE (${month} ${year}):
+1. CURRENT RELEVANCE (${month} ${year}):
    - Why "${topic}" matters now
-   - Current trends and related data
-   - Market context for ${platform}
+   - Current trends and data related to the topic
+   - Market context for the ${platform} platform
 
-2. RECENT TRENDS AND DEVELOPMENTS (Past 90 Days):
-   - Relevant industry trends
-   - Recent developments
-   - Shifts in consumer assumptions
+2. RECENT TRENDS & DEVELOPMENTS (Last 90 days):
+   - Key industry developments
+   - Shifts in consumer assumptions or behaviors
+   - Relevant news or events
 
 3. CURRENT BEST PRACTICES (As of ${month} ${year}):
-   - Effective strategies for ${platform}
+   - Effective strategies for ${platform} related to ${topic}
    - Examples of successful content
    - Formats that are performing well
 
 4. ACTIONABLE RECOMMENDATIONS:
    - Priority tactics to implement
-   - Specific topics to cover
-   - Elements to avoid
-
-5. SOURCES AND CITATIONS:
-   - Reliable sources used for this research
-   - Specific reports or studies consulted
-
-Prioritize platform-specific insights for ${platform} and content optimized for ${audience}. Include current data and statistics whenever possible. This research will be used to create effective, up-to-date digital content.`;
+   - Specific angles or topics to cover
+   - Elements or approaches to avoid
+`;
   }
 }
 
