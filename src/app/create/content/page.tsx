@@ -375,47 +375,58 @@ export default function ContentGenerator() {
       setIsLoading(true);
       
       try {
-        // Try to restore from session storage
+        // Base details from 'contentDetails' key
+        let baseDetails: Partial<ContentDetails> = {};
         const storedDetails = sessionStorage.getItem('contentDetails');
         if (storedDetails) {
           try {
-            console.log('[DIAGNOSTIC] Found stored content details');
-            const parsedDetails = JSON.parse(storedDetails);
-            
-            console.log('[DIAGNOSTIC] Parsed content details:', {
-              contentType: parsedDetails.contentType,
-              platform: parsedDetails.platform,
-              subPlatform: parsedDetails.subPlatform,
-              researchTopic: parsedDetails.researchTopic,
-              targetAudience: parsedDetails.targetAudience
-            });
-            
-            // Fix platform issues if needed
-            if (parsedDetails.platform === 'company-blog' || 
-                parsedDetails.platform === 'medium' || 
-                parsedDetails.platform === 'wordpress') {
-              parsedDetails.subPlatform = parsedDetails.platform;
-              parsedDetails.platform = 'blog';
-              console.log('[DIAGNOSTIC] Fixed platform issues:', {
-                platform: parsedDetails.platform,
-                subPlatform: parsedDetails.subPlatform
-              });
-            }
-            
-            setContentDetails(parsedDetails);
-            console.log('[DIAGNOSTIC] Content details state set successfully');
+            baseDetails = JSON.parse(storedDetails);
+            console.log('[DIAGNOSTIC] Found base content details');
           } catch (parseError) {
-            console.error('[DIAGNOSTIC] Failed to parse content details:', parseError);
-            console.error('[DIAGNOSTIC] Raw content details that failed to parse:', storedDetails);
-            setError('Failed to parse content details. Please go back and try again.');
-            // Don't set default content details - require real data
+            console.error('[DIAGNOSTIC] Failed to parse base content details:', parseError);
+            // Continue even if base details fail, platform/subPlatform might still be recoverable
           }
         } else {
-          console.log('[DIAGNOSTIC] No content details found in session storage');
-          setError('No content details found. Please start from the beginning.');
+          console.log('[DIAGNOSTIC] No base content details found in session storage');
+          // Don't error out yet, check for platform/subplatform keys
         }
-        
-        // Try to get research results from session storage
+
+        // --- PRIORITIZE platform/subPlatform from dedicated keys ---
+        const selectedPlatform = sessionStorage.getItem('selectedPlatform');
+        const selectedSubPlatform = sessionStorage.getItem('selectedSubPlatform');
+
+        if (selectedPlatform) {
+          console.log(`[DIAGNOSTIC] Overriding platform with selectedPlatform: ${selectedPlatform}`);
+          baseDetails.platform = selectedPlatform;
+        }
+        if (selectedSubPlatform !== null) { // Check for null as empty string is valid
+           console.log(`[DIAGNOSTIC] Overriding subPlatform with selectedSubPlatform: ${selectedSubPlatform}`);
+          baseDetails.subPlatform = selectedSubPlatform;
+        }
+        // --- END platform/subPlatform override ---
+
+        // Validate required fields after potential overrides
+        if (!baseDetails.platform || !baseDetails.contentType) {
+           console.error('[DIAGNOSTIC] Missing crucial details (platform or contentType) after initialization');
+           setError('Missing critical content details. Please start from the beginning.');
+           setIsLoading(false);
+           return; // Stop initialization if core details are missing
+        }
+            
+        // Re-apply blog platform fix if needed (might be redundant if baseDetails already fixed it, but safe)
+        if (baseDetails.platform === 'company-blog' || 
+            baseDetails.platform === 'medium' || 
+            baseDetails.platform === 'wordpress') {
+           baseDetails.subPlatform = baseDetails.platform;
+           baseDetails.platform = 'blog';
+           console.log('[DIAGNOSTIC] Applied blog platform fix during initialization');
+        }
+            
+        // Set the final contentDetails state
+        setContentDetails(baseDetails as ContentDetails); // Cast as ContentDetails after validation
+        console.log('[DIAGNOSTIC] Final content details state set:', baseDetails);
+
+        // Try to get research results from session storage (remains the same)
         const storedResearchResults = sessionStorage.getItem('researchResults');
         if (storedResearchResults) {
           try {
@@ -653,16 +664,16 @@ export default function ContentGenerator() {
         },
         body: JSON.stringify({
           contentType: contentDetails.contentType,
-          platform: contentDetails.platform,
+          platform: contentDetails.platform, // Now guaranteed to use value from selectedPlatform if available
           audience: contentDetails.targetAudience,
-          context: prompt,
+          // context: prompt, // Removed this line as `prompt` is not defined here
           researchData: researchResults?.perplexityResearch || '',
           youtubeTranscript: contentDetails.youtubeTranscript || '',
           youtubeUrl: contentDetails.youtubeUrl || '',
           style: contentSettings.style,
           language,
           styleIntensity: 1,
-          subPlatform: contentDetails.subPlatform || '',
+          subPlatform: contentDetails.subPlatform || '', // Now guaranteed to use value from selectedSubPlatform if available
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
@@ -846,14 +857,12 @@ export default function ContentGenerator() {
           length: contentSettings.length,
           includeCTA: contentSettings.includeCTA,
           includeHashtags: contentSettings.includeHashtags,
-          persona: newPersona,
+          persona: newPersona, // Ensure persona is passed if needed by API
+          subPlatform: contentDetails.subPlatform || '', // Ensure subPlatform is included
           businessType: contentDetails.businessType,
           businessName: contentDetails.businessName,
           researchTopic: contentDetails.researchTopic,
-          isPersonaChange: true, // Flag to indicate this is a persona change request
-          previousPersona: currentPersona,
-          previousContent: generatedContent,
-          language: language // Explicitly pass the language to the API
+          language // Ensure language is included
         }),
       });
       
