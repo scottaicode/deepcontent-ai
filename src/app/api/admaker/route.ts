@@ -81,12 +81,15 @@ Generate *only* the ad variations. Do NOT include any preamble, introductory tex
 
 // Function calling the AI API and parsing the response
 async function callClaudeForAds(prompt: string, apiKey: string): Promise<AdVariation[]> {
-  console.log("--- Sending Prompt to Claude API ---");
-  console.log(prompt.substring(0, 500) + "..."); 
+  console.log("--- Entering callClaudeForAds ---");
+  console.log("Prompt Snippet:", prompt.substring(0, 500) + "..."); 
 
   try {
+    console.log("Instantiating Anthropic client...");
     const anthropic = new Anthropic({ apiKey });
+    console.log("Anthropic client instantiated.");
 
+    console.log("Calling anthropic.messages.create...");
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 4000, 
@@ -96,35 +99,27 @@ async function callClaudeForAds(prompt: string, apiKey: string): Promise<AdVaria
         { role: 'user', content: prompt }
       ]
     });
+    console.log("anthropic.messages.create call completed."); // Log right after await
 
     console.log("--- Received Response Object from Claude API ---");
-    // Log the entire response object for detailed debugging
     console.log(JSON.stringify(response, null, 2)); 
     console.log("---------------------------------------------");
     
     // Extract text content safely
     let rawResponseText = '';
-    // Check if content exists and is an array before accessing
     if (response.content && Array.isArray(response.content) && response.content.length > 0) {
-      // Find the first block of type 'text'
       const textBlock = response.content.find(block => block.type === 'text');
       if (textBlock && 'text' in textBlock) {
         rawResponseText = textBlock.text;
       }
     }
-
-    // Throw error specifically if no usable text found
     if (!rawResponseText) {
       console.error('Claude response did not contain usable text content. Check the full response object logged above for details (e.g., stop_reason). Stop Reason:', response.stop_reason);
-      // Include stop_reason in the error if available
       const stopReason = response.stop_reason ? ` Stop Reason: ${response.stop_reason}` : '';
       throw new Error(`Received empty or invalid response from AI.${stopReason}`); 
     }
-
     console.log("Raw Response Length:", rawResponseText.length);
     console.log("Raw Response Snippet:", rawResponseText.substring(0, 500) + "...");
-
-    // --- Parse the response --- 
     const variations: AdVariation[] = [];
     const variationBlocks = rawResponseText.split(/---VARIATION START \d+---/).filter(block => block.trim() !== '');
     console.log(`Found ${variationBlocks.length} potential variation blocks.`);
@@ -156,11 +151,11 @@ async function callClaudeForAds(prompt: string, apiKey: string): Promise<AdVaria
     if (variations.length === 0 && rawResponseText.length > 0) {
         console.error("Failed to parse any variations from the raw response. Check Claude's output format adherence.");
     }
-    console.log("--- End Claude API Call & Parsing ---");
+    console.log("--- Exiting callClaudeForAds successfully ---");
     return variations;
 
   } catch (error) {
-    console.error('Error calling Claude API or parsing response:', error);
+    console.error('--- Error within callClaudeForAds ---', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error during AI interaction';
     throw new Error(`AI call/parsing failed: ${errorMessage}`);
   }
