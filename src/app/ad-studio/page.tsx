@@ -114,7 +114,7 @@ export default function AdStudioPage() {
   };
 
   // Always use consistent Spanish texts that match the rest of the application
-  const pageTitle = locale === 'es' ? 'Estudio de Anuncios' : t('navigation.adStudio', { defaultValue: 'Ad Studio' });
+  const pageTitle = locale === 'es' ? 'Estudio de Anuncios' : t('navigation.adStudio');
   const pageDescription = locale === 'es' 
     ? 'Define los parámetros de tu anuncio a continuación para generar variaciones creativas.' 
     : t(getTranslationKey('pageDescription'), { defaultValue: 'Define your ad parameters below to generate creative variations.' });

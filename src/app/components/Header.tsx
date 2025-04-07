@@ -141,7 +141,7 @@ const Header: React.FC = () => {
               href="/ad-studio" 
               className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
             >
-              {t('navigation.adStudio', { defaultValue: 'Ad Studio' })}
+              {t('navigation.adStudio')}
             </Link>
             <Link 
               href="/dashboard" 
@@ -257,7 +257,7 @@ const Header: React.FC = () => {
               <Link href="/" className="block py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" onClick={() => setIsMenuOpen(false)}>{t('navigation.home')}</Link>
               <Link href="/create" className="block py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" onClick={() => setIsMenuOpen(false)}>{t('navigation.create')}</Link>
               <Link href="/ad-studio" className="block py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" onClick={() => setIsMenuOpen(false)}>
-                {t('navigation.adStudio', { defaultValue: 'Ad Studio' })}
+                {t('navigation.adStudio')}
               </Link>
               <Link href="/dashboard" className="block py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" onClick={() => setIsMenuOpen(false)}>{t('navigation.dashboard')}</Link>
               <Link href="/dashboard/image-editor" className="block py-3 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" onClick={() => setIsMenuOpen(false)}>{t('navigation.imageEditor')}</Link>

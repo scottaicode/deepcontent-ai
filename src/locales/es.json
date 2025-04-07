@@ -38,6 +38,7 @@
   "navigation": {
     "home": "Inicio",
     "create": "Crear",
+    "adStudio": "Estudio de Anuncios",
     "dashboard": "Panel",
     "imageEditor": "Editor de Imágenes",
     "textToImage": "Texto a Imagen",
