@@ -163,25 +163,38 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
       
       const keys = path.split('.');
       let value: any = translations[locale] || translations.en;
+      let found = true; // Flag to track if lookup was successful
       
       // Navigate through the nested object
-      for (const key of keys) {
-        value = value?.[key];
-        if (value === undefined) {
-          console.warn(`[LanguageProvider] Translation key not found: ${path}`);
-          return options?.defaultValue || path;
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (value && typeof value === 'object' && key in value) {
+           value = value[key];
+           console.log(`[LanguageProvider] 	Navigated to key '${key}', current value type: ${typeof value}`);
+        } else {
+          console.warn(`[LanguageProvider] 	Key '${key}' not found at step ${i+1} for path: ${path}`);
+          found = false;
+          break; // Stop searching if a key is not found
         }
       }
       
+      // If lookup failed OR the final value is not a string/number
+      if (!found || (typeof value !== 'string' && typeof value !== 'number')) { 
+        console.warn(`[LanguageProvider] Translation failed or result is not a string for key: ${path}. Using fallback.`);
+        // Use defaultValue if provided, otherwise fallback to key
+        return options?.defaultValue || path; 
+      }
+      
       // Apply replacements if any
-      if (options?.replacements && typeof value === 'string') {
+      const finalValue = String(value); // Convert potential numbers to string
+      if (options?.replacements) {
         return Object.entries(options.replacements).reduce(
           (text, [key, val]) => text.replace(new RegExp(`{{${key}}}`, 'g'), val),
-          value
+          finalValue
         );
       }
       
-      return String(value);
+      return finalValue;
     };
   }, [locale]);
 
