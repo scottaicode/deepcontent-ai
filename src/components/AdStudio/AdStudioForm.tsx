@@ -61,18 +61,23 @@ const ELEMENTS_TO_VARY_OPTIONS_KEYS = [
 export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading }) => {
   const { t, locale, translations } = useLanguage();
   
+  // Helper for translations to ensure consistent key paths
+  const getTranslationKey = (key: string) => `adStudio.${key}`;
+  
+  // Helper for Spanish fallbacks when translations fail
+  const getLocalizedText = (key: string, defaultValue: string, spanishValue: string) => {
+    return locale === 'es' ? spanishValue : t(getTranslationKey(key), { defaultValue });
+  };
+  
   // Debug logging for translations
   console.log('AdStudioForm: Current locale:', locale);
-  console.log('AdStudioForm: Translation available:', !!translations);
-  console.log('AdStudioForm: Section title translation test:', 
-    t('adStudio.section1Title', { defaultValue: '1. Core Ad Definition' }));
   
-  // Check if translations for adStudio section exist
-  if (translations && translations.adStudio) {
-    console.log('AdStudioForm: adStudio translations found with keys:', 
-      Object.keys(translations.adStudio));
-  } else {
-    console.warn('AdStudioForm: adStudio translations not found in:', translations);
+  // Log translation object structure
+  if (translations) {
+    console.log('AdStudioForm: Navigation exists:', !!translations.navigation);
+    console.log('AdStudioForm: Navigation.adStudio:', 
+      translations.navigation ? translations.navigation.adStudio : 'not found');
+    console.log('AdStudioForm: adStudio section exists:', !!translations.adStudio);
   }
   
   const [details, setDetails] = useState<AdMakerRequest>({
@@ -128,25 +133,41 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
   // Helper to generate defaultValue from key
   const generateDefaultValue = (key: string) => key.split('.').pop()?.replace(/([A-Z])/g, ' $1').trim() || key;
 
+  // Add Spanish hardcoded fallbacks for key titles/labels
+  const section1Title = getLocalizedText('section1Title', '1. Core Ad Definition', '1. Definición Central del Anuncio');
+  const section2Title = getLocalizedText('section2Title', '2. Platform & Variation Strategy', '2. Estrategia de Plataforma y Variación');
+  const projectNameLabel = getLocalizedText('projectNameLabel', 'Project Name', 'Nombre del Proyecto');
+  const productDescriptionLabel = getLocalizedText('productDescriptionLabel', 'Product/Service Description', 'Descripción Producto/Servicio');
+  const targetAudienceLabel = getLocalizedText('targetAudienceLabel', 'Target Audience', 'Audiencia Objetivo');
+  const adObjectiveLabel = getLocalizedText('adObjectiveLabel', 'Primary Ad Objective', 'Objetivo Principal del Anuncio');
+  const keyMessageLabel = getLocalizedText('keyMessageLabel', 'Key Message', 'Mensaje Clave');
+  const callToActionLabel = getLocalizedText('callToActionLabel', 'Call To Action (Optional)', 'Llamada a la Acción (Opcional)');
+  const targetPlatformsLabel = getLocalizedText('targetPlatformsLabel', 'Target Platforms', 'Plataformas Objetivo');
+  const elementsToVaryLabel = getLocalizedText('elementsToVaryLabel', 'Elements to Vary', 'Elementos a Variar');
+  const selectAtLeastOne = getLocalizedText('selectAtLeastOne', 'Select at least one', 'Selecciona al menos uno');
+  const numVariationsLabel = getLocalizedText('numVariationsLabel', 'Number of Variations:', 'Número de Variaciones:');
+  const generateButton = getLocalizedText('generateButton', 'Generate Ad Variations', 'Generar Variaciones de Anuncio');
+  const generatingButton = getLocalizedText('generatingButton', 'Generating...', 'Generando...');
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* Section 1: Core Ad Definition */}
       <div className="space-y-4 p-6 border rounded-lg dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{t('adStudio.section1Title', { defaultValue: '1. Core Ad Definition' })}</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{section1Title}</h2>
         <div>
-          <Label htmlFor="projectName">{t('adStudio.projectNameLabel', { defaultValue: 'Project Name' })} *</Label>
-          <Input id="projectName" value={details.projectName} onChange={(e) => handleInputChange('projectName', e)} required placeholder={t('adStudio.projectNamePlaceholder', { defaultValue: 'e.g., Spring Skincare Campaign' })} />
+          <Label htmlFor="projectName">{projectNameLabel} *</Label>
+          <Input id="projectName" value={details.projectName} onChange={(e) => handleInputChange('projectName', e)} required placeholder={t(getTranslationKey('projectNamePlaceholder'), { defaultValue: 'e.g., Spring Skincare Campaign' })} />
         </div>
         <div>
-          <Label htmlFor="productDescription">{t('adStudio.productDescriptionLabel', { defaultValue: 'Product/Service Description' })} *</Label>
-          <Textarea id="productDescription" value={details.productDescription} onChange={(e) => handleInputChange('productDescription', e)} required placeholder={t('adStudio.productDescriptionPlaceholder', { defaultValue: 'Describe the product/service being advertised...' })} />
+          <Label htmlFor="productDescription">{productDescriptionLabel} *</Label>
+          <Textarea id="productDescription" value={details.productDescription} onChange={(e) => handleInputChange('productDescription', e)} required placeholder={t(getTranslationKey('productDescriptionPlaceholder'), { defaultValue: 'Describe the product/service being advertised...' })} />
         </div>
         <div>
-          <Label htmlFor="targetAudience">{t('adStudio.targetAudienceLabel', { defaultValue: 'Target Audience' })} *</Label>
-          <Input id="targetAudience" value={details.targetAudience} onChange={(e) => handleInputChange('targetAudience', e)} required placeholder={t('adStudio.targetAudiencePlaceholder', { defaultValue: 'e.g., Women aged 30-50 interested in anti-aging skincare' })} />
+          <Label htmlFor="targetAudience">{targetAudienceLabel} *</Label>
+          <Input id="targetAudience" value={details.targetAudience} onChange={(e) => handleInputChange('targetAudience', e)} required placeholder={t(getTranslationKey('targetAudiencePlaceholder'), { defaultValue: 'e.g., Women aged 30-50 interested in anti-aging skincare' })} />
         </div>
         <div className="mb-4"> 
-          <Label className="block mb-2">{t('adStudio.adObjectiveLabel', { defaultValue: 'Primary Ad Objective' })} *</Label>
+          <Label className="block mb-2">{adObjectiveLabel} *</Label>
           <RadioGroup 
             value={details.adObjective} 
             onValueChange={(value: string) => handleRadioChange('adObjective', value)}
@@ -165,24 +186,24 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
           </RadioGroup>
         </div>
         <div>
-          <Label htmlFor="keyMessage">{t('adStudio.keyMessageLabel', { defaultValue: 'Key Message' })} *</Label>
-          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e) => handleInputChange('keyMessage', e)} required placeholder={t('adStudio.keyMessagePlaceholder', { defaultValue: 'What is the single most important message to convey?' })} />
+          <Label htmlFor="keyMessage">{keyMessageLabel} *</Label>
+          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e) => handleInputChange('keyMessage', e)} required placeholder={t(getTranslationKey('keyMessagePlaceholder'), { defaultValue: 'What is the single most important message to convey?' })} />
         </div>
         <div>
-          <Label htmlFor="callToAction">{t('adStudio.callToActionLabel', { defaultValue: 'Call To Action (Optional)' })}</Label>
-          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e) => handleInputChange('callToAction', e)} placeholder={t('adStudio.callToActionPlaceholder', { defaultValue: 'e.g., Shop Now, Learn More, Sign Up' })} />
+          <Label htmlFor="callToAction">{callToActionLabel}</Label>
+          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e) => handleInputChange('callToAction', e)} placeholder={t(getTranslationKey('callToActionPlaceholder'), { defaultValue: 'e.g., Shop Now, Learn More, Sign Up' })} />
         </div>
       </div>
 
       {/* Section 2: Platform & Variation Strategy */}
       <div className="space-y-6 p-6 border rounded-lg dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{t('adStudio.section2Title', { defaultValue: '2. Platform & Variation Strategy' })}</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{section2Title}</h2>
         
         {/* Target Platforms Group */}
         <div> 
           <Label className="block mb-3 text-base">
-            {t('adStudio.targetPlatformsLabel', { defaultValue: 'Target Platforms' })} * 
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({t('adStudio.selectAtLeastOne', { defaultValue: 'Select at least one' })})</span>
+            {targetPlatformsLabel} * 
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({selectAtLeastOne})</span>
           </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
             {PLATFORM_OPTIONS_KEYS.map(opt => (
@@ -204,8 +225,8 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
         {/* Elements to Vary Group */}
         <div> 
           <Label className="block mb-3 text-base">
-            {t('adStudio.elementsToVaryLabel', { defaultValue: 'Elements to Vary' })} * 
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({t('adStudio.selectAtLeastOne', { defaultValue: 'Select at least one' })})</span>
+            {elementsToVaryLabel} * 
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({selectAtLeastOne})</span>
           </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
             {ELEMENTS_TO_VARY_OPTIONS_KEYS.map(opt => (
@@ -227,7 +248,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
         {/* Number of Variations Group */}
         <div> 
           <Label htmlFor="numVariations" className="block mb-1 text-base">
-            {t('adStudio.numVariationsLabel', { defaultValue: 'Number of Variations:' })} 
+            {numVariationsLabel} 
             <span className="font-bold text-blue-600 dark:text-blue-400">{details.numVariations}</span>
           </Label>
           <Slider
@@ -245,9 +266,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
       {/* Submit Button */}
       <div className="flex justify-end">
         <Button type="submit" disabled={isLoading}>
-          {isLoading 
-            ? t('adStudio.generatingButton', { defaultValue: 'Generating...' }) 
-            : t('adStudio.generateButton', { defaultValue: 'Generate Ad Variations' })}
+          {isLoading ? generatingButton : generateButton}
         </Button>
       </div>
     </form>

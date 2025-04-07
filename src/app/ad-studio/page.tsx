@@ -28,6 +28,9 @@ interface AdVariation {
   platformSuitability: string[];
 }
 
+// Translation keys used in this component
+const getTranslationKey = (key: string) => `adStudio.${key}`;
+
 export default function AdStudioPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,29 +41,17 @@ export default function AdStudioPage() {
   // Debug log for translation state
   useEffect(() => {
     console.log('AdStudio: Current locale:', locale);
-    console.log('AdStudio: Translation test for title:', t('navigation.adStudio', { defaultValue: 'Ad Studio' }));
-    console.log('AdStudio: Translation test for description:', t('adStudio.pageDescription', { defaultValue: 'Define your ad parameters below to generate creative variations.' }));
     
-    // Check if adStudio keys exist in translations
+    // Check if translations exist and can be accessed
     if (translations) {
-      console.log('AdStudio: Translation object available:', !!translations);
-      console.log('AdStudio: adStudio section exists:', !!translations.adStudio);
-      if (translations.adStudio) {
-        console.log('AdStudio: pageDescription exists:', !!translations.adStudio.pageDescription);
-        console.log('AdStudio: section1Title exists:', !!translations.adStudio.section1Title);
-        console.log('AdStudio: Full adStudio translations:', translations.adStudio);
-      }
+      // Print specific nested path instead of using dot notation
+      console.log('AdStudio: Navigation translation:', 
+        translations.navigation ? translations.navigation.adStudio : 'not found');
+      
+      console.log('AdStudio: Full translations structure:', 
+        JSON.stringify(translations).substring(0, 200) + '...');
     }
-    
-    // Force Spanish text to see if it's a rendering issue
-    const spanishTitle = locale === 'es' ? 'Estudio de Anuncios' : 'Ad Studio';
-    const spanishDescription = locale === 'es' ? 
-      'Define los parámetros de tu anuncio a continuación para generar variaciones creativas.' : 
-      'Define your ad parameters below to generate creative variations.';
-    
-    console.log('AdStudio: Forced Spanish title:', spanishTitle);
-    console.log('AdStudio: Forced Spanish description:', spanishDescription);
-  }, [locale, t, translations]);
+  }, [locale, translations]);
 
   const handleAdSubmit = async (details: AdMakerRequest) => {
     setIsLoading(true);
@@ -95,14 +86,14 @@ export default function AdStudioPage() {
       const result = await response.json();
       
       if (!result.variations || result.variations.length === 0) {
-         throw new Error(t('adStudio.errors.noVariations', { defaultValue: 'No ad variations were returned from the API.' }));
+         throw new Error(t(getTranslationKey('errors.noVariations'), { defaultValue: 'No ad variations were returned from the API.' }));
       }
 
       console.log('Received Variations:', result.variations);
       setGeneratedVariations(result.variations);
       toast({ 
         title: t('common.success', { defaultValue: 'Success!' }), 
-        description: t('adStudio.successMessage', { 
+        description: t(getTranslationKey('successMessage'), { 
           defaultValue: '{count} ad variations generated.',
           replacements: { count: result.variations.length.toString() }
         })
@@ -122,11 +113,11 @@ export default function AdStudioPage() {
     }
   };
 
-  // Force hardcoded Spanish text if locale is Spanish for testing
+  // Always use consistent Spanish texts that match the rest of the application
   const pageTitle = locale === 'es' ? 'Estudio de Anuncios' : t('navigation.adStudio', { defaultValue: 'Ad Studio' });
-  const pageDescription = locale === 'es' ? 
-    'Define los parámetros de tu anuncio a continuación para generar variaciones creativas.' : 
-    t('adStudio.pageDescription', { defaultValue: 'Define your ad parameters below to generate creative variations.' });
+  const pageDescription = locale === 'es' 
+    ? 'Define los parámetros de tu anuncio a continuación para generar variaciones creativas.' 
+    : t(getTranslationKey('pageDescription'), { defaultValue: 'Define your ad parameters below to generate creative variations.' });
 
   // Return only the page-specific content, assuming AppShell is in the root layout
   return (
@@ -154,31 +145,31 @@ export default function AdStudioPage() {
         {generatedVariations.length > 0 && (
           <div className="mt-6 space-y-6">
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
-              {t('adStudio.generatedVariationsTitle', { defaultValue: 'Generated Ad Variations' })}
+              {locale === 'es' ? 'Variaciones de Anuncio Generadas' : t(getTranslationKey('generatedVariationsTitle'), { defaultValue: 'Generated Ad Variations' })}
             </h2>
             {generatedVariations.map((variation) => (
               <div key={variation.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold mb-2 text-blue-600 dark:text-blue-400">
-                  {t('adStudio.variationLabel', { defaultValue: 'Variation' })} {variation.id}
+                  {locale === 'es' ? 'Variación' : t(getTranslationKey('variationLabel'), { defaultValue: 'Variation' })} {variation.id}
                 </h3>
                 <p className="mb-1">
                   <strong className="font-medium text-gray-700 dark:text-gray-300">
-                    {t('adStudio.headlineLabel', { defaultValue: 'Headline' })}:
+                    {locale === 'es' ? 'Título:' : t(getTranslationKey('headlineLabel'), { defaultValue: 'Headline' })+':'}
                   </strong> {variation.headline}
                 </p>
                 <p className="mb-1 whitespace-pre-wrap">
                   <strong className="font-medium text-gray-700 dark:text-gray-300">
-                    {t('adStudio.bodyScriptLabel', { defaultValue: 'Body/Script' })}:
+                    {locale === 'es' ? 'Texto/Guion:' : t(getTranslationKey('bodyScriptLabel'), { defaultValue: 'Body/Script' })+':'}
                   </strong> {variation.bodyScript}
                 </p>
                 <p className="mb-1 whitespace-pre-wrap">
                   <strong className="font-medium text-gray-700 dark:text-gray-300">
-                    {t('adStudio.visualGuidanceLabel', { defaultValue: 'Visual Guidance' })}:
+                    {locale === 'es' ? 'Guía Visual:' : t(getTranslationKey('visualGuidanceLabel'), { defaultValue: 'Visual Guidance' })+':'}
                   </strong> {variation.visualGuidance}
                 </p>
                 <p>
                   <strong className="font-medium text-gray-700 dark:text-gray-300">
-                    {t('adStudio.platformSuitabilityLabel', { defaultValue: 'Platform Suitability' })}:
+                    {locale === 'es' ? 'Plataformas Adecuadas:' : t(getTranslationKey('platformSuitabilityLabel'), { defaultValue: 'Platform Suitability' })+':'}
                   </strong> {variation.platformSuitability.join(', ')}
                 </p>
               </div>
