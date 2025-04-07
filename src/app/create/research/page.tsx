@@ -2629,9 +2629,7 @@ If you'd like complete research, please try again later when our research servic
               
               <div className="mb-6 text-center">
                 <p className="text-gray-600 mb-2">
-                  {statusMessage || (language === 'es' ? 
-                    safeTranslate('researchPage.progress.statusMessages.processing', 'Procesando hallazgos de investigación...') : 
-                    'Analyzing research data...')}
+                  {statusMessage || (language === 'es' ? 'Analizando datos de investigación...' : 'Analyzing research data...')}
                 </p>
                 <p className="text-gray-500 text-sm italic">
                   {language === 'es' 
@@ -3122,14 +3120,7 @@ If you'd like complete research, please try again later when our research servic
     setIsLoading(true);
     setIsGenerating(true);
     setGenerationProgress(0);
-    
-    // Get the language setting
-    const language = sessionStorage.getItem('language') || 'en';
-    
-    // Set initial status message with proper language
-    setStatusMessage(language === 'es' ? 
-      safeTranslate('researchPage.progress.preparing', 'Preparando solicitud de investigación...') : 
-      'Preparing research request...');
+    setStatusMessage('Preparing research request...');
     
     // Create abort controller for cancellation
     const abortController = new AbortController();
@@ -3169,28 +3160,16 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       
       // Update status message periodically with informative messages
       let messageIndex = 0;
-      
-      // Use translated status messages based on the current language
-      const statusMessages = language === 'es' ? [
-        safeTranslate('researchPage.progress.statusMessages.researchingLatest', 'Investigando información más reciente...'),
-        safeTranslate('researchPage.progress.statusMessages.analyzingRelevant', 'Analizando datos relevantes...'),
-        safeTranslate('researchPage.progress.statusMessages.gatheringData', 'Recopilando datos de fuentes...'),
-        safeTranslate('researchPage.progress.statusMessages.findingRecommendations', 'Encontrando recomendaciones de expertos...'),
-        safeTranslate('researchPage.progress.statusMessages.processing', 'Procesando hallazgos de investigación...'),
-        safeTranslate('researchPage.progress.statusMessages.compilingPractices', 'Compilando mejores prácticas...'),
-        safeTranslate('researchPage.progress.statusMessages.exploringTrends', 'Explorando tendencias actuales...'),
-        safeTranslate('researchPage.progress.statusMessages.identifyingInsights', 'Identificando hallazgos clave...'),
-        safeTranslate('researchPage.progress.statusMessages.finalizingDocument', 'Finalizando documento de investigación...')
-      ] : [
-        'Researching latest information...',
-        'Analyzing relevant data...',
-        'Gathering data from sources...',
-        'Finding expert recommendations...',
+      const statusMessages = [
+        'Initiating deep research...',
+        'Analyzing topic details...',
+        'Gathering latest information...',
+        'Accessing research data sources...',
         'Processing research findings...',
-        'Compiling best practices...',
-        'Exploring current trends...',
-        'Identifying key insights...',
-        'Finalizing research document...'
+        'Compiling comprehensive insights...',
+        'Structuring research data...',
+        'Validating research accuracy...',
+        'Finalizing research content...'
       ];
       
       // Progress interval logic
@@ -3213,6 +3192,8 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       
       // Call the language detection function for research generation
       // Use the same language as the UI to ensure research is in the correct language
+      const language = sessionStorage.getItem('language') || 'en';
+      
       try {
         // Make the API request
         console.log(`Making research API request for language: ${language}`);
@@ -3268,10 +3249,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         
         // Complete progress
         setGenerationProgress(100);
-        // Use translated completion message
-        setStatusMessage(language === 'es' ? 
-          safeTranslate('researchPage.progress.complete', '¡Investigación completa!') : 
-          'Research complete!');
+        setStatusMessage('Research complete!');
         
         // Explicitly do not advance step automatically - let the user control the flow
         // This prevents skipping the Generate Research step

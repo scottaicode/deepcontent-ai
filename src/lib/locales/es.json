@@ -6,73 +6,13 @@
   "navigation": {
     "home": "Inicio",
     "create": "Crear",
-    "adStudio": "Estudio de Anuncios",
+    "adStudio": "Ad Studio",
     "dashboard": "Panel",
     "imageEditor": "Editor de Imágenes",
-    "textToImage": "Texto a Imagen",
+    "textToImage": "Texto-a-Imagen",
     "settings": "Configuración",
     "logout": "Cerrar Sesión",
     "login": "Iniciar Sesión",
     "signup": "Registrarse"
-  },
-  "adStudio": {
-    "section1Title": "1. Definición Central del Anuncio",
-    "projectNameLabel": "Nombre del Proyecto",
-    "projectNamePlaceholder": "ej., Campaña Skincare Primavera",
-    "productDescriptionLabel": "Descripción Producto/Servicio",
-    "productDescriptionPlaceholder": "Describe el producto/servicio anunciado...",
-    "targetAudienceLabel": "Audiencia Objetivo",
-    "targetAudiencePlaceholder": "ej., Mujeres 30-50 interesadas en anti-aging skincare",
-    "adObjectiveLabel": "Objetivo Principal del Anuncio",
-    "keyMessageLabel": "Mensaje Clave",
-    "keyMessagePlaceholder": "¿Cuál es el mensaje más importante a transmitir?",
-    "callToActionLabel": "Llamada a la Acción (Opcional)",
-    "callToActionPlaceholder": "ej., Compra Ahora, Aprende Más, Regístrate",
-    "section2Title": "2. Estrategia de Plataforma y Variación",
-    "targetPlatformsLabel": "Plataformas Objetivo",
-    "elementsToVaryLabel": "Elementos a Variar",
-    "selectAtLeastOne": "Selecciona al menos uno",
-    "numVariationsLabel": "Número de Variaciones:",
-    "generateButton": "Generar Variaciones de Anuncio",
-    "generatingButton": "Generando...",
-    "pageDescription": "Define los parámetros de tu anuncio a continuación para generar variaciones creativas.",
-    "generatedVariationsTitle": "Variaciones de Anuncio Generadas",
-    "variationLabel": "Variación",
-    "headlineLabel": "Título",
-    "bodyScriptLabel": "Texto/Guion",
-    "visualGuidanceLabel": "Guía Visual",
-    "platformSuitabilityLabel": "Plataformas Adecuadas",
-    "successMessage": "{count} variaciones de anuncio generadas.",
-    "errors": {
-      "noVariations": "No se devolvieron variaciones de anuncio desde la API."
-    },
-    "validation": {
-      "fillRequired": "Por favor, completa todos los campos obligatorios y selecciona al menos una plataforma y un elemento a variar."
-    },
-    "platform": {
-      "facebookFeed": "Facebook Feed",
-      "instagramFeed": "Instagram Feed",
-      "instagramReels": "Instagram Reels",
-      "instagramStories": "Historias de Instagram",
-      "tiktok": "TikTok",
-      "youtubeShorts": "YouTube Shorts",
-      "linkedinFeed": "LinkedIn Feed",
-      "googleSearch": "Anuncios Búsqueda Google"
-    },
-    "objective": {
-      "brandAwareness": "Notoriedad de Marca",
-      "leadGeneration": "Generación de Leads",
-      "salesConversion": "Ventas/Conversión",
-      "engagement": "Interacción",
-      "websiteTraffic": "Tráfico Web"
-    },
-    "vary": {
-      "headline": "Título/Gancho",
-      "bodyCopy": "Texto Principal/Guion",
-      "visualAngle": "Ángulo/Estilo Visual",
-      "callToAction": "Llamada a la Acción (CTA)",
-      "offer": "Oferta/Propuesta de Valor",
-      "toneOfVoice": "Tono de Voz"
-    }
   }
 } 

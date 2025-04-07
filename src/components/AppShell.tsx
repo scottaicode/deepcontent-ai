@@ -22,7 +22,7 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
   const navLinks = [
     { name: t('navigation.home', { defaultValue: 'Home' }), href: '/' },
     { name: t('navigation.create', { defaultValue: 'Create' }), href: '/create' },
-    { name: t('navigation.adStudio'), href: '/ad-studio' },
+    { name: t('navigation.adStudio', { defaultValue: 'Ad Studio' }), href: '/ad-studio' },
     { name: t('navigation.dashboard', { defaultValue: 'Dashboard' }), href: '/dashboard' },
     { name: t('navigation.imageEditor', { defaultValue: 'Image Editor' }), href: '/dashboard/image-editor' },
     { name: t('navigation.textToImage', { defaultValue: 'Text-to-Image' }), href: '/dashboard/text-to-image' },

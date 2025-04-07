@@ -62,7 +62,7 @@ type LanguageContextType = {
   locale: string;
   setLocale: (locale: string, withReload?: boolean) => void;
   translations: TranslationsType;
-  t: (path: string, options?: { defaultValue?: string; replacements?: Record<string, string> }) => string;
+  t: (path: string, replacements?: Record<string, string>) => string;
 };
 
 // Create the context with a default value
@@ -70,29 +70,25 @@ const LanguageContext = createContext<LanguageContextType>({
   locale: 'en',
   setLocale: () => {},
   translations: translations.en,
-  t: (path, options) => options?.defaultValue || path,
+  t: (path) => path,
 });
 
 // Provider component
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Initialize state directly with stored language on client
-  const [locale, setLocaleState] = useState<string>(() => getStoredLanguage()); 
+  const [locale, setLocaleState] = useState<string>('en'); // Default to en, will be updated in useEffect
   const [mounted, setMounted] = useState(false);
 
-  // Effect to handle mounting and hydration consistency
+  // Load preferred language on mount
   useEffect(() => {
     setMounted(true);
-    // Re-sync on mount in case initial value was different or for server/client consistency
-    const currentStoredLocale = getStoredLanguage();
-    if (locale !== currentStoredLocale) {
-      console.log(`[LanguageProvider] Hydration mismatch or update needed. Syncing locale to: ${currentStoredLocale}`);
-      setLocaleState(currentStoredLocale);
-    }
+    const initialLocale = getStoredLanguage();
+    console.log('[LanguageProvider] Initial locale set to:', initialLocale);
+    setLocaleState(initialLocale);
     
-    // Set HTML lang attribute (ensure it matches state)
+    // Set HTML lang attribute
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = currentStoredLocale; // Use the definite current value
-      console.log('[LanguageProvider] Set document.documentElement.lang on mount:', currentStoredLocale);
+      document.documentElement.lang = initialLocale;
+      console.log('[LanguageProvider] Set document.documentElement.lang to:', initialLocale);
     }
     
     // Listen for storage events to sync language across tabs
@@ -101,16 +97,12 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
         const newLocale = getStoredLanguage();
         console.log('[LanguageProvider] Language changed in storage:', newLocale);
         setLocaleState(newLocale);
-        // Also update lang attribute on storage change
-        if (typeof document !== 'undefined') {
-           document.documentElement.lang = newLocale;
-        }
       }
     };
     
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [locale]); // Add locale as dependency to re-run if needed, though primary sync is via storage event
+  }, []);
 
   // Set locale and save to localStorage with reload
   const setLocale = (newLocale: string, withReload: boolean = false) => {
@@ -158,43 +150,30 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Translation function - memoize to prevent recreation on each render
   const t = useMemo(() => {
-    return (path: string, options?: { defaultValue?: string; replacements?: Record<string, string> }): string => {
+    return (path: string, replacements?: Record<string, string>): string => {
       console.log(`[LanguageProvider] Translating key: ${path}, Current locale: ${locale}`);
       
       const keys = path.split('.');
       let value: any = translations[locale] || translations.en;
-      let found = true; // Flag to track if lookup was successful
       
       // Navigate through the nested object
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        if (value && typeof value === 'object' && key in value) {
-           value = value[key];
-           console.log(`[LanguageProvider] 	Navigated to key '${key}', current value type: ${typeof value}`);
-        } else {
-          console.warn(`[LanguageProvider] 	Key '${key}' not found at step ${i+1} for path: ${path}`);
-          found = false;
-          break; // Stop searching if a key is not found
+      for (const key of keys) {
+        value = value?.[key];
+        if (value === undefined) {
+          console.warn(`[LanguageProvider] Translation key not found: ${path}`);
+          return path; // Fallback to the key if translation not found
         }
       }
       
-      // If lookup failed OR the final value is not a string/number
-      if (!found || (typeof value !== 'string' && typeof value !== 'number')) { 
-        console.warn(`[LanguageProvider] Translation failed or result is not a string for key: ${path}. Using fallback.`);
-        // Use defaultValue if provided, otherwise fallback to key
-        return options?.defaultValue || path; 
-      }
-      
       // Apply replacements if any
-      const finalValue = String(value); // Convert potential numbers to string
-      if (options?.replacements) {
-        return Object.entries(options.replacements).reduce(
+      if (replacements && typeof value === 'string') {
+        return Object.entries(replacements).reduce(
           (text, [key, val]) => text.replace(new RegExp(`{{${key}}}`, 'g'), val),
-          finalValue
+          value
         );
       }
       
-      return finalValue;
+      return value;
     };
   }, [locale]);
 
@@ -206,17 +185,15 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     t
   }), [locale, t]);
 
-  // Client-side rendering check - use initial state value before mount
+  // Client-side rendering
   if (!mounted) {
-    // Provide a value consistent with the initial state calculation
-    const initialLocale = getStoredLanguage(); // Recalculate or use a shared initial value
     return (
       <LanguageContext.Provider 
         value={{ 
-          locale: initialLocale, 
+          locale: 'en', 
           setLocale, 
-          translations: translations[initialLocale] || translations.en, 
-          t: (path, options) => options?.defaultValue || path // Keep fallback consistent
+          translations: translations.en, 
+          t: (path) => path
         }}
       >
         {children}

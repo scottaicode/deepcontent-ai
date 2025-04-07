@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import { useLanguage } from '@/app/components/LanguageProvider';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -28,120 +28,47 @@ interface AdStudioFormProps {
   isLoading: boolean;
 }
 
-// --- Option Definitions (Use translation keys) ---
-const PLATFORM_OPTIONS_KEYS = [
-  { id: 'facebook_feed', key: 'adStudio.platform.facebookFeed' },
-  { id: 'instagram_feed', key: 'adStudio.platform.instagramFeed' },
-  { id: 'instagram_reels', key: 'adStudio.platform.instagramReels' },
-  { id: 'instagram_stories', key: 'adStudio.platform.instagramStories' },
-  { id: 'tiktok', key: 'adStudio.platform.tiktok' },
-  { id: 'youtube_shorts', key: 'adStudio.platform.youtubeShorts' },
-  { id: 'linkedin_feed', key: 'adStudio.platform.linkedinFeed' },
-  { id: 'google_search', key: 'adStudio.platform.googleSearch' }, 
+// Available options
+const PLATFORM_OPTIONS = [
+  { id: 'facebook_feed', label: 'Facebook Feed' },
+  { id: 'instagram_feed', label: 'Instagram Feed' },
+  { id: 'instagram_reels', label: 'Instagram Reels' },
+  { id: 'instagram_stories', label: 'Instagram Stories' },
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'youtube_shorts', label: 'YouTube Shorts' },
+  { id: 'linkedin_feed', label: 'LinkedIn Feed' },
+  { id: 'google_search', label: 'Google Search Ads' }, // Added Google
 ];
 
-const OBJECTIVE_OPTIONS_KEYS = [
-  { id: 'brand_awareness', key: 'adStudio.objective.brandAwareness' },
-  { id: 'lead_generation', key: 'adStudio.objective.leadGeneration' },
-  { id: 'sales_conversion', key: 'adStudio.objective.salesConversion' },
-  { id: 'engagement', key: 'adStudio.objective.engagement' },
-  { id: 'website_traffic', key: 'adStudio.objective.websiteTraffic' },
+const OBJECTIVE_OPTIONS = [
+  { id: 'brand_awareness', label: 'Brand Awareness' },
+  { id: 'lead_generation', label: 'Lead Generation' },
+  { id: 'sales_conversion', label: 'Sales/Conversion' },
+  { id: 'engagement', label: 'Engagement' },
+  { id: 'website_traffic', label: 'Website Traffic' },
 ];
 
-const ELEMENTS_TO_VARY_OPTIONS_KEYS = [
-  { id: 'headline', key: 'adStudio.vary.headline' },
-  { id: 'body_copy', key: 'adStudio.vary.bodyCopy' },
-  { id: 'visual_angle', key: 'adStudio.vary.visualAngle' },
-  { id: 'call_to_action', key: 'adStudio.vary.callToAction' },
-  { id: 'offer', key: 'adStudio.vary.offer' },
-  { id: 'tone_of_voice', key: 'adStudio.vary.toneOfVoice' },
+const ELEMENTS_TO_VARY_OPTIONS = [
+  { id: 'headline', label: 'Headline/Hook' },
+  { id: 'body_copy', label: 'Body Copy/Script' },
+  { id: 'visual_angle', label: 'Visual Angle/Style' },
+  { id: 'call_to_action', label: 'Call To Action (CTA)' },
+  { id: 'offer', label: 'Offer/Value Proposition' },
+  { id: 'tone_of_voice', label: 'Tone of Voice' },
 ];
-// --- End Option Definitions ---
 
 export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading }) => {
-  const { t, locale, translations } = useLanguage();
-  
-  // Helper for translations to ensure consistent key paths
-  const getTranslationKey = (key: string) => `adStudio.${key}`;
-  
-  // Helper for Spanish fallbacks when translations fail
-  const getLocalizedText = (key: string, defaultValue: string, spanishValue: string) => {
-    return locale === 'es' ? spanishValue : t(getTranslationKey(key), { defaultValue });
-  };
-  
-  // Spanish translations for placeholders
-  const projectNamePlaceholder = locale === 'es' 
-    ? 'ej., Campaña Skincare Primavera' 
-    : t(getTranslationKey('projectNamePlaceholder'), { defaultValue: 'e.g., Spring Skincare Campaign' });
-  
-  const productDescriptionPlaceholder = locale === 'es' 
-    ? 'Describe el producto/servicio anunciado...' 
-    : t(getTranslationKey('productDescriptionPlaceholder'), { defaultValue: 'Describe the product/service being advertised...' });
-  
-  const targetAudiencePlaceholder = locale === 'es' 
-    ? 'ej., Mujeres 30-50 interesadas en anti-aging skincare' 
-    : t(getTranslationKey('targetAudiencePlaceholder'), { defaultValue: 'e.g., Women aged 30-50 interested in anti-aging skincare' });
-  
-  const keyMessagePlaceholder = locale === 'es' 
-    ? '¿Cuál es el mensaje más importante a transmitir?' 
-    : t(getTranslationKey('keyMessagePlaceholder'), { defaultValue: 'What is the single most important message to convey?' });
-  
-  const callToActionPlaceholder = locale === 'es' 
-    ? 'ej., Compra Ahora, Aprende Más, Regístrate' 
-    : t(getTranslationKey('callToActionPlaceholder'), { defaultValue: 'e.g., Shop Now, Learn More, Sign Up' });
-
-  // Spanish translations for radio buttons
-  const objectiveLabels = {
-    brand_awareness: locale === 'es' ? 'Notoriedad de marca' : 'Brand Awareness',
-    lead_generation: locale === 'es' ? 'Generación de leads' : 'Lead Generation',
-    sales_conversion: locale === 'es' ? 'Ventas/conversión' : 'Sales Conversion',
-    engagement: locale === 'es' ? 'Interacción' : 'Engagement',
-    website_traffic: locale === 'es' ? 'Tráfico web' : 'Website Traffic',
-  };
-
-  // Spanish translations for platforms
-  const platformLabels = {
-    facebook_feed: locale === 'es' ? 'Facebook Feed' : 'Facebook Feed',
-    instagram_feed: locale === 'es' ? 'Instagram Feed' : 'Instagram Feed',
-    instagram_reels: locale === 'es' ? 'Instagram Reels' : 'Instagram Reels',
-    instagram_stories: locale === 'es' ? 'Historias de Instagram' : 'Instagram Stories',
-    tiktok: locale === 'es' ? 'TikTok' : 'TikTok',
-    youtube_shorts: locale === 'es' ? 'YouTube Shorts' : 'YouTube Shorts',
-    linkedin_feed: locale === 'es' ? 'LinkedIn Feed' : 'LinkedIn Feed',
-    google_search: locale === 'es' ? 'Búsqueda de Google' : 'Google Search',
-  };
-
-  // Spanish translations for elements to vary
-  const elementsLabels = {
-    headline: locale === 'es' ? 'Título' : 'Headline',
-    body_copy: locale === 'es' ? 'Texto principal' : 'Body Copy',
-    visual_angle: locale === 'es' ? 'Ángulo visual' : 'Visual Angle',
-    call_to_action: locale === 'es' ? 'Llamada a la acción' : 'Call to Action',
-    offer: locale === 'es' ? 'Oferta' : 'Offer',
-    tone_of_voice: locale === 'es' ? 'Tono de voz' : 'Tone of Voice',
-  };
-  
-  // Debug logging for translations
-  console.log('AdStudioForm: Current locale:', locale);
-  
-  // Log translation object structure
-  if (translations) {
-    console.log('AdStudioForm: Navigation exists:', !!translations.navigation);
-    console.log('AdStudioForm: Navigation.adStudio:', 
-      translations.navigation ? translations.navigation.adStudio : 'not found');
-    console.log('AdStudioForm: adStudio section exists:', !!translations.adStudio);
-  }
-  
+  const { t } = useTranslation(); // Assuming translation hook setup
   const [details, setDetails] = useState<AdMakerRequest>({
     projectName: '',
     productDescription: '',
     targetAudience: '',
-    adObjective: OBJECTIVE_OPTIONS_KEYS[0].id, // Default objective uses ID
+    adObjective: OBJECTIVE_OPTIONS[0].id, // Default objective
     keyMessage: '',
-    platforms: [PLATFORM_OPTIONS_KEYS[1].id, PLATFORM_OPTIONS_KEYS[2].id], // Default platforms use IDs
+    platforms: [PLATFORM_OPTIONS[1].id, PLATFORM_OPTIONS[2].id], // Default platforms
     callToAction: '',
     numVariations: 3,
-    elementsToVary: [ELEMENTS_TO_VARY_OPTIONS_KEYS[0].id], // Default element uses ID
+    elementsToVary: [ELEMENTS_TO_VARY_OPTIONS[0].id], // Default element
   });
 
   // Use specific event types for inputs/textareas
@@ -175,96 +102,68 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     // TODO: Add more robust validation
-    const validationMessage = locale === 'es' 
-      ? 'Por favor, completa todos los campos obligatorios y selecciona al menos una plataforma y un elemento a variar.' 
-      : 'Please fill in all required fields and select at least one platform and element to vary.';
-      
     if (!details.projectName || !details.productDescription || !details.targetAudience || details.platforms.length === 0 || details.elementsToVary.length === 0) {
-      alert(validationMessage);
+      alert('Please fill in all required fields and select at least one platform and element to vary.');
       return;
     }
     onSubmit(details);
   };
 
-  // Helper to generate defaultValue from key
-  const generateDefaultValue = (key: string) => key.split('.').pop()?.replace(/([A-Z])/g, ' $1').trim() || key;
-  
-  // Add Spanish hardcoded fallbacks for key titles/labels
-  const section1Title = getLocalizedText('section1Title', '1. Core Ad Definition', '1. Definición central del anuncio');
-  const section2Title = getLocalizedText('section2Title', '2. Platform & Variation Strategy', '2. Estrategia de plataforma y variación');
-  const projectNameLabel = getLocalizedText('projectNameLabel', 'Project Name', 'Nombre del proyecto');
-  const productDescriptionLabel = getLocalizedText('productDescriptionLabel', 'Product/Service Description', 'Descripción producto/servicio');
-  const targetAudienceLabel = getLocalizedText('targetAudienceLabel', 'Target Audience', 'Audiencia objetivo');
-  const adObjectiveLabel = getLocalizedText('adObjectiveLabel', 'Primary Ad Objective', 'Objetivo principal del anuncio');
-  const keyMessageLabel = getLocalizedText('keyMessageLabel', 'Key Message', 'Mensaje clave');
-  const callToActionLabel = getLocalizedText('callToActionLabel', 'Call to Action (Optional)', 'Llamada a la acción (Opcional)');
-  const targetPlatformsLabel = getLocalizedText('targetPlatformsLabel', 'Target Platforms', 'Plataformas objetivo');
-  const elementsToVaryLabel = getLocalizedText('elementsToVaryLabel', 'Elements to Vary', 'Elementos a variar');
-  const selectAtLeastOne = getLocalizedText('selectAtLeastOne', 'Select at least one', 'Selecciona al menos uno');
-  const numVariationsLabel = getLocalizedText('numVariationsLabel', 'Number of Variations:', 'Número de variaciones:');
-  const generateButton = getLocalizedText('generateButton', 'Generate Ad Variations', 'Generar variaciones de anuncio');
-  const generatingButton = getLocalizedText('generatingButton', 'Generating...', 'Generando...');
-
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* Section 1: Core Ad Definition */}
       <div className="space-y-4 p-6 border rounded-lg dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{section1Title}</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">1. Core Ad Definition</h2>
         <div>
-          <Label htmlFor="projectName">{projectNameLabel} *</Label>
-          <Input id="projectName" value={details.projectName} onChange={(e) => handleInputChange('projectName', e)} required placeholder={projectNamePlaceholder} />
+          <Label htmlFor="projectName">Project Name *</Label>
+          <Input id="projectName" value={details.projectName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('projectName', e)} required placeholder="e.g., Spring Skincare Campaign" />
         </div>
         <div>
-          <Label htmlFor="productDescription">{productDescriptionLabel} *</Label>
-          <Textarea id="productDescription" value={details.productDescription} onChange={(e) => handleInputChange('productDescription', e)} required placeholder={productDescriptionPlaceholder} />
+          <Label htmlFor="productDescription">Product/Service Description *</Label>
+          <Textarea id="productDescription" value={details.productDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('productDescription', e)} required placeholder="Describe the product/service being advertised..." />
         </div>
         <div>
-          <Label htmlFor="targetAudience">{targetAudienceLabel} *</Label>
-          <Input id="targetAudience" value={details.targetAudience} onChange={(e) => handleInputChange('targetAudience', e)} required placeholder={targetAudiencePlaceholder} />
+          <Label htmlFor="targetAudience">Target Audience *</Label>
+          <Input id="targetAudience" value={details.targetAudience} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('targetAudience', e)} required placeholder="e.g., Women aged 30-50 interested in anti-aging skincare" />
         </div>
         <div className="mb-4"> 
-          <Label className="block mb-2">{adObjectiveLabel} *</Label>
+          <Label className="block mb-2">Primary Ad Objective *</Label>
           <RadioGroup 
             value={details.adObjective} 
             onValueChange={(value: string) => handleRadioChange('adObjective', value)}
             className="flex flex-col space-y-2"
           >
-            {OBJECTIVE_OPTIONS_KEYS.map(opt => (
+            {OBJECTIVE_OPTIONS.map(opt => (
                <div key={opt.id} className="flex items-center space-x-3">
                  <RadioGroupItem 
                    value={opt.id} 
                    id={`objective-${opt.id}`} 
                    className="border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary"
                  />
-                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">
-                   {objectiveLabels[opt.id as keyof typeof objectiveLabels] || t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
-                 </Label>
+                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">{opt.label}</Label>
                </div>
             ))}
           </RadioGroup>
         </div>
         <div>
-          <Label htmlFor="keyMessage">{keyMessageLabel} *</Label>
-          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e) => handleInputChange('keyMessage', e)} required placeholder={keyMessagePlaceholder} />
+          <Label htmlFor="keyMessage">Key Message *</Label>
+          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('keyMessage', e)} required placeholder="What is the single most important message to convey?" />
         </div>
         <div>
-          <Label htmlFor="callToAction">{callToActionLabel}</Label>
-          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e) => handleInputChange('callToAction', e)} placeholder={callToActionPlaceholder} />
+          <Label htmlFor="callToAction">Call To Action (Optional)</Label>
+          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('callToAction', e)} placeholder="e.g., Shop Now, Learn More, Sign Up" />
         </div>
       </div>
 
       {/* Section 2: Platform & Variation Strategy */}
       <div className="space-y-6 p-6 border rounded-lg dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{section2Title}</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">2. Platform & Variation Strategy</h2>
         
         {/* Target Platforms Group */}
         <div> 
-          <Label className="block mb-3 text-base">
-            {targetPlatformsLabel} * 
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({selectAtLeastOne})</span>
-          </Label>
+          <Label className="block mb-3 text-base">Target Platforms * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(Select at least one)</span></Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
-            {PLATFORM_OPTIONS_KEYS.map(opt => (
+            {PLATFORM_OPTIONS.map(opt => (
               <div key={opt.id} className="flex items-center space-x-3">
                 <Checkbox 
                   id={`platform-${opt.id}`}
@@ -273,7 +172,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                   className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <label htmlFor={`platform-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                  {platformLabels[opt.id as keyof typeof platformLabels] || t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
+                  {opt.label}
                 </label>
               </div>
             ))}
@@ -282,12 +181,9 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
         
         {/* Elements to Vary Group */}
         <div> 
-          <Label className="block mb-3 text-base">
-            {elementsToVaryLabel} * 
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({selectAtLeastOne})</span>
-          </Label>
+          <Label className="block mb-3 text-base">Elements to Vary * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(Select at least one)</span></Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
-            {ELEMENTS_TO_VARY_OPTIONS_KEYS.map(opt => (
+            {ELEMENTS_TO_VARY_OPTIONS.map(opt => (
               <div key={opt.id} className="flex items-center space-x-3">
                  <Checkbox 
                   id={`vary-${opt.id}`}
@@ -296,7 +192,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                   className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <label htmlFor={`vary-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                  {elementsLabels[opt.id as keyof typeof elementsLabels] || t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
+                  {opt.label}
                 </label>
               </div>
             ))}
@@ -305,10 +201,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
 
         {/* Number of Variations Group */}
         <div> 
-          <Label htmlFor="numVariations" className="block mb-1 text-base">
-            {numVariationsLabel} 
-            <span className="font-bold text-blue-600 dark:text-blue-400">{details.numVariations}</span>
-          </Label>
+          <Label htmlFor="numVariations" className="block mb-1 text-base">Number of Variations: <span className="font-bold text-blue-600 dark:text-blue-400">{details.numVariations}</span></Label>
           <Slider
             id="numVariations"
             min={1}
@@ -324,7 +217,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
       {/* Submit Button */}
       <div className="flex justify-end">
         <Button type="submit" disabled={isLoading}>
-          {isLoading ? generatingButton : generateButton}
+          {isLoading ? 'Generating...' : 'Generate Ad Variations'}
         </Button>
       </div>
     </form>

@@ -14,54 +14,5 @@
     "logout": "Logout",
     "login": "Login",
     "signup": "Sign Up"
-  },
-  "adStudio": {
-    "section1Title": "1. Core Ad Definition",
-    "projectNameLabel": "Project Name",
-    "projectNamePlaceholder": "e.g., Spring Skincare Campaign",
-    "productDescriptionLabel": "Product/Service Description",
-    "productDescriptionPlaceholder": "Describe the product/service being advertised...",
-    "targetAudienceLabel": "Target Audience",
-    "targetAudiencePlaceholder": "e.g., Women aged 30-50 interested in anti-aging skincare",
-    "adObjectiveLabel": "Primary Ad Objective",
-    "keyMessageLabel": "Key Message",
-    "keyMessagePlaceholder": "What is the single most important message to convey?",
-    "callToActionLabel": "Call To Action (Optional)",
-    "callToActionPlaceholder": "e.g., Shop Now, Learn More, Sign Up",
-    "section2Title": "2. Platform & Variation Strategy",
-    "targetPlatformsLabel": "Target Platforms",
-    "elementsToVaryLabel": "Elements to Vary",
-    "selectAtLeastOne": "Select at least one",
-    "numVariationsLabel": "Number of Variations:",
-    "generateButton": "Generate Ad Variations",
-    "generatingButton": "Generating...",
-    "validation": {
-      "fillRequired": "Please fill in all required fields and select at least one platform and element to vary."
-    },
-    "platform": {
-      "facebookFeed": "Facebook Feed",
-      "instagramFeed": "Instagram Feed",
-      "instagramReels": "Instagram Reels",
-      "instagramStories": "Instagram Stories",
-      "tiktok": "TikTok",
-      "youtubeShorts": "YouTube Shorts",
-      "linkedinFeed": "LinkedIn Feed",
-      "googleSearch": "Google Search Ads"
-    },
-    "objective": {
-      "brandAwareness": "Brand Awareness",
-      "leadGeneration": "Lead Generation",
-      "salesConversion": "Sales/Conversion",
-      "engagement": "Engagement",
-      "websiteTraffic": "Website Traffic"
-    },
-    "vary": {
-      "headline": "Headline/Hook",
-      "bodyCopy": "Body Copy/Script",
-      "visualAngle": "Visual Angle/Style",
-      "callToAction": "Call To Action (CTA)",
-      "offer": "Offer/Value Proposition",
-      "toneOfVoice": "Tone of Voice"
-    }
   }
 } 
