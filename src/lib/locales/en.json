@@ -1,0 +1,18 @@
+{
+  "common": {
+    "appName": "DeepContent",
+    "comingSoon": "Coming Soon"
+  },
+  "navigation": {
+    "home": "Home",
+    "create": "Create",
+    "adStudio": "Ad Studio",
+    "dashboard": "Dashboard",
+    "imageEditor": "Image Editor",
+    "textToImage": "Text-to-Image",
+    "settings": "Settings",
+    "logout": "Logout",
+    "login": "Login",
+    "signup": "Sign Up"
+  }
+} 
