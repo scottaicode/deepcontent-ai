@@ -1423,5 +1423,9 @@
     "synthesis_maker": {
       "description": "Tono perspicaz para conectar ideas entre dominios"
     }
+  },
+  "imageEditor": {
+    "title": "Editor de Imágenes",
+    "subtitle": "Sube una imagen y edítala usando IA. Proporciona instrucciones específicas para modificar tu imagen."
   }
 } 

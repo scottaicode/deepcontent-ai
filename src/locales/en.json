@@ -1273,5 +1273,9 @@
     "errorTitle": "Error",
     "successTitle": "Success!",
     "variationsGenerated": "ad variations generated."
+  },
+  "imageEditor": {
+    "title": "Image Editor",
+    "subtitle": "Upload an image and edit it using AI. Provide specific instructions to modify your image."
   }
 } 
