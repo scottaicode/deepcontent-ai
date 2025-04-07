@@ -85,9 +85,6 @@ export default function AdStudioPage() {
   return (
     <AppShell>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Ad Studio</h1>
-        <p className="mb-4 text-gray-600 dark:text-gray-300">Welcome to the AI Ad Studio. Define your ad parameters below to generate creative variations.</p>
-        
         {/* Render the Form */}
         <AdStudioForm onSubmit={handleAdSubmit} isLoading={isLoading} />
 
