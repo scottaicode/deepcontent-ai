@@ -130,7 +130,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
           <Label htmlFor="adObjective">Primary Ad Objective *</Label>
           <Select value={details.adObjective} onValueChange={(value: string) => handleSelectChange('adObjective', value)} required>
             <SelectTrigger><SelectValue placeholder="Select objective..." /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-50"> 
               {OBJECTIVE_OPTIONS.map(opt => <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>)}
             </SelectContent>
           </Select>
