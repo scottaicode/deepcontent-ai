@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Assuming Shadcn Select
-import { Checkbox, CheckedState } from '@/components/ui/checkbox'; // Import CheckedState for type clarity
-import { Slider } from '@/components/ui/slider'; // Assuming Shadcn Slider
+import { Checkbox, CheckedState } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 // Match the backend interface
 interface AdMakerRequest {
@@ -76,11 +76,6 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
     setDetails(prev => ({ ...prev, [field]: event.target.value }));
   }, []);
 
-  // Handle select changes (value is string)
-  const handleSelectChange = useCallback((field: keyof AdMakerRequest, value: string) => {
-    setDetails(prev => ({ ...prev, [field]: value }));
-  }, []);
-  
   // Handle checkbox changes (value is CheckedState from Radix which is boolean | 'indeterminate')
   const handleMultiSelectChange = useCallback((field: 'platforms' | 'elementsToVary', itemId: string, checked: CheckedState) => { 
     const isChecked = checked === true; // Treat indeterminate as false for our logic
@@ -97,6 +92,11 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
   // Handle slider changes (value is number[])
   const handleSliderChange = useCallback((field: keyof AdMakerRequest, value: number[]) => {
       setDetails(prev => ({ ...prev, [field]: value[0] }));
+  }, []);
+
+  // Renamed handleSelectChange to handleRadioChange for clarity
+  const handleRadioChange = useCallback((field: keyof AdMakerRequest, value: string) => {
+    setDetails(prev => ({ ...prev, [field]: value }));
   }, []);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -126,14 +126,20 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
           <Label htmlFor="targetAudience">Target Audience *</Label>
           <Input id="targetAudience" value={details.targetAudience} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('targetAudience', e)} required placeholder="e.g., Women aged 30-50 interested in anti-aging skincare" />
         </div>
-        <div className="mb-4 z-10">
-          <Label htmlFor="adObjective">Primary Ad Objective *</Label>
-          <Select value={details.adObjective} onValueChange={(value: string) => handleSelectChange('adObjective', value)} required>
-            <SelectTrigger><SelectValue placeholder="Select objective..." /></SelectTrigger>
-            <SelectContent className="z-50"> 
-              {OBJECTIVE_OPTIONS.map(opt => <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="mb-4"> 
+          <Label className="block mb-2">Primary Ad Objective *</Label>
+          <RadioGroup 
+            value={details.adObjective} 
+            onValueChange={(value: string) => handleRadioChange('adObjective', value)}
+            className="flex flex-col space-y-2"
+          >
+            {OBJECTIVE_OPTIONS.map(opt => (
+               <div key={opt.id} className="flex items-center space-x-3">
+                 <RadioGroupItem value={opt.id} id={`objective-${opt.id}`} />
+                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">{opt.label}</Label>
+               </div>
+            ))}
+          </RadioGroup>
         </div>
         <div>
           <Label htmlFor="keyMessage">Key Message *</Label>
