@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import AppShell from '@/components/AppShell';
-import { AdStudioForm } from '@/components/AdStudio/AdStudioForm';
-import { useToast } from '@/lib/hooks/useToast';
+// Removed AppShell import as it's likely provided by a root layout
+// import AppShell from '@/components/AppShell'; 
+import { AdStudioForm } from '@/components/AdStudio/AdStudioForm'; 
+import { useToast } from '@/lib/hooks/useToast'; 
 
 // Interfaces matching backend/form
 interface AdMakerRequest {
@@ -82,38 +83,40 @@ export default function AdStudioPage() {
     }
   };
 
+  // Return only the page-specific content, assuming AppShell is in the root layout
   return (
-    <AppShell>
-      <div className="container mx-auto px-4 py-8">
-        {/* Render the Form */}
-        <AdStudioForm onSubmit={handleAdSubmit} isLoading={isLoading} />
+    <div className="container mx-auto px-4 py-8">
+      {/* Add back a page title */}
+      <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Ad Studio</h1>
+      <p className="mb-8 text-gray-600 dark:text-gray-300">Define your ad parameters below to generate creative variations.</p>
+        
+      {/* Render the Form */}
+      <AdStudioForm onSubmit={handleAdSubmit} isLoading={isLoading} />
 
-        {/* Display Area for Results or Errors */}
-        <div className="mt-8">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <strong className="font-bold">Error: </strong>
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
+      {/* Display Area for Results or Errors */}
+      <div className="mt-8">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
 
-          {generatedVariations.length > 0 && (
-            <div className="mt-6 space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Generated Ad Variations</h2>
-              {generatedVariations.map((variation) => (
-                <div key={variation.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold mb-2 text-blue-600 dark:text-blue-400">Variation {variation.id}</h3>
-                  <p className="mb-1"><strong className="font-medium text-gray-700 dark:text-gray-300">Headline:</strong> {variation.headline}</p>
-                  <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">Body/Script:</strong> {variation.bodyScript}</p>
-                  <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">Visual Guidance:</strong> {variation.visualGuidance}</p>
-                  <p><strong className="font-medium text-gray-700 dark:text-gray-300">Platform Suitability:</strong> {variation.platformSuitability.join(', ')}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+        {generatedVariations.length > 0 && (
+          <div className="mt-6 space-y-6">
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Generated Ad Variations</h2>
+            {generatedVariations.map((variation) => (
+              <div key={variation.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold mb-2 text-blue-600 dark:text-blue-400">Variation {variation.id}</h3>
+                <p className="mb-1"><strong className="font-medium text-gray-700 dark:text-gray-300">Headline:</strong> {variation.headline}</p>
+                <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">Body/Script:</strong> {variation.bodyScript}</p>
+                <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">Visual Guidance:</strong> {variation.visualGuidance}</p>
+                <p><strong className="font-medium text-gray-700 dark:text-gray-300">Platform Suitability:</strong> {variation.platformSuitability.join(', ')}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </AppShell>
+    </div>
   );
 } 
