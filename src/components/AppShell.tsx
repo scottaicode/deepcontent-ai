@@ -28,17 +28,6 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
     { name: t('navigation.textToImage', { defaultValue: 'Text-to-Image' }), href: '/dashboard/text-to-image' },
   ];
 
-  // [DEBUG LOGGING START]
-  console.log('[AppShell Debug] hideHeader prop:', hideHeader);
-  console.log('[AppShell Debug] navLinks before render:', JSON.stringify(navLinks));
-  try {
-    const adStudioTranslation = t('navigation.adStudio', { defaultValue: 'Ad Studio' });
-    console.log('[AppShell Debug] Result of t(\"navigation.adStudio\"):', adStudioTranslation);
-  } catch (e) {
-    console.error('[AppShell Debug] Error during t(\"navigation.adStudio\"):', e);
-  }
-  // [DEBUG LOGGING END]
-
   useEffect(() => {
     // Listen for Firebase index errors
     const originalConsoleError = console.error;
@@ -198,6 +187,9 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
                   const isActive = pathname === link.href || 
                     (link.href !== '/' && pathname?.startsWith(link.href));
                   
+                  // [DEBUG] Add inline style for Ad Studio link to force visibility
+                  const debugStyle = link.href === '/ad-studio' ? { color: 'red', zIndex: 9999, display: 'inline-block' } : {};
+                  
                   return (
                     <Link
                       key={link.name}
@@ -208,6 +200,7 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
                           : 'text-gray-700 hover:bg-gray-100'
                       }`}
                       aria-current={isActive ? 'page' : undefined}
+                      style={debugStyle} // Apply the debug style
                     >
                       {link.name}
                     </Link>
