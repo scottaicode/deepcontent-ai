@@ -62,7 +62,7 @@ type LanguageContextType = {
   locale: string;
   setLocale: (locale: string, withReload?: boolean) => void;
   translations: TranslationsType;
-  t: (path: string, replacements?: Record<string, string>) => string;
+  t: (path: string, options?: { defaultValue?: string; replacements?: Record<string, string> }) => string;
 };
 
 // Create the context with a default value
@@ -70,7 +70,7 @@ const LanguageContext = createContext<LanguageContextType>({
   locale: 'en',
   setLocale: () => {},
   translations: translations.en,
-  t: (path) => path,
+  t: (path, options) => options?.defaultValue || path,
 });
 
 // Provider component
@@ -150,7 +150,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Translation function - memoize to prevent recreation on each render
   const t = useMemo(() => {
-    return (path: string, replacements?: Record<string, string>): string => {
+    return (path: string, options?: { defaultValue?: string; replacements?: Record<string, string> }): string => {
       console.log(`[LanguageProvider] Translating key: ${path}, Current locale: ${locale}`);
       
       const keys = path.split('.');
@@ -161,19 +161,19 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
         value = value?.[key];
         if (value === undefined) {
           console.warn(`[LanguageProvider] Translation key not found: ${path}`);
-          return path; // Fallback to the key if translation not found
+          return options?.defaultValue || path;
         }
       }
       
       // Apply replacements if any
-      if (replacements && typeof value === 'string') {
-        return Object.entries(replacements).reduce(
+      if (options?.replacements && typeof value === 'string') {
+        return Object.entries(options.replacements).reduce(
           (text, [key, val]) => text.replace(new RegExp(`{{${key}}}`, 'g'), val),
           value
         );
       }
       
-      return value;
+      return String(value);
     };
   }, [locale]);
 
@@ -193,7 +193,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
           locale: 'en', 
           setLocale, 
           translations: translations.en, 
-          t: (path) => path
+          t: (path, options) => options?.defaultValue || path
         }}
       >
         {children}
