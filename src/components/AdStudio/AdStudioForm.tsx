@@ -69,6 +69,58 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
     return locale === 'es' ? spanishValue : t(getTranslationKey(key), { defaultValue });
   };
   
+  // Spanish translations for placeholders
+  const projectNamePlaceholder = locale === 'es' 
+    ? 'ej., Campaña Skincare Primavera' 
+    : t(getTranslationKey('projectNamePlaceholder'), { defaultValue: 'e.g., Spring Skincare Campaign' });
+  
+  const productDescriptionPlaceholder = locale === 'es' 
+    ? 'Describe el producto/servicio anunciado...' 
+    : t(getTranslationKey('productDescriptionPlaceholder'), { defaultValue: 'Describe the product/service being advertised...' });
+  
+  const targetAudiencePlaceholder = locale === 'es' 
+    ? 'ej., Mujeres 30-50 interesadas en anti-aging skincare' 
+    : t(getTranslationKey('targetAudiencePlaceholder'), { defaultValue: 'e.g., Women aged 30-50 interested in anti-aging skincare' });
+  
+  const keyMessagePlaceholder = locale === 'es' 
+    ? '¿Cuál es el mensaje más importante a transmitir?' 
+    : t(getTranslationKey('keyMessagePlaceholder'), { defaultValue: 'What is the single most important message to convey?' });
+  
+  const callToActionPlaceholder = locale === 'es' 
+    ? 'ej., Compra Ahora, Aprende Más, Regístrate' 
+    : t(getTranslationKey('callToActionPlaceholder'), { defaultValue: 'e.g., Shop Now, Learn More, Sign Up' });
+
+  // Spanish translations for radio buttons
+  const objectiveLabels = {
+    brand_awareness: locale === 'es' ? 'Notoriedad de Marca' : 'Brand Awareness',
+    lead_generation: locale === 'es' ? 'Generación de Leads' : 'Lead Generation',
+    sales_conversion: locale === 'es' ? 'Ventas/Conversión' : 'Sales Conversion',
+    engagement: locale === 'es' ? 'Interacción' : 'Engagement',
+    website_traffic: locale === 'es' ? 'Tráfico Web' : 'Website Traffic',
+  };
+
+  // Spanish translations for platforms
+  const platformLabels = {
+    facebook_feed: locale === 'es' ? 'Facebook Feed' : 'Facebook Feed',
+    instagram_feed: locale === 'es' ? 'Instagram Feed' : 'Instagram Feed',
+    instagram_reels: locale === 'es' ? 'Instagram Reels' : 'Instagram Reels',
+    instagram_stories: locale === 'es' ? 'Historias de Instagram' : 'Instagram Stories',
+    tiktok: locale === 'es' ? 'TikTok' : 'TikTok',
+    youtube_shorts: locale === 'es' ? 'YouTube Shorts' : 'YouTube Shorts',
+    linkedin_feed: locale === 'es' ? 'LinkedIn Feed' : 'LinkedIn Feed',
+    google_search: locale === 'es' ? 'Búsqueda de Google' : 'Google Search',
+  };
+
+  // Spanish translations for elements to vary
+  const elementsLabels = {
+    headline: locale === 'es' ? 'Título' : 'Headline',
+    body_copy: locale === 'es' ? 'Texto Principal' : 'Body Copy',
+    visual_angle: locale === 'es' ? 'Ángulo Visual' : 'Visual Angle',
+    call_to_action: locale === 'es' ? 'Llamada a la Acción' : 'Call To Action',
+    offer: locale === 'es' ? 'Oferta' : 'Offer',
+    tone_of_voice: locale === 'es' ? 'Tono de Voz' : 'Tone Of Voice',
+  };
+  
   // Debug logging for translations
   console.log('AdStudioForm: Current locale:', locale);
   
@@ -123,8 +175,12 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     // TODO: Add more robust validation
+    const validationMessage = locale === 'es' 
+      ? 'Por favor, completa todos los campos obligatorios y selecciona al menos una plataforma y un elemento a variar.' 
+      : 'Please fill in all required fields and select at least one platform and element to vary.';
+      
     if (!details.projectName || !details.productDescription || !details.targetAudience || details.platforms.length === 0 || details.elementsToVary.length === 0) {
-      alert(t('adStudio.validation.fillRequired', {defaultValue: 'Please fill in all required fields and select at least one platform and element to vary.'}));
+      alert(validationMessage);
       return;
     }
     onSubmit(details);
@@ -132,7 +188,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
 
   // Helper to generate defaultValue from key
   const generateDefaultValue = (key: string) => key.split('.').pop()?.replace(/([A-Z])/g, ' $1').trim() || key;
-
+  
   // Add Spanish hardcoded fallbacks for key titles/labels
   const section1Title = getLocalizedText('section1Title', '1. Core Ad Definition', '1. Definición Central del Anuncio');
   const section2Title = getLocalizedText('section2Title', '2. Platform & Variation Strategy', '2. Estrategia de Plataforma y Variación');
@@ -156,15 +212,15 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
         <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{section1Title}</h2>
         <div>
           <Label htmlFor="projectName">{projectNameLabel} *</Label>
-          <Input id="projectName" value={details.projectName} onChange={(e) => handleInputChange('projectName', e)} required placeholder={t(getTranslationKey('projectNamePlaceholder'), { defaultValue: 'e.g., Spring Skincare Campaign' })} />
+          <Input id="projectName" value={details.projectName} onChange={(e) => handleInputChange('projectName', e)} required placeholder={projectNamePlaceholder} />
         </div>
         <div>
           <Label htmlFor="productDescription">{productDescriptionLabel} *</Label>
-          <Textarea id="productDescription" value={details.productDescription} onChange={(e) => handleInputChange('productDescription', e)} required placeholder={t(getTranslationKey('productDescriptionPlaceholder'), { defaultValue: 'Describe the product/service being advertised...' })} />
+          <Textarea id="productDescription" value={details.productDescription} onChange={(e) => handleInputChange('productDescription', e)} required placeholder={productDescriptionPlaceholder} />
         </div>
         <div>
           <Label htmlFor="targetAudience">{targetAudienceLabel} *</Label>
-          <Input id="targetAudience" value={details.targetAudience} onChange={(e) => handleInputChange('targetAudience', e)} required placeholder={t(getTranslationKey('targetAudiencePlaceholder'), { defaultValue: 'e.g., Women aged 30-50 interested in anti-aging skincare' })} />
+          <Input id="targetAudience" value={details.targetAudience} onChange={(e) => handleInputChange('targetAudience', e)} required placeholder={targetAudiencePlaceholder} />
         </div>
         <div className="mb-4"> 
           <Label className="block mb-2">{adObjectiveLabel} *</Label>
@@ -180,18 +236,20 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                    id={`objective-${opt.id}`} 
                    className="border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary"
                  />
-                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">{t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}</Label>
+                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">
+                   {objectiveLabels[opt.id as keyof typeof objectiveLabels] || t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
+                 </Label>
                </div>
             ))}
           </RadioGroup>
         </div>
         <div>
           <Label htmlFor="keyMessage">{keyMessageLabel} *</Label>
-          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e) => handleInputChange('keyMessage', e)} required placeholder={t(getTranslationKey('keyMessagePlaceholder'), { defaultValue: 'What is the single most important message to convey?' })} />
+          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e) => handleInputChange('keyMessage', e)} required placeholder={keyMessagePlaceholder} />
         </div>
         <div>
           <Label htmlFor="callToAction">{callToActionLabel}</Label>
-          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e) => handleInputChange('callToAction', e)} placeholder={t(getTranslationKey('callToActionPlaceholder'), { defaultValue: 'e.g., Shop Now, Learn More, Sign Up' })} />
+          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e) => handleInputChange('callToAction', e)} placeholder={callToActionPlaceholder} />
         </div>
       </div>
 
@@ -215,7 +273,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                   className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <label htmlFor={`platform-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                  {t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
+                  {platformLabels[opt.id as keyof typeof platformLabels] || t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
                 </label>
               </div>
             ))}
@@ -238,7 +296,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                   className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <label htmlFor={`vary-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                  {t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
+                  {elementsLabels[opt.id as keyof typeof elementsLabels] || t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
                 </label>
               </div>
             ))}
