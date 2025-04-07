@@ -3122,7 +3122,14 @@ If you'd like complete research, please try again later when our research servic
     setIsLoading(true);
     setIsGenerating(true);
     setGenerationProgress(0);
-    setStatusMessage('Preparing research request...');
+    
+    // Get the language setting
+    const language = sessionStorage.getItem('language') || 'en';
+    
+    // Set initial status message with proper language
+    setStatusMessage(language === 'es' ? 
+      safeTranslate('researchPage.progress.preparing', 'Preparando solicitud de investigación...') : 
+      'Preparing research request...');
     
     // Create abort controller for cancellation
     const abortController = new AbortController();
@@ -3163,9 +3170,6 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
       // Update status message periodically with informative messages
       let messageIndex = 0;
       
-      // Get the current language
-      const language = sessionStorage.getItem('language') || 'en';
-      
       // Use translated status messages based on the current language
       const statusMessages = language === 'es' ? [
         safeTranslate('researchPage.progress.statusMessages.researchingLatest', 'Investigando información más reciente...'),
@@ -3178,15 +3182,15 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         safeTranslate('researchPage.progress.statusMessages.identifyingInsights', 'Identificando hallazgos clave...'),
         safeTranslate('researchPage.progress.statusMessages.finalizingDocument', 'Finalizando documento de investigación...')
       ] : [
-        'Initiating deep research...',
-        'Analyzing topic details...',
-        'Gathering latest information...',
-        'Accessing research data sources...',
+        'Researching latest information...',
+        'Analyzing relevant data...',
+        'Gathering data from sources...',
+        'Finding expert recommendations...',
         'Processing research findings...',
-        'Compiling comprehensive insights...',
-        'Structuring research data...',
-        'Validating research accuracy...',
-        'Finalizing research content...'
+        'Compiling best practices...',
+        'Exploring current trends...',
+        'Identifying key insights...',
+        'Finalizing research document...'
       ];
       
       // Progress interval logic
@@ -3266,7 +3270,7 @@ Target Audience: ${safeContentDetails?.targetAudience || 'general'}${followUpSec
         setGenerationProgress(100);
         // Use translated completion message
         setStatusMessage(language === 'es' ? 
-          safeTranslate('researchPage.progress.complete', 'Investigación completa!') : 
+          safeTranslate('researchPage.progress.complete', '¡Investigación completa!') : 
           'Research complete!');
         
         // Explicitly do not advance step automatically - let the user control the flow
