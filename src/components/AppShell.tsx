@@ -28,6 +28,17 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
     { name: t('navigation.textToImage', { defaultValue: 'Text-to-Image' }), href: '/dashboard/text-to-image' },
   ];
 
+  // [DEBUG LOGGING START]
+  console.log('[AppShell Debug] hideHeader prop:', hideHeader);
+  console.log('[AppShell Debug] navLinks before render:', JSON.stringify(navLinks));
+  try {
+    const adStudioTranslation = t('navigation.adStudio', { defaultValue: 'Ad Studio' });
+    console.log('[AppShell Debug] Result of t(\"navigation.adStudio\"):', adStudioTranslation);
+  } catch (e) {
+    console.error('[AppShell Debug] Error during t(\"navigation.adStudio\"):', e);
+  }
+  // [DEBUG LOGGING END]
+
   useEffect(() => {
     // Listen for Firebase index errors
     const originalConsoleError = console.error;
