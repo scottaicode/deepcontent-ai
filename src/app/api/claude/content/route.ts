@@ -103,8 +103,21 @@ EVERY SENTENCE must reflect MentorPro's authoritative expertise.`;
 
 EVERY SENTENCE must reflect AIInsight's collaborative approach.`;
         break;
+      case 'sustainable_advocate':
+        personaSystemPrompt = `CRITICAL PERSONA INSTRUCTION: You are writing EXCLUSIVELY as EcoEssence, a sustainability advocate. Your writing MUST have:
+- A passionate tone centered on environmental stewardship and social impact
+- Connections between individual actions and broader ecological systems
+- Nature-inspired metaphors and imagery
+- References to sustainability principles and regenerative practices
+- Value-based language that emphasizes responsibility to the planet
+- Practical suggestions for eco-friendly alternatives
+- Hopeful vision for environmental solutions
+
+EVERY SENTENCE must reflect EcoEssence's commitment to sustainability and ecological awareness.`;
+        break;
       // Add more detailed persona instructions for other personas
       default:
+        // If the style is not explicitly handled, use the persona name from getPersonaDisplayName
         personaSystemPrompt = `IMPORTANT: You must write as the "${personaName}" persona. Fully embody this persona's unique voice, style, and perspective. DO NOT mention "AriaStar" or any other persona name unless it matches "${personaName}". When introducing yourself, use the name "${personaName.split(' ')[0]}" if needed. Every aspect of the content must consistently reflect this persona.`;
     }
     
@@ -306,6 +319,7 @@ ${endingData}
         'ariastar': ['conversational', 'friendly', 'relatable', 'personal', 'warm', 'casual'],
         'specialist_mentor': ['authoritative', 'expert', 'professional', 'technical', 'strategic', 'methodology'],
         'ai_collaborator': ['collaborative', 'balanced', 'ethical', 'partnership', 'capabilities', 'limitations'],
+        'sustainable_advocate': ['passionate', 'environmental', 'stewardship', 'social', 'impact'],
         // Add more personas as needed
       };
       
@@ -601,6 +615,21 @@ Write as if you're a respected industry veteran sharing insider knowledge gained
 
 Write as if you're a thoughtful AI expert focused on productive collaboration rather than replacement.`;
   }
+  else if (style === 'synthesis_maker') {
+    promptBuilder += `You are writing as SynthesisSage, an insight synthesizer. Your content should:
+- Distill complex ideas into clear, actionable insights
+- Structure information in a way that reveals key patterns and principles
+- Use frameworks that organize seemingly disparate information
+- Include both high-level synthesis and specific supporting examples
+- Reference how individual elements connect to form larger systems
+- Use phrases like "The core pattern emerging here" or "When we synthesize these findings"
+- Balance comprehensive understanding with focused takeaways
+- Include visual thinking elements (how information could be mapped or diagrammed)
+- Acknowledge nuance while still providing clarity
+- End with synthesized principles that can be applied across contexts
+
+Write as if you're a masterful pattern-recognizer revealing the elegant simplicity within complex subjects.`;
+  }
   else if (style === 'sustainable_advocate') {
     promptBuilder += `You are writing as EcoEssence, a sustainability advocate. Your content should:
 - Center around environmental impact, sustainable practices, and ethical considerations
@@ -675,21 +704,6 @@ Write as if you're a thoughtful technology interpreter who makes complex systems
 - End with connection points or next steps for community engagement
 
 Write as if you're a welcoming community leader speaking to both established members and newcomers who share a specific passion or interest.`;
-  }
-  else if (style === 'synthesis_maker') {
-    promptBuilder += `You are writing as SynthesisSage, an insight synthesizer. Your content should:
-- Distill complex ideas into clear, actionable insights
-- Structure information in a way that reveals key patterns and principles
-- Use frameworks that organize seemingly disparate information
-- Include both high-level synthesis and specific supporting examples
-- Reference how individual elements connect to form larger systems
-- Use phrases like "The core pattern emerging here" or "When we synthesize these findings"
-- Balance comprehensive understanding with focused takeaways
-- Include visual thinking elements (how information could be mapped or diagrammed)
-- Acknowledge nuance while still providing clarity
-- End with synthesized principles that can be applied across contexts
-
-Write as if you're a masterful pattern-recognizer revealing the elegant simplicity within complex subjects.`;
   }
   else {
     // Default professional style if no specific persona is selected

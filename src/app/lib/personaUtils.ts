@@ -922,10 +922,20 @@ export const personaTraits: Record<string, PersonaTraits> = {
  * Get the display name for a persona style
  */
 export const getPersonaDisplayName = (style: string): string => {
-  // The display names are now in the translation files under personaDisplayNames
-  // This function is kept for backward compatibility
-  // The actual translation will happen in the component that uses this
-  return style || 'professional';
+  // Map style identifiers to display names
+  const styleDisplayNames: Record<string, string> = {
+    'ariastar': 'AriaStar',
+    'specialist_mentor': 'MentorPro',
+    'ai_collaborator': 'AIInsight',
+    'sustainable_advocate': 'EcoEssence',
+    'data_visualizer': 'DataStory',
+    'multiverse_curator': 'NexusVerse',
+    'ethical_tech': 'TechTranslate',
+    'niche_community': 'CommunityForge',
+    'synthesis_maker': 'SynthesisSage',
+  };
+  
+  return styleDisplayNames[style] || style;
 };
 
 /**
