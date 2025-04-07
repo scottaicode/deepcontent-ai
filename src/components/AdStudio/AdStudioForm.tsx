@@ -28,34 +28,35 @@ interface AdStudioFormProps {
   isLoading: boolean;
 }
 
-// Available options
-const PLATFORM_OPTIONS = [
-  { id: 'facebook_feed', label: 'Facebook Feed' },
-  { id: 'instagram_feed', label: 'Instagram Feed' },
-  { id: 'instagram_reels', label: 'Instagram Reels' },
-  { id: 'instagram_stories', label: 'Instagram Stories' },
-  { id: 'tiktok', label: 'TikTok' },
-  { id: 'youtube_shorts', label: 'YouTube Shorts' },
-  { id: 'linkedin_feed', label: 'LinkedIn Feed' },
-  { id: 'google_search', label: 'Google Search Ads' }, // Added Google
+// --- Option Definitions (Use translation keys) ---
+const PLATFORM_OPTIONS_KEYS = [
+  { id: 'facebook_feed', key: 'adStudio.platform.facebookFeed' },
+  { id: 'instagram_feed', key: 'adStudio.platform.instagramFeed' },
+  { id: 'instagram_reels', key: 'adStudio.platform.instagramReels' },
+  { id: 'instagram_stories', key: 'adStudio.platform.instagramStories' },
+  { id: 'tiktok', key: 'adStudio.platform.tiktok' },
+  { id: 'youtube_shorts', key: 'adStudio.platform.youtubeShorts' },
+  { id: 'linkedin_feed', key: 'adStudio.platform.linkedinFeed' },
+  { id: 'google_search', key: 'adStudio.platform.googleSearch' }, 
 ];
 
-const OBJECTIVE_OPTIONS = [
-  { id: 'brand_awareness', label: 'Brand Awareness' },
-  { id: 'lead_generation', label: 'Lead Generation' },
-  { id: 'sales_conversion', label: 'Sales/Conversion' },
-  { id: 'engagement', label: 'Engagement' },
-  { id: 'website_traffic', label: 'Website Traffic' },
+const OBJECTIVE_OPTIONS_KEYS = [
+  { id: 'brand_awareness', key: 'adStudio.objective.brandAwareness' },
+  { id: 'lead_generation', key: 'adStudio.objective.leadGeneration' },
+  { id: 'sales_conversion', key: 'adStudio.objective.salesConversion' },
+  { id: 'engagement', key: 'adStudio.objective.engagement' },
+  { id: 'website_traffic', key: 'adStudio.objective.websiteTraffic' },
 ];
 
-const ELEMENTS_TO_VARY_OPTIONS = [
-  { id: 'headline', label: 'Headline/Hook' },
-  { id: 'body_copy', label: 'Body Copy/Script' },
-  { id: 'visual_angle', label: 'Visual Angle/Style' },
-  { id: 'call_to_action', label: 'Call To Action (CTA)' },
-  { id: 'offer', label: 'Offer/Value Proposition' },
-  { id: 'tone_of_voice', label: 'Tone of Voice' },
+const ELEMENTS_TO_VARY_OPTIONS_KEYS = [
+  { id: 'headline', key: 'adStudio.vary.headline' },
+  { id: 'body_copy', key: 'adStudio.vary.bodyCopy' },
+  { id: 'visual_angle', key: 'adStudio.vary.visualAngle' },
+  { id: 'call_to_action', key: 'adStudio.vary.callToAction' },
+  { id: 'offer', key: 'adStudio.vary.offer' },
+  { id: 'tone_of_voice', key: 'adStudio.vary.toneOfVoice' },
 ];
+// --- End Option Definitions ---
 
 export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading }) => {
   const { t } = useLanguage();
@@ -63,12 +64,12 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
     projectName: '',
     productDescription: '',
     targetAudience: '',
-    adObjective: OBJECTIVE_OPTIONS[0].id, // Default objective
+    adObjective: OBJECTIVE_OPTIONS_KEYS[0].id, // Default objective uses ID
     keyMessage: '',
-    platforms: [PLATFORM_OPTIONS[1].id, PLATFORM_OPTIONS[2].id], // Default platforms
+    platforms: [PLATFORM_OPTIONS_KEYS[1].id, PLATFORM_OPTIONS_KEYS[2].id], // Default platforms use IDs
     callToAction: '',
     numVariations: 3,
-    elementsToVary: [ELEMENTS_TO_VARY_OPTIONS[0].id], // Default element
+    elementsToVary: [ELEMENTS_TO_VARY_OPTIONS_KEYS[0].id], // Default element uses ID
   });
 
   // Use specific event types for inputs/textareas
@@ -109,6 +110,9 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
     onSubmit(details);
   };
 
+  // Helper to generate defaultValue from key
+  const generateDefaultValue = (key: string) => key.split('.').pop()?.replace(/([A-Z])/g, ' $1').trim() || key;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* Section 1: Core Ad Definition */}
@@ -133,14 +137,14 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
             onValueChange={(value: string) => handleRadioChange('adObjective', value)}
             className="flex flex-col space-y-2"
           >
-            {OBJECTIVE_OPTIONS.map(opt => (
+            {OBJECTIVE_OPTIONS_KEYS.map(opt => (
                <div key={opt.id} className="flex items-center space-x-3">
                  <RadioGroupItem 
                    value={opt.id} 
                    id={`objective-${opt.id}`} 
                    className="border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary"
                  />
-                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">{opt.label}</Label>
+                 <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">{t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}</Label>
                </div>
             ))}
           </RadioGroup>
@@ -166,7 +170,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
             <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({t('adStudio.selectAtLeastOne', { defaultValue: 'Select at least one' })})</span>
           </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
-            {PLATFORM_OPTIONS.map(opt => (
+            {PLATFORM_OPTIONS_KEYS.map(opt => (
               <div key={opt.id} className="flex items-center space-x-3">
                 <Checkbox 
                   id={`platform-${opt.id}`}
@@ -175,7 +179,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                   className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <label htmlFor={`platform-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                  {opt.label}
+                  {t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
                 </label>
               </div>
             ))}
@@ -189,7 +193,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
             <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({t('adStudio.selectAtLeastOne', { defaultValue: 'Select at least one' })})</span>
           </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
-            {ELEMENTS_TO_VARY_OPTIONS.map(opt => (
+            {ELEMENTS_TO_VARY_OPTIONS_KEYS.map(opt => (
               <div key={opt.id} className="flex items-center space-x-3">
                  <Checkbox 
                   id={`vary-${opt.id}`}
@@ -198,7 +202,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
                   className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <label htmlFor={`vary-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                  {opt.label}
+                  {t(opt.key, { defaultValue: generateDefaultValue(opt.key) })}
                 </label>
               </div>
             ))}
