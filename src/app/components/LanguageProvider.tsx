@@ -75,20 +75,24 @@ const LanguageContext = createContext<LanguageContextType>({
 
 // Provider component
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [locale, setLocaleState] = useState<string>('en'); // Default to en, will be updated in useEffect
+  // Initialize state directly with stored language on client
+  const [locale, setLocaleState] = useState<string>(() => getStoredLanguage()); 
   const [mounted, setMounted] = useState(false);
 
-  // Load preferred language on mount
+  // Effect to handle mounting and hydration consistency
   useEffect(() => {
     setMounted(true);
-    const initialLocale = getStoredLanguage();
-    console.log('[LanguageProvider] Initial locale set to:', initialLocale);
-    setLocaleState(initialLocale);
+    // Re-sync on mount in case initial value was different or for server/client consistency
+    const currentStoredLocale = getStoredLanguage();
+    if (locale !== currentStoredLocale) {
+      console.log(`[LanguageProvider] Hydration mismatch or update needed. Syncing locale to: ${currentStoredLocale}`);
+      setLocaleState(currentStoredLocale);
+    }
     
-    // Set HTML lang attribute
+    // Set HTML lang attribute (ensure it matches state)
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = initialLocale;
-      console.log('[LanguageProvider] Set document.documentElement.lang to:', initialLocale);
+      document.documentElement.lang = currentStoredLocale; // Use the definite current value
+      console.log('[LanguageProvider] Set document.documentElement.lang on mount:', currentStoredLocale);
     }
     
     // Listen for storage events to sync language across tabs
@@ -97,12 +101,16 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
         const newLocale = getStoredLanguage();
         console.log('[LanguageProvider] Language changed in storage:', newLocale);
         setLocaleState(newLocale);
+        // Also update lang attribute on storage change
+        if (typeof document !== 'undefined') {
+           document.documentElement.lang = newLocale;
+        }
       }
     };
     
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [locale]); // Add locale as dependency to re-run if needed, though primary sync is via storage event
 
   // Set locale and save to localStorage with reload
   const setLocale = (newLocale: string, withReload: boolean = false) => {
@@ -185,15 +193,17 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     t
   }), [locale, t]);
 
-  // Client-side rendering
+  // Client-side rendering check - use initial state value before mount
   if (!mounted) {
+    // Provide a value consistent with the initial state calculation
+    const initialLocale = getStoredLanguage(); // Recalculate or use a shared initial value
     return (
       <LanguageContext.Provider 
         value={{ 
-          locale: 'en', 
+          locale: initialLocale, 
           setLocale, 
-          translations: translations.en, 
-          t: (path, options) => options?.defaultValue || path
+          translations: translations[initialLocale] || translations.en, 
+          t: (path, options) => options?.defaultValue || path // Keep fallback consistent
         }}
       >
         {children}
