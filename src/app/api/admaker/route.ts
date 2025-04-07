@@ -92,20 +92,17 @@ async function callClaudeForAds(prompt: string, apiKey: string): Promise<AdVaria
     console.log("Calling anthropic.messages.create...");
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 4000, 
+      max_tokens: 1500,
       temperature: 0.7, 
       system: "You are an expert AI advertising assistant. Follow the user's formatting instructions precisely.",
       messages: [
         { role: 'user', content: prompt }
       ]
     });
-    console.log("anthropic.messages.create call completed."); // Log right after await
-
+    console.log("anthropic.messages.create call completed."); 
     console.log("--- Received Response Object from Claude API ---");
     console.log(JSON.stringify(response, null, 2)); 
     console.log("---------------------------------------------");
-    
-    // Extract text content safely
     let rawResponseText = '';
     if (response.content && Array.isArray(response.content) && response.content.length > 0) {
       const textBlock = response.content.find(block => block.type === 'text');
@@ -153,7 +150,6 @@ async function callClaudeForAds(prompt: string, apiKey: string): Promise<AdVaria
     }
     console.log("--- Exiting callClaudeForAds successfully ---");
     return variations;
-
   } catch (error) {
     console.error('--- Error within callClaudeForAds ---', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error during AI interaction';
