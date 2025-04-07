@@ -187,9 +187,6 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
                   const isActive = pathname === link.href || 
                     (link.href !== '/' && pathname?.startsWith(link.href));
                   
-                  // [DEBUG] Add inline style for Ad Studio link to force visibility
-                  const debugStyle = link.href === '/ad-studio' ? { color: 'red', zIndex: 9999, display: 'inline-block' } : {};
-                  
                   return (
                     <Link
                       key={link.name}
@@ -200,7 +197,6 @@ export default function AppShell({ children, hideHeader = false }: AppShellProps
                           : 'text-gray-700 hover:bg-gray-100'
                       }`}
                       aria-current={isActive ? 'page' : undefined}
-                      style={debugStyle} // Apply the debug style
                     >
                       {link.name}
                     </Link>
