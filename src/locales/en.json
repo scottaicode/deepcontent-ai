@@ -1277,5 +1277,30 @@
   "imageEditor": {
     "title": "Image Editor",
     "subtitle": "Upload an image and edit it using AI. Provide specific instructions to modify your image."
+  },
+  "textToImage": {
+    "title": "AI Text-to-Image Generator",
+    "subtitle": "Create brand new images from your text descriptions. Unlike the Image Editor which modifies existing images, this tool creates entirely new images from scratch.",
+    "infoTitle": "AI Text-to-Image Generator",
+    "infoDescription": "Enter a text description and our AI will generate an image based on your prompt.",
+    "note": "Note: Image generation requires access to advanced AI capabilities.",
+    "tip1": "Be specific and detailed in your descriptions",
+    "tip2": "Include information about style, lighting, and composition",
+    "tip3": "Mention what should be in the foreground and background",
+    "example": "Example: \"A cozy rural cottage with a thatched roof surrounded by wildflowers, morning light, detailed, photorealistic\"",
+    "apiLimitTitle": "Gemini Experimental API Limitation",
+    "apiLimitDescription": "The image generation request was not successful. This is likely because:",
+    "apiLimitReason1": "Gemini 2.0 Flash image generation is an experimental feature",
+    "apiLimitReason2": "It requires a paid tier Gemini API key",
+    "apiLimitReason3": "Your API access must be from a supported region",
+    "apiLimitReason4": "You must explicitly enable image generation in your Google Cloud console",
+    "errorPrefix": "Error generating image:",
+    "promptLabel": "Image Description",
+    "promptPlaceholder": "Describe the image you want to generate...",
+    "generating": "Generating Image...",
+    "generate": "Generate Image",
+    "resultTitle": "Generated Image",
+    "resultAlt": "Generated",
+    "aiCommentary": "AI Commentary"
   }
 } 
