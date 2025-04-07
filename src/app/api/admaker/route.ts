@@ -92,7 +92,7 @@ async function callClaudeForAds(prompt: string, apiKey: string): Promise<AdVaria
     console.log("Calling anthropic.messages.create...");
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 1500,
+      max_tokens: 2000,
       temperature: 0.7, 
       system: "You are an expert AI advertising assistant. Follow the user's formatting instructions precisely.",
       messages: [
