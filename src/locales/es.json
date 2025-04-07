@@ -38,12 +38,14 @@
   "navigation": {
     "home": "Inicio",
     "create": "Crear",
+    "adStudio": "Estudio de Anuncios",
     "dashboard": "Panel",
     "imageEditor": "Editor de Imágenes",
-    "textToImage": "Texto a Imagen",
-    "settings": "Ajustes",
+    "textToImage": "Texto-a-Imagen",
+    "settings": "Configuración",
     "logout": "Cerrar Sesión",
     "login": "Iniciar Sesión",
+    "signup": "Registrarse",
     "next": "Siguiente",
     "previous": "Anterior",
     "createContent": "Crear Contenido"

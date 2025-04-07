@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 // Removed AppShell import as it's likely provided by a root layout
 // import AppShell from '@/components/AppShell'; 
 import { AdStudioForm } from '@/components/AdStudio/AdStudioForm'; 
-import { useToast } from '@/lib/hooks/useToast'; 
+import { useToast } from '@/lib/hooks/useToast';
+import { useLanguage } from '@/app/components/LanguageProvider';
 
 // Interfaces matching backend/form
 interface AdMakerRequest {
@@ -32,6 +33,7 @@ export default function AdStudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [generatedVariations, setGeneratedVariations] = useState<AdVariation[]>([]);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleAdSubmit = async (details: AdMakerRequest) => {
     setIsLoading(true);
@@ -87,7 +89,7 @@ export default function AdStudioPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Add back a page title */}
-      <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Ad Studio</h1>
+      <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">{t('navigation.adStudio')}</h1>
       <p className="mb-8 text-gray-600 dark:text-gray-300">Define your ad parameters below to generate creative variations.</p>
         
       {/* Render the Form */}

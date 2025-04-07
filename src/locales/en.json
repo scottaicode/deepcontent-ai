@@ -73,6 +73,7 @@
   "navigation": {
     "home": "Home",
     "create": "Create",
+    "adStudio": "Ad Studio",
     "dashboard": "Dashboard",
     "imageEditor": "Image Editor",
     "textToImage": "Text-to-Image",
