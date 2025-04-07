@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { Anthropic } from '@anthropic-ai/sdk'; // Assuming Anthropic SDK is used
 
+// Set a longer timeout for this API route (60 seconds instead of default 15)
+export const maxDuration = 60;
+
 // Define expected input structure (aligns with AdDetails from frontend)
 interface AdMakerRequest {
   projectName: string;
