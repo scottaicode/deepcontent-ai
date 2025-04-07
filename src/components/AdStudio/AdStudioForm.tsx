@@ -92,11 +92,11 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
 
   // Spanish translations for radio buttons
   const objectiveLabels = {
-    brand_awareness: locale === 'es' ? 'Notoriedad de Marca' : 'Brand Awareness',
-    lead_generation: locale === 'es' ? 'Generación de Leads' : 'Lead Generation',
-    sales_conversion: locale === 'es' ? 'Ventas/Conversión' : 'Sales Conversion',
+    brand_awareness: locale === 'es' ? 'Notoriedad de marca' : 'Brand Awareness',
+    lead_generation: locale === 'es' ? 'Generación de leads' : 'Lead Generation',
+    sales_conversion: locale === 'es' ? 'Ventas/conversión' : 'Sales Conversion',
     engagement: locale === 'es' ? 'Interacción' : 'Engagement',
-    website_traffic: locale === 'es' ? 'Tráfico Web' : 'Website Traffic',
+    website_traffic: locale === 'es' ? 'Tráfico web' : 'Website Traffic',
   };
 
   // Spanish translations for platforms
@@ -114,11 +114,11 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
   // Spanish translations for elements to vary
   const elementsLabels = {
     headline: locale === 'es' ? 'Título' : 'Headline',
-    body_copy: locale === 'es' ? 'Texto Principal' : 'Body Copy',
-    visual_angle: locale === 'es' ? 'Ángulo Visual' : 'Visual Angle',
-    call_to_action: locale === 'es' ? 'Llamada a la Acción' : 'Call To Action',
+    body_copy: locale === 'es' ? 'Texto principal' : 'Body Copy',
+    visual_angle: locale === 'es' ? 'Ángulo visual' : 'Visual Angle',
+    call_to_action: locale === 'es' ? 'Llamada a la acción' : 'Call to Action',
     offer: locale === 'es' ? 'Oferta' : 'Offer',
-    tone_of_voice: locale === 'es' ? 'Tono de Voz' : 'Tone Of Voice',
+    tone_of_voice: locale === 'es' ? 'Tono de voz' : 'Tone of Voice',
   };
   
   // Debug logging for translations
@@ -190,19 +190,19 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
   const generateDefaultValue = (key: string) => key.split('.').pop()?.replace(/([A-Z])/g, ' $1').trim() || key;
   
   // Add Spanish hardcoded fallbacks for key titles/labels
-  const section1Title = getLocalizedText('section1Title', '1. Core Ad Definition', '1. Definición Central del Anuncio');
-  const section2Title = getLocalizedText('section2Title', '2. Platform & Variation Strategy', '2. Estrategia de Plataforma y Variación');
-  const projectNameLabel = getLocalizedText('projectNameLabel', 'Project Name', 'Nombre del Proyecto');
-  const productDescriptionLabel = getLocalizedText('productDescriptionLabel', 'Product/Service Description', 'Descripción Producto/Servicio');
-  const targetAudienceLabel = getLocalizedText('targetAudienceLabel', 'Target Audience', 'Audiencia Objetivo');
-  const adObjectiveLabel = getLocalizedText('adObjectiveLabel', 'Primary Ad Objective', 'Objetivo Principal del Anuncio');
-  const keyMessageLabel = getLocalizedText('keyMessageLabel', 'Key Message', 'Mensaje Clave');
-  const callToActionLabel = getLocalizedText('callToActionLabel', 'Call To Action (Optional)', 'Llamada a la Acción (Opcional)');
-  const targetPlatformsLabel = getLocalizedText('targetPlatformsLabel', 'Target Platforms', 'Plataformas Objetivo');
-  const elementsToVaryLabel = getLocalizedText('elementsToVaryLabel', 'Elements to Vary', 'Elementos a Variar');
+  const section1Title = getLocalizedText('section1Title', '1. Core Ad Definition', '1. Definición central del anuncio');
+  const section2Title = getLocalizedText('section2Title', '2. Platform & Variation Strategy', '2. Estrategia de plataforma y variación');
+  const projectNameLabel = getLocalizedText('projectNameLabel', 'Project Name', 'Nombre del proyecto');
+  const productDescriptionLabel = getLocalizedText('productDescriptionLabel', 'Product/Service Description', 'Descripción producto/servicio');
+  const targetAudienceLabel = getLocalizedText('targetAudienceLabel', 'Target Audience', 'Audiencia objetivo');
+  const adObjectiveLabel = getLocalizedText('adObjectiveLabel', 'Primary Ad Objective', 'Objetivo principal del anuncio');
+  const keyMessageLabel = getLocalizedText('keyMessageLabel', 'Key Message', 'Mensaje clave');
+  const callToActionLabel = getLocalizedText('callToActionLabel', 'Call to Action (Optional)', 'Llamada a la acción (Opcional)');
+  const targetPlatformsLabel = getLocalizedText('targetPlatformsLabel', 'Target Platforms', 'Plataformas objetivo');
+  const elementsToVaryLabel = getLocalizedText('elementsToVaryLabel', 'Elements to Vary', 'Elementos a variar');
   const selectAtLeastOne = getLocalizedText('selectAtLeastOne', 'Select at least one', 'Selecciona al menos uno');
-  const numVariationsLabel = getLocalizedText('numVariationsLabel', 'Number of Variations:', 'Número de Variaciones:');
-  const generateButton = getLocalizedText('generateButton', 'Generate Ad Variations', 'Generar Variaciones de Anuncio');
+  const numVariationsLabel = getLocalizedText('numVariationsLabel', 'Number of Variations:', 'Número de variaciones:');
+  const generateButton = getLocalizedText('generateButton', 'Generate Ad Variations', 'Generar variaciones de anuncio');
   const generatingButton = getLocalizedText('generatingButton', 'Generating...', 'Generando...');
 
   return (
