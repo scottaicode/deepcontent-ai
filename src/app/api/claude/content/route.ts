@@ -426,50 +426,81 @@ function verifyPlatformRelevance(platform: string, researchData: string): {
 
 // Add specific instruction about how to use research data with the selected persona
 const addPersonaSpecificResearchInstruction = (style: string, platform: string): string => {
-  switch(style) {
-    case 'ariastar':
-      return `
-RESEARCH DATA INSTRUCTION FOR ARIASTAR PERSONA:
-When using the research data, you should:
-1. Focus on the personal impact and human stories in the data
-2. Translate statistics into relatable, everyday examples
-3. Use conversational language even for technical concepts
-4. Extract emotional elements and aspirational components
-5. Identify community-focused aspects and shared experiences
-6. Find specific data points that will resonate emotionally with ${platform} users
-`;
-    case 'specialist_mentor':
-      return `
-RESEARCH DATA INSTRUCTION FOR MENTORPRO PERSONA:
-When using the research data, you should:
-1. Prioritize industry-specific terminology and metrics
-2. Highlight expert-level insights and advanced strategies
-3. Identify patterns and trends that demonstrate deeper knowledge
-4. Extract strategic frameworks and methodologies
-5. Focus on performance metrics and efficiency data points
-6. Emphasize comparative analysis and competitive intelligence for ${platform}
-`;
-    case 'data_visualizer':
-      return `
-RESEARCH DATA INSTRUCTION FOR DATASTORY PERSONA:
-When using the research data, you should:
-1. Prioritize quantitative information and statistical patterns
-2. Structure content around key metrics and comparative data
-3. Translate complex data points into clear visual narratives
-4. Focus on trends, anomalies, and predictive patterns
-5. Identify cause-and-effect relationships revealed by the data
-6. Emphasize objective, data-backed insights optimized for ${platform}
-`;
-    // Add more persona-specific research instructions as needed
-    default:
-      return `
-RESEARCH DATA INSTRUCTION:
-When using the research data, extract information that aligns with the ${style} persona and optimize it for ${platform}.
-`;
-  }
+  // Placeholder: Add logic to tailor research requests based on persona
+  // Example:
+  // if (style === 'expert' && platform === 'linkedin') {
+  //   return "Focus research on statistical data and industry trends.";
+  // }
+  return "Leverage the provided research data effectively.";
 };
 
-// Enhance the prompt building with platform-specific instructions
+// Add this utility function for smoother progress tracking
+function createProgressTracker() {
+  let lastReportedProgress = 0;
+  
+  return {
+    updateProgress: (stream: ReadableStream, controller: any, totalSteps: number = 10) => {
+      let currentStep = 0;
+      const reader = stream.getReader();
+      
+      const processChunks = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            // Ensure we finish at 100%
+            if (lastReportedProgress < 100) {
+              controller.enqueue('event: progress\ndata: {"progress": 100, "status": "Finalizing content..."}\n\n');
+            }
+            controller.close();
+            break;
+          }
+          
+          // Pass the chunk through
+          controller.enqueue(value);
+          
+          // Update progress, but ensure it never decreases
+          currentStep++;
+          const newProgress = Math.min(95, Math.ceil((currentStep / totalSteps) * 100));
+          
+          // Only send progress events when progress increases
+          if (newProgress > lastReportedProgress) {
+            lastReportedProgress = newProgress;
+            
+            // Determine appropriate status message based on progress
+            let status = "Generating content...";
+            if (newProgress < 30) {
+              status = "Analyzing research data...";
+            } else if (newProgress < 60) {
+              status = "Creating content structure...";
+            } else if (newProgress < 80) {
+              status = "Optimizing for platform...";
+            } else {
+              status = "Finalizing content...";
+            }
+            
+            // Send progress update event
+            controller.enqueue(`event: progress\ndata: {"progress": ${newProgress}, "status": "${status}"}\n\n`);
+          }
+        }
+      };
+      
+      processChunks().catch(error => {
+        console.error('Error processing stream chunks:', error);
+        controller.error(error);
+      });
+      
+      return new ReadableStream({
+        start(controller) {
+          // Initial progress event
+          controller.enqueue('event: progress\ndata: {"progress": 5, "status": "Starting content generation..."}\n\n');
+        }
+      });
+    }
+  };
+}
+
+// Correct buildPrompt function starts here
 function buildPrompt(
   contentType: string,
   platform: string,
@@ -489,35 +520,24 @@ function buildPrompt(
   // Start with strong language instruction if not English
   if (language && language !== 'en') {
     if (language === 'es') {
-      languageInstruction = `INSTRUCCIÓN CRÍTICA: Este contenido DEBE estar completamente en ESPAÑOL. No uses inglés en absoluto.\n\nCRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not use ANY English whatsoever in the final output.\n\n`;\n    } else {\n      languageInstruction = `CRITICAL LANGUAGE INSTRUCTION: Generate all content in ${language} language only.\n\n`;\n    }\n  }\n  \n  // --- Persona/Style Enforcement Start ---\n  // TODO: Implement a lookup for style descriptions (e.g., using a map or importing definitions)\n  const styleDescription = `Description for style \'${style}\' not implemented yet.`; // Placeholder
-  const personaStyleInstruction = `\n# PERSONA/STYLE REQUIREMENT (STRICT)\n**Critical Instruction:** You MUST generate the content *strictly* in the following style: **${style}**. \nDescription of ${style}: ${styleDescription} \nDo NOT deviate from this style. Do NOT use elements from other styles unless explicitly part of the ${style} description.\n\n`;\n  // --- Persona/Style Enforcement End ---\n\n  const platformRelevance = verifyPlatformRelevance(platform, researchData);\n  const isSocialMedia = platform === \'social\';\n  \n  // ... [rest of existing platform detection logic] ...\n  \n  // --- Build the prompt --- \n  // Start with language and persona enforcement\n  let promptBuilder = `${languageInstruction}${personaStyleInstruction}`; \n  \n  // Add core request\n  promptBuilder += `Create highly engaging ${contentType} content for ${platform}${dominantSocialPlatform ? ` (specifically ${dominantSocialPlatform})` : \'\'} targeting ${audience}.\n\nBased on the provided research and data, craft content that follows current (${currentMonth} ${currentYear}) best practices and will drive engagement.\n\n${platformRelevance.relevant ? \n  `The research includes platform-specific information about ${platform}${dominantSocialPlatform ? ` with emphasis on ${dominantSocialPlatform}` : \'\'}, which you should leverage in your content generation.` : \n  `Note: Apply your knowledge of current ${platform} best practices while using the general research data.`}\n\n${addPersonaSpecificResearchInstruction(style, platform)}\n\n`;\n\n  // --- MUTUALLY EXCLUSIVE PLATFORM/FORMAT INSTRUCTIONS ---\n  // ... [Existing if/else if blocks for email, facebook, etc. remain unchanged] ...\n  \n  // --- Research Data Append ---\n  promptBuilder += `\n\n# RESEARCH DATA & CONTEXT\n${researchData ? `## Provided Research:\n${researchData}\n` : \'\'}\n${youtubeTranscript ? `## YouTube Transcript:\n${youtubeTranscript}\n` : \'\'}\n`;\n\n  // --- Final Style/Language Reinforcement ---\n  promptBuilder += `\n# FINAL INSTRUCTION (REMINDER)\n${languageInstruction}Remember to generate the content **strictly** following the **${style}** persona/style requirements mentioned at the beginning. Ensure the output matches the requested format (${platform}/${contentType}) and is highly relevant to the target audience: ${audience}. Focus on providing value and driving audience action.`;\n\n  console.log(\"Final prompt being sent to Claude:\", promptBuilder); // Added logging for debugging\n  return promptBuilder;\n}\n
-
-  const platformRelevance = verifyPlatformRelevance(platform, researchData);
-  const isSocialMedia = platform === 'social';
-  
-  // For social media, get specific platform info from subPlatform
-  const specificSocialPlatform = isSocialMedia && subPlatform ? subPlatform : '';
-  
-  // If we don't have a specificSocialPlatform from the subPlatform parameter, 
-  // try to identify the most referenced platform in the research
-  let dominantSocialPlatform = specificSocialPlatform;
-  if (isSocialMedia && !dominantSocialPlatform && platformRelevance.relevant) {
-    // Check which social platform is most referenced
-    const socialPlatforms = ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok'];
-    let maxMatches = 0;
-    
-    for (const socialPlatform of socialPlatforms) {
-      const platformCheck = verifyPlatformRelevance(socialPlatform, researchData);
-      if (platformCheck.matches.length > maxMatches) {
-        maxMatches = platformCheck.matches.length;
-        dominantSocialPlatform = socialPlatform;
-      }
-    }
-    
-    if (dominantSocialPlatform) {
-      console.log(`Detected dominant social platform in research: ${dominantSocialPlatform}`);
+      languageInstruction = `INSTRUCCIÓN CRÍTICA: Este contenido DEBE estar completamente en ESPAÑOL. No uses inglés en absoluto.\n\nCRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not use ANY English whatsoever in the final output.\n\n`;
+    } else {
+      languageInstruction = `CRITICAL LANGUAGE INSTRUCTION: Generate all content in ${language} language only.\n\n`;
     }
   }
+  
+  // --- Persona/Style Enforcement Start ---
+  const styleDescription = `Description for style '${style}' not implemented yet.`; // Placeholder
+  const personaStyleInstruction = `\n# PERSONA/STYLE REQUIREMENT (STRICT)\n**Critical Instruction:** You MUST generate the content *strictly* in the following style: **${style}**. \nDescription of ${style}: ${styleDescription} \nDo NOT deviate from this style. Do NOT use elements from other styles unless explicitly part of the ${style} description.\n\n`;
+  // --- Persona/Style Enforcement End ---
+  
+  // --- Determine dominant platform for prompt context (moved outside function call) ---
+  // Note: platformRelevance and dominantSocialPlatform need to be passed in or calculated within
+  // This requires refactoring how these are handled, assuming they are calculated before calling buildPrompt
+  const platformRelevance = verifyPlatformRelevance(platform, researchData); // Assuming calculated outside
+  const isSocialMedia = platform === 'social'; // Assuming calculated outside
+  let dominantSocialPlatform = (isSocialMedia && subPlatform) ? subPlatform : ''; // Simplified assumption
+  // Complex dominant platform detection logic should ideally happen *before* calling buildPrompt
 
   // Build the prompt
   let promptBuilder = `${languageInstruction}${personaStyleInstruction}`;
@@ -534,206 +554,7 @@ ${platformRelevance.relevant ?
 ${addPersonaSpecificResearchInstruction(style, platform)}
 
 `;
-
-  // --- MUTUALLY EXCLUSIVE PLATFORM/FORMAT INSTRUCTIONS ---
-  // Prioritize Email explicitly first
-  if (platform === 'email' || contentType === 'email') {
-    promptBuilder += `
-# EMAIL FORMAT REQUIREMENTS (STRICT)
-This content MUST be formatted as a standard EMAIL. Do NOT use presentation format.
-
-## Structure:
-1.  **Subject Line:** Compelling and concise.
-2.  **Greeting:** Personalized (e.g., "Hi [Name]" or appropriate)
-3.  **Body:** Clear purpose, concise paragraphs or bullet points. Deliver value quickly.
-4.  **Call to Action (CTA):** Strong, clear, single action desired.
-5.  **Signature:** Professional closing.
-
-## Critical Constraints:
--   **NO SLIDES:** Do not include "SLIDE 1:", "Slide Title:", "Slide Notes:", etc.
--   **NO PRESENTATION ELEMENTS:** Avoid [GRAPH], [CHART], [IMAGE], [ICON] placeholders.
--   **STANDARD EMAIL FORMAT ONLY:** Ensure the output looks like a typical email communication.
-
-${subPlatform === 'sales' ? `
-### Sales Email Specifics:
--   Focus on value proposition and offer.
--   Keep concise (approx. 250-350 words).
--   Maintain conversational yet professional tone.
-` : ''}
-
-${businessType && (businessType.toLowerCase().includes('freedom') || businessType.toLowerCase().includes('opportunity') || businessType.toLowerCase().includes('skin care') || businessType.toLowerCase().includes('skincare')) ? `
-### Business Opportunity/Product Note:
-Even though the topic involves business opportunities or specific products, STRICTLY adhere to the EMAIL format described above. Do NOT default to a presentation structure.
-` : ''}
-`;
-  }
-  // --- Then check for other specific platforms/types ---
-  else if (platform === 'facebook' || (isSocialMedia && dominantSocialPlatform === 'facebook')) {
-    promptBuilder += `
-# FACEBOOK POST FORMAT
--   Conversational, authentic tone.
--   Include questions for engagement.
--   Short paragraphs.
--   1-2 relevant emojis.
--   Clear call to action.
-`;
-  }
-  else if (platform === 'instagram' || (isSocialMedia && dominantSocialPlatform === 'instagram')) {
-    promptBuilder += `
-For Instagram, create content that:
-- Is visually descriptive and emotionally appealing
-- Includes a caption that complements visual content
-- Contains 10-15 relevant hashtags
-- Has a clear call to engagement
-- Follows a structure suitable for carousel posts if educational
-`;
-  }
-  else if (platform === 'linkedin' || (isSocialMedia && dominantSocialPlatform === 'linkedin')) {
-    promptBuilder += `
-For LinkedIn, create content that:
-- Is professional and value-driven
-- Establishes expertise with data points and insights
-- Uses clear formatting with bullet points when appropriate
-- Has a compelling hook that appeals to professionals
-- Includes 3-5 relevant hashtags
-`;
-  }
-  else if (platform === 'twitter' || (isSocialMedia && dominantSocialPlatform === 'twitter')) {
-    promptBuilder += `
-For Twitter, create content that:
-- Is concise and impactful
-- Uses a strong hook
-- Incorporates 2-3 relevant hashtags
-- Can be expanded into a thread format if needed
-- Focuses on timely, shareable insights
-`;
-  }
-  else if (platform === 'tiktok' || (isSocialMedia && dominantSocialPlatform === 'tiktok')) {
-    promptBuilder += `
-For TikTok, create script-style content with:
-- A hook within the first 7 seconds
-- A clear storyline or information structure
-- Engaging pacing that maintains attention
-- A strong call to action
-- Trend-aware approach
-`;
-  }
-  else if (platform === 'google-ads' || platform === 'search-ads' || platform === 'display-ads' || platform.includes('google')) {
-    promptBuilder += `
-# GOOGLE ADS FORMAT REQUIREMENTS (STRICT)
-Create actual Google Ads content formatted exactly as follows:
-
-## RESPONSIVE SEARCH ADS FORMAT
-- Create 15 unique headlines (30 character max each)
-- Create 4 unique descriptions (90 character max each)
-- The output must be formatted in clear sections
-
-## INSTRUCTIONS
-1. Headlines must:
-   - Be exactly 30 characters or less
-   - Include compelling calls to action
-   - Incorporate target keywords
-   - Avoid repetition between headlines
-   - Target different user motivations (features, benefits, urgency, etc.)
-
-2. Descriptions must:
-   - Be exactly 90 characters or less
-   - Include specific benefits, features and at least one call to action
-   - Mention the target audience's pain points
-   - Leverage information from the research
-   - Avoid repetition between descriptions
-
-## CONTENT STRUCTURE
-Your response must follow this exact format:
-
-HEADLINES (15 total, 30 char max):
-1. [Headline 1]
-2. [Headline 2]
-...and so on through headline 15
-
-DESCRIPTIONS (4 total, 90 char max):
-1. [Description 1]
-2. [Description 2]
-3. [Description 3]
-4. [Description 4]
-
-Do NOT write an educational article about Google Ads. Create ONLY the actual ad content that could be directly copied into Google Ads Manager.
-`;
-  }
-  else if (platform === 'blog' || contentType === 'blog-post') {
-    promptBuilder += `
-For a blog post, create content that:
-- Has a strong, SEO-friendly headline
-- Includes an engaging introduction with a clear value proposition
-- Uses subheadings, bullet points, and short paragraphs for readability
-- Incorporates relevant statistics and data points from the research
-- Has a clear conclusion with a call to action
-- Is formatted for online readability
-`;
-  }
-  else if (platform === 'presentation' || contentType.includes('presentation')) {
-    promptBuilder += `
-# PRESENTATION FORMAT REQUIREMENTS
-For a modern business presentation, create content that:
-- Follows a clear, logical structure (intro, main points, conclusion)
-- Uses the "one idea per slide" principle to maintain focus
-- Incorporates strategic use of white space with minimal text (6x6 rule: max 6 bullet points, max 6 words per point)
-- Includes slide-specific speaker notes that expand on the visible content
-- Balances data visualization with impactful storytelling
-- Uses a consistent visual hierarchy and formatting
-- Implements the "tell them" framework: (1) tell them what you'll tell them, (2) tell them, (3) tell them what you told them
-
-Format the presentation using this structure:
-1. TITLE SLIDE: Clear, benefit-focused title with presenter info
-2. AGENDA/OVERVIEW: 3-5 key points to be covered
-3. PROBLEM/OPPORTUNITY: Establish context and relevance
-4. KEY CONTENT SLIDES: Main presentation body with supporting data
-5. DATA VISUALIZATION: Include placeholders for charts/graphs with descriptions
-6. SUMMARY: Reinforce key takeaways
-7. CALL TO ACTION: Clear next steps
-8. Q&A/CONTACT: Information for follow-up
-
-Special formatting requirements:
-- For each slide, include:
-  * Slide Title: Clear, concise headline (5-7 words max)
-  * Slide Content: Minimal bullet points or visualization description
-  * Slide Notes: Detailed talking points for the presenter
-
-- Use these slide transitions for enhanced narrative flow:
-  * "Building on this point..."
-  * "This leads us to consider..."
-  * "The data reveals an important trend..."
-  * "To put this in perspective..."
-
-- Include specific placeholders for visual elements:
-  * [GRAPH: Description of what the graph should show]
-  * [CHART: Purpose and key insight from this chart]
-  * [IMAGE: Description of appropriate supporting visual]
-  * [ICON: Type of icon needed here]
-`;
-  }
-  else if (platform === 'youtube' || contentType === 'video-script' || contentType === 'youtube-script') {
-    promptBuilder += `
-# VIDEO SCRIPT FORMAT
--   Hook viewer in first 15 seconds.
--   Follow a clear structure with intro, body, and conclusion
--   Use conversational language suitable for speaking
--   Includes cues for visuals or B-roll where appropriate
--   Has a clear call to action for engagement
--   Is formatted as a proper script with scene/shot guidance
-`;
-  }
-  else {
-    // Fallback for any other unhandled types
-    promptBuilder += `\n# GENERAL CONTENT FORMAT\nFollow standard best practices for ${contentType} on the ${platform} platform.\n`;
-  }
-
-  // --- Style/Persona Instructions (Append after format instructions) ---
-  promptBuilder += `
-
-# CONTENT STYLE: ${style}
-`;
-
+  
   // Add detailed persona-specific instructions based on the selected style
   if (style === 'ariastar') {
     promptBuilder += `You are writing as AriaStar, a relatable best friend personality. Your content should:
@@ -772,7 +593,7 @@ Write as if you're a respected industry veteran sharing insider knowledge gained
 - Structure content around "human-AI collaboration" themes
 - Include clarifications of technical concepts in accessible language
 - Reference how AI and human skills complement each other
-- Use phrases like "Together, we can" and "This is where human creativity and AI analysis work in tandem"
+- Use phrases like "Together, we can" or "This is where human creativity and AI analysis work in tandem"
 - Demonstrate nuanced understanding of how technology integrates with human workflows
 - Include ethical considerations where relevant
 - Avoid both overhyping AI capabilities and unnecessarily limiting its potential
@@ -874,8 +695,8 @@ Write as if you're a masterful pattern-recognizer revealing the elegant simplici
     // Default professional style if no specific persona is selected
     promptBuilder += `Use a professional, authoritative tone with industry-appropriate terminology.`;
   }
-
-  // --- Research Data Append ---
+  
+  // Add detailed research data and context
   promptBuilder += `
 
 # RESEARCH DATA & CONTEXT
@@ -890,75 +711,9 @@ ${prompt}` : ""}
 
 # FINAL INSTRUCTION
 Create content that is engaging, platform-optimized (strictly adhering to the single format requested above), and highly relevant to the target audience. Focus on providing value and driving audience action. ${languageInstruction}`;
-
+  
   console.log("Final prompt being sent to Claude:", promptBuilder); // Added logging for debugging
   return promptBuilder;
-}
-
-// Add this utility function for smoother progress tracking
-function createProgressTracker() {
-  let lastReportedProgress = 0;
-  
-  return {
-    updateProgress: (stream: ReadableStream, controller: any, totalSteps: number = 10) => {
-      let currentStep = 0;
-      const reader = stream.getReader();
-      
-      const processChunks = async () => {
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            // Ensure we finish at 100%
-            if (lastReportedProgress < 100) {
-              controller.enqueue('event: progress\ndata: {"progress": 100, "status": "Finalizing content..."}\n\n');
-            }
-            controller.close();
-            break;
-          }
-          
-          // Pass the chunk through
-          controller.enqueue(value);
-          
-          // Update progress, but ensure it never decreases
-          currentStep++;
-          const newProgress = Math.min(95, Math.ceil((currentStep / totalSteps) * 100));
-          
-          // Only send progress events when progress increases
-          if (newProgress > lastReportedProgress) {
-            lastReportedProgress = newProgress;
-            
-            // Determine appropriate status message based on progress
-            let status = "Generating content...";
-            if (newProgress < 30) {
-              status = "Analyzing research data...";
-            } else if (newProgress < 60) {
-              status = "Creating content structure...";
-            } else if (newProgress < 80) {
-              status = "Optimizing for platform...";
-            } else {
-              status = "Finalizing content...";
-            }
-            
-            // Send progress update event
-            controller.enqueue(`event: progress\ndata: {"progress": ${newProgress}, "status": "${status}"}\n\n`);
-          }
-        }
-      };
-      
-      processChunks().catch(error => {
-        console.error('Error processing stream chunks:', error);
-        controller.error(error);
-      });
-      
-      return new ReadableStream({
-        start(controller) {
-          // Initial progress event
-          controller.enqueue('event: progress\ndata: {"progress": 5, "status": "Starting content generation..."}\n\n');
-        }
-      });
-    }
-  };
 }
 
 /**
@@ -1104,6 +859,27 @@ Return ONLY the transformed content in the new persona voice, with no explanatio
 </instructions>`;
     } else {
       // Use standard prompt building for regular content generation
+      // Calculate platform relevance and dominant platform *before* calling buildPrompt
+      const platformRelevance = verifyPlatformRelevance(platform, researchData);
+      const isSocialMedia = platform === 'social';
+      const specificSocialPlatform = isSocialMedia && subPlatform ? subPlatform : '';
+      let dominantSocialPlatform = specificSocialPlatform;
+      if (isSocialMedia && !dominantSocialPlatform && platformRelevance.relevant) {
+        const socialPlatforms = ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok'];
+        let maxMatches = 0;
+        for (const socialPlatform of socialPlatforms) {
+          const platformCheck = verifyPlatformRelevance(socialPlatform, researchData);
+          if (platformCheck.matches.length > maxMatches) {
+            maxMatches = platformCheck.matches.length;
+            dominantSocialPlatform = socialPlatform;
+          }
+        }
+        if (dominantSocialPlatform) {
+          console.log(`Detected dominant social platform in research: ${dominantSocialPlatform}`);
+        }
+      }
+      
+      // Now call the top-level function
       fullPrompt = buildPrompt(
         contentType,
         platform,
@@ -1113,7 +889,8 @@ Return ONLY the transformed content in the new persona voice, with no explanatio
         prompt,
         style,
         language,
-        subPlatform,
+        // Pass dominantSocialPlatform instead of subPlatform if detected, otherwise pass original subPlatform
+        dominantSocialPlatform || subPlatform, 
         businessType
       );
     }
