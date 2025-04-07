@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import { useTranslation } from '@/lib/hooks/useTranslation';
+import { useLanguage } from '@/app/components/LanguageProvider';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,7 @@ const ELEMENTS_TO_VARY_OPTIONS = [
 ];
 
 export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading }) => {
-  const { t } = useTranslation(); // Assuming translation hook setup
+  const { t } = useLanguage();
   const [details, setDetails] = useState<AdMakerRequest>({
     projectName: '',
     productDescription: '',
@@ -103,7 +103,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
     e.preventDefault();
     // TODO: Add more robust validation
     if (!details.projectName || !details.productDescription || !details.targetAudience || details.platforms.length === 0 || details.elementsToVary.length === 0) {
-      alert('Please fill in all required fields and select at least one platform and element to vary.');
+      alert(t('adStudio.validation.fillRequired', {defaultValue: 'Please fill in all required fields and select at least one platform and element to vary.'}));
       return;
     }
     onSubmit(details);
@@ -113,21 +113,21 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* Section 1: Core Ad Definition */}
       <div className="space-y-4 p-6 border rounded-lg dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">1. Core Ad Definition</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{t('adStudio.section1Title', { defaultValue: '1. Core Ad Definition' })}</h2>
         <div>
-          <Label htmlFor="projectName">Project Name *</Label>
-          <Input id="projectName" value={details.projectName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('projectName', e)} required placeholder="e.g., Spring Skincare Campaign" />
+          <Label htmlFor="projectName">{t('adStudio.projectNameLabel', { defaultValue: 'Project Name' })} *</Label>
+          <Input id="projectName" value={details.projectName} onChange={(e) => handleInputChange('projectName', e)} required placeholder={t('adStudio.projectNamePlaceholder', { defaultValue: 'e.g., Spring Skincare Campaign' })} />
         </div>
         <div>
-          <Label htmlFor="productDescription">Product/Service Description *</Label>
-          <Textarea id="productDescription" value={details.productDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('productDescription', e)} required placeholder="Describe the product/service being advertised..." />
+          <Label htmlFor="productDescription">{t('adStudio.productDescriptionLabel', { defaultValue: 'Product/Service Description' })} *</Label>
+          <Textarea id="productDescription" value={details.productDescription} onChange={(e) => handleInputChange('productDescription', e)} required placeholder={t('adStudio.productDescriptionPlaceholder', { defaultValue: 'Describe the product/service being advertised...' })} />
         </div>
         <div>
-          <Label htmlFor="targetAudience">Target Audience *</Label>
-          <Input id="targetAudience" value={details.targetAudience} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('targetAudience', e)} required placeholder="e.g., Women aged 30-50 interested in anti-aging skincare" />
+          <Label htmlFor="targetAudience">{t('adStudio.targetAudienceLabel', { defaultValue: 'Target Audience' })} *</Label>
+          <Input id="targetAudience" value={details.targetAudience} onChange={(e) => handleInputChange('targetAudience', e)} required placeholder={t('adStudio.targetAudiencePlaceholder', { defaultValue: 'e.g., Women aged 30-50 interested in anti-aging skincare' })} />
         </div>
         <div className="mb-4"> 
-          <Label className="block mb-2">Primary Ad Objective *</Label>
+          <Label className="block mb-2">{t('adStudio.adObjectiveLabel', { defaultValue: 'Primary Ad Objective' })} *</Label>
           <RadioGroup 
             value={details.adObjective} 
             onValueChange={(value: string) => handleRadioChange('adObjective', value)}
@@ -146,22 +146,25 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
           </RadioGroup>
         </div>
         <div>
-          <Label htmlFor="keyMessage">Key Message *</Label>
-          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('keyMessage', e)} required placeholder="What is the single most important message to convey?" />
+          <Label htmlFor="keyMessage">{t('adStudio.keyMessageLabel', { defaultValue: 'Key Message' })} *</Label>
+          <Textarea id="keyMessage" value={details.keyMessage} onChange={(e) => handleInputChange('keyMessage', e)} required placeholder={t('adStudio.keyMessagePlaceholder', { defaultValue: 'What is the single most important message to convey?' })} />
         </div>
         <div>
-          <Label htmlFor="callToAction">Call To Action (Optional)</Label>
-          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('callToAction', e)} placeholder="e.g., Shop Now, Learn More, Sign Up" />
+          <Label htmlFor="callToAction">{t('adStudio.callToActionLabel', { defaultValue: 'Call To Action (Optional)' })}</Label>
+          <Input id="callToAction" value={details.callToAction ?? ''} onChange={(e) => handleInputChange('callToAction', e)} placeholder={t('adStudio.callToActionPlaceholder', { defaultValue: 'e.g., Shop Now, Learn More, Sign Up' })} />
         </div>
       </div>
 
       {/* Section 2: Platform & Variation Strategy */}
       <div className="space-y-6 p-6 border rounded-lg dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">2. Platform & Variation Strategy</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">{t('adStudio.section2Title', { defaultValue: '2. Platform & Variation Strategy' })}</h2>
         
         {/* Target Platforms Group */}
         <div> 
-          <Label className="block mb-3 text-base">Target Platforms * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(Select at least one)</span></Label>
+          <Label className="block mb-3 text-base">
+            {t('adStudio.targetPlatformsLabel', { defaultValue: 'Target Platforms' })} * 
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({t('adStudio.selectAtLeastOne', { defaultValue: 'Select at least one' })})</span>
+          </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
             {PLATFORM_OPTIONS.map(opt => (
               <div key={opt.id} className="flex items-center space-x-3">
@@ -181,7 +184,10 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
         
         {/* Elements to Vary Group */}
         <div> 
-          <Label className="block mb-3 text-base">Elements to Vary * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(Select at least one)</span></Label>
+          <Label className="block mb-3 text-base">
+            {t('adStudio.elementsToVaryLabel', { defaultValue: 'Elements to Vary' })} * 
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({t('adStudio.selectAtLeastOne', { defaultValue: 'Select at least one' })})</span>
+          </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
             {ELEMENTS_TO_VARY_OPTIONS.map(opt => (
               <div key={opt.id} className="flex items-center space-x-3">
@@ -201,7 +207,10 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
 
         {/* Number of Variations Group */}
         <div> 
-          <Label htmlFor="numVariations" className="block mb-1 text-base">Number of Variations: <span className="font-bold text-blue-600 dark:text-blue-400">{details.numVariations}</span></Label>
+          <Label htmlFor="numVariations" className="block mb-1 text-base">
+            {t('adStudio.numVariationsLabel', { defaultValue: 'Number of Variations:' })} 
+            <span className="font-bold text-blue-600 dark:text-blue-400">{details.numVariations}</span>
+          </Label>
           <Slider
             id="numVariations"
             min={1}
@@ -217,7 +226,9 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
       {/* Submit Button */}
       <div className="flex justify-end">
         <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Generating...' : 'Generate Ad Variations'}
+          {isLoading 
+            ? t('adStudio.generatingButton', { defaultValue: 'Generating...' }) 
+            : t('adStudio.generateButton', { defaultValue: 'Generate Ad Variations' })}
         </Button>
       </div>
     </form>
