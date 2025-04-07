@@ -126,7 +126,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
           <Label htmlFor="targetAudience">Target Audience *</Label>
           <Input id="targetAudience" value={details.targetAudience} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('targetAudience', e)} required placeholder="e.g., Women aged 30-50 interested in anti-aging skincare" />
         </div>
-        <div>
+        <div className="mb-4">
           <Label htmlFor="adObjective">Primary Ad Objective *</Label>
           <Select value={details.adObjective} onValueChange={(value: string) => handleSelectChange('adObjective', value)} required>
             <SelectTrigger><SelectValue placeholder="Select objective..." /></SelectTrigger>
