@@ -489,16 +489,9 @@ function buildPrompt(
   // Start with strong language instruction if not English
   if (language && language !== 'en') {
     if (language === 'es') {
-      languageInstruction = `INSTRUCCIÓN CRÍTICA: Este contenido DEBE estar completamente en ESPAÑOL. No uses inglés en absoluto.
-      
-CRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not use ANY English whatsoever in the final output.
+      languageInstruction = `INSTRUCCIÓN CRÍTICA: Este contenido DEBE estar completamente en ESPAÑOL. No uses inglés en absoluto.\n\nCRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not use ANY English whatsoever in the final output.\n\n`;\n    } else {\n      languageInstruction = `CRITICAL LANGUAGE INSTRUCTION: Generate all content in ${language} language only.\n\n`;\n    }\n  }\n  \n  // --- Persona/Style Enforcement Start ---\n  // TODO: Implement a lookup for style descriptions (e.g., using a map or importing definitions)\n  const styleDescription = `Description for style \'${style}\' not implemented yet.`; // Placeholder
+  const personaStyleInstruction = `\n# PERSONA/STYLE REQUIREMENT (STRICT)\n**Critical Instruction:** You MUST generate the content *strictly* in the following style: **${style}**. \nDescription of ${style}: ${styleDescription} \nDo NOT deviate from this style. Do NOT use elements from other styles unless explicitly part of the ${style} description.\n\n`;\n  // --- Persona/Style Enforcement End ---\n\n  const platformRelevance = verifyPlatformRelevance(platform, researchData);\n  const isSocialMedia = platform === \'social\';\n  \n  // ... [rest of existing platform detection logic] ...\n  \n  // --- Build the prompt --- \n  // Start with language and persona enforcement\n  let promptBuilder = `${languageInstruction}${personaStyleInstruction}`; \n  \n  // Add core request\n  promptBuilder += `Create highly engaging ${contentType} content for ${platform}${dominantSocialPlatform ? ` (specifically ${dominantSocialPlatform})` : \'\'} targeting ${audience}.\n\nBased on the provided research and data, craft content that follows current (${currentMonth} ${currentYear}) best practices and will drive engagement.\n\n${platformRelevance.relevant ? \n  `The research includes platform-specific information about ${platform}${dominantSocialPlatform ? ` with emphasis on ${dominantSocialPlatform}` : \'\'}, which you should leverage in your content generation.` : \n  `Note: Apply your knowledge of current ${platform} best practices while using the general research data.`}\n\n${addPersonaSpecificResearchInstruction(style, platform)}\n\n`;\n\n  // --- MUTUALLY EXCLUSIVE PLATFORM/FORMAT INSTRUCTIONS ---\n  // ... [Existing if/else if blocks for email, facebook, etc. remain unchanged] ...\n  \n  // --- Research Data Append ---\n  promptBuilder += `\n\n# RESEARCH DATA & CONTEXT\n${researchData ? `## Provided Research:\n${researchData}\n` : \'\'}\n${youtubeTranscript ? `## YouTube Transcript:\n${youtubeTranscript}\n` : \'\'}\n`;\n\n  // --- Final Style/Language Reinforcement ---\n  promptBuilder += `\n# FINAL INSTRUCTION (REMINDER)\n${languageInstruction}Remember to generate the content **strictly** following the **${style}** persona/style requirements mentioned at the beginning. Ensure the output matches the requested format (${platform}/${contentType}) and is highly relevant to the target audience: ${audience}. Focus on providing value and driving audience action.`;\n\n  console.log(\"Final prompt being sent to Claude:\", promptBuilder); // Added logging for debugging\n  return promptBuilder;\n}\n
 
-`;
-    } else {
-      languageInstruction = `CRITICAL LANGUAGE INSTRUCTION: Generate all content in ${language} language only.\n\n`;
-    }
-  }
-  
   const platformRelevance = verifyPlatformRelevance(platform, researchData);
   const isSocialMedia = platform === 'social';
   
@@ -527,12 +520,15 @@ CRITICAL LANGUAGE INSTRUCTION: You MUST generate content in SPANISH ONLY. Do not
   }
 
   // Build the prompt
-  let promptBuilder = `${languageInstruction}Create highly engaging ${contentType} content for ${platform}${dominantSocialPlatform ? ` (specifically ${dominantSocialPlatform})` : ''} targeting ${audience}.
+  let promptBuilder = `${languageInstruction}${personaStyleInstruction}`;
+  
+  // Add core request
+  promptBuilder += `Create highly engaging ${contentType} content for ${platform}${dominantSocialPlatform ? ` (specifically ${dominantSocialPlatform})` : ''} targeting ${audience}.
 
 Based on the provided research and data, craft content that follows current (${currentMonth} ${currentYear}) best practices and will drive engagement.
 
 ${platformRelevance.relevant ? 
-  `The research includes platform-specific information about ${platform}${dominantSocialPlatform ? ` with emphasis on ${dominantSocialPlatform}` : ''}, which you should leverage in your content generation.` : 
+  `The research includes platform-specific information about ${platform}${dominantSocialPlatform ? ` with emphasis on ${dominantSocialPlatform}` : ''} which you should leverage in your content generation.` : 
   `Note: Apply your knowledge of current ${platform} best practices while using the general research data.`}
 
 ${addPersonaSpecificResearchInstruction(style, platform)}
@@ -895,6 +891,7 @@ ${prompt}` : ""}
 # FINAL INSTRUCTION
 Create content that is engaging, platform-optimized (strictly adhering to the single format requested above), and highly relevant to the target audience. Focus on providing value and driving audience action. ${languageInstruction}`;
 
+  console.log("Final prompt being sent to Claude:", promptBuilder); // Added logging for debugging
   return promptBuilder;
 }
 
