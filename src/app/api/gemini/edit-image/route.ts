@@ -1,13 +1,16 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
+// Set a longer timeout for this API route (60 seconds instead of default 15)
+export const maxDuration = 60;
+
 // Initialize the Gemini API with the key
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "");
 
 export async function POST(request: Request) {
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.GOOGLE_GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY environment variable is not set" },
+      { error: "GOOGLE_GEMINI_API_KEY environment variable is not set" },
       { status: 500 }
     );
   }
@@ -65,8 +68,8 @@ export async function POST(request: Request) {
         });
       }
 
-      // Make the API request
-      const result = await model.generateContent({
+      // Make the API request - IMPORTANT: Using type assertion to allow responseModalities
+      const generateContentRequest = {
         contents: [
           {
             role: "user",
@@ -79,6 +82,7 @@ export async function POST(request: Request) {
           topK: 32,
           maxOutputTokens: 4096
         },
+        responseModalities: ["Text", "Image"], // Required for image generation
         safetySettings: [
           {
             category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -97,7 +101,9 @@ export async function POST(request: Request) {
             threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
           }
         ]
-      });
+      };
+      
+      const result = await model.generateContent(generateContentRequest as any);
       
       console.log("Request sent to Gemini API, waiting for response...");
       
@@ -133,12 +139,22 @@ export async function POST(request: Request) {
       } else {
         console.log("No image in response, got text only");
         
-        let feedbackMessage = "Your API key may not have access to image generation capabilities. You may need to upgrade to a paid tier or ensure your API key has the necessary permissions.";
+        let feedbackMessage = "The image generation API returned only text, not an edited image. This might be because:\n\n" + 
+          "1. Your API key may not have access to image generation capabilities (paid tier required)\n" +
+          "2. Your API access region may not support image generation\n" +
+          "3. The specific edit requested may not be supported by the model\n" +
+          "4. Image generation is still experimental and may not work for all prompts";
         
-        if (textResponse && textResponse.toLowerCase().includes("policy") || 
-            textResponse && textResponse.toLowerCase().includes("violate") ||
-            textResponse && textResponse.toLowerCase().includes("cannot generate")) {
-          feedbackMessage = "The requested edit may not be possible due to content policy restrictions. Please try a different edit or image.";
+        if (textResponse) {
+          feedbackMessage += "\n\nAPI Response: " + textResponse;
+        }
+        
+        if (textResponse && (
+            textResponse.toLowerCase().includes("policy") || 
+            textResponse.toLowerCase().includes("violate") ||
+            textResponse.toLowerCase().includes("cannot generate"))) {
+          feedbackMessage = "The requested edit may not be possible due to content policy restrictions. Please try a different edit or image." +
+            "\n\nAPI Response: " + textResponse;
         }
         
         return NextResponse.json({
@@ -152,25 +168,35 @@ export async function POST(request: Request) {
     } catch (error: any) {
       console.error("Error during image generation:", error);
       
+      // Format a more helpful error message
+      let errorMessage = `Gemini image generation API error: ${error.message}`;
+      
       if (error.message?.includes('PERMISSION_DENIED') || 
           error.message?.includes('insufficient permission') ||
           error.message?.includes('not available in your region')) {
-        return NextResponse.json({
-          error: `Gemini image generation API error: ${error.message}. This typically requires a paid tier or specific regional access.`,
-          prompt: prompt,
-          image: `data:image/jpeg;base64,${sourceImage}`,
-          apiLimited: true
-        });
+        errorMessage = `Gemini image generation requires a paid tier API key and supported region. Error: ${error.message}`;
       }
       
-      throw error;
+      if (error.message?.includes('NOT_FOUND')) {
+        errorMessage = `The requested model (gemini-2.0-flash-exp-image-generation) was not found. This is an experimental model and may require special access.`;
+      }
+      
+      return NextResponse.json({
+        error: errorMessage,
+        prompt: prompt,
+        image: sourceImage ? `data:image/jpeg;base64,${sourceImage}` : null,
+        apiLimited: true
+      });
     }
   } catch (error: any) {
     console.error("Error processing request:", error);
     
     return NextResponse.json({
       error: `Gemini AI Error: ${error.message || "An unknown error occurred"}`,
-      apiLimited: error.message?.includes('permission') || error.message?.includes('region') || error.message?.includes('NOT_FOUND')
+      apiLimited: error.message?.includes('permission') || 
+                error.message?.includes('region') || 
+                error.message?.includes('NOT_FOUND') ||
+                error.message?.includes('API key')
     }, { status: 500 });
   }
 } 
