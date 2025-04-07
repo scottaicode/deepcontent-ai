@@ -146,44 +146,52 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
       </div>
 
       {/* Section 2: Platform & Variation Strategy */}
-      <div className="space-y-4 p-6 border rounded-lg dark:border-gray-700">
+      <div className="space-y-6 p-6 border rounded-lg dark:border-gray-700">
         <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">2. Platform & Variation Strategy</h2>
-        <div>
-          <Label>Target Platforms * (Select at least one)</Label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
+        
+        {/* Target Platforms Group */}
+        <div> 
+          <Label className="block mb-3 text-base">Target Platforms * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(Select at least one)</span></Label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
             {PLATFORM_OPTIONS.map(opt => (
-              <div key={opt.id} className="flex items-center space-x-2">
+              <div key={opt.id} className="flex items-center space-x-3">
                 <Checkbox 
                   id={`platform-${opt.id}`}
                   checked={details.platforms.includes(opt.id)}
                   onCheckedChange={(checked: CheckedState) => handleMultiSelectChange('platforms', opt.id, checked)}
+                  className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
-                <label htmlFor={`platform-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                <label htmlFor={`platform-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
                   {opt.label}
                 </label>
               </div>
             ))}
           </div>
         </div>
-        <div>
-          <Label>Elements to Vary * (Select at least one)</Label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
+        
+        {/* Elements to Vary Group */}
+        <div> 
+          <Label className="block mb-3 text-base">Elements to Vary * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(Select at least one)</span></Label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 mt-2">
             {ELEMENTS_TO_VARY_OPTIONS.map(opt => (
-              <div key={opt.id} className="flex items-center space-x-2">
+              <div key={opt.id} className="flex items-center space-x-3">
                  <Checkbox 
                   id={`vary-${opt.id}`}
                   checked={details.elementsToVary.includes(opt.id)}
                   onCheckedChange={(checked: CheckedState) => handleMultiSelectChange('elementsToVary', opt.id, checked)}
+                  className="transition-all hover:scale-110 border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
-                <label htmlFor={`vary-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                <label htmlFor={`vary-${opt.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
                   {opt.label}
                 </label>
               </div>
             ))}
           </div>
         </div>
-        <div>
-          <Label htmlFor="numVariations">Number of Variations: {details.numVariations}</Label>
+
+        {/* Number of Variations Group */}
+        <div> 
+          <Label htmlFor="numVariations" className="block mb-1 text-base">Number of Variations: <span className="font-bold text-blue-600 dark:text-blue-400">{details.numVariations}</span></Label>
           <Slider
             id="numVariations"
             min={1}
@@ -191,7 +199,7 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
             step={1}
             value={[details.numVariations]}
             onValueChange={(value: number[]) => handleSliderChange('numVariations', value)}
-            className="mt-2"
+            className="mt-3 w-full"
           />
         </div>
       </div>
