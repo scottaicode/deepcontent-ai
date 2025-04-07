@@ -59,7 +59,22 @@ const ELEMENTS_TO_VARY_OPTIONS_KEYS = [
 // --- End Option Definitions ---
 
 export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading }) => {
-  const { t } = useLanguage();
+  const { t, locale, translations } = useLanguage();
+  
+  // Debug logging for translations
+  console.log('AdStudioForm: Current locale:', locale);
+  console.log('AdStudioForm: Translation available:', !!translations);
+  console.log('AdStudioForm: Section title translation test:', 
+    t('adStudio.section1Title', { defaultValue: '1. Core Ad Definition' }));
+  
+  // Check if translations for adStudio section exist
+  if (translations && translations.adStudio) {
+    console.log('AdStudioForm: adStudio translations found with keys:', 
+      Object.keys(translations.adStudio));
+  } else {
+    console.warn('AdStudioForm: adStudio translations not found in:', translations);
+  }
+  
   const [details, setDetails] = useState<AdMakerRequest>({
     projectName: '',
     productDescription: '',

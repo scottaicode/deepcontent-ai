@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 // Removed AppShell import as it's likely provided by a root layout
 // import AppShell from '@/components/AppShell'; 
 import { AdStudioForm } from '@/components/AdStudio/AdStudioForm'; 
@@ -33,7 +33,34 @@ export default function AdStudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [generatedVariations, setGeneratedVariations] = useState<AdVariation[]>([]);
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, locale, translations } = useLanguage();
+  
+  // Debug log for translation state
+  useEffect(() => {
+    console.log('AdStudio: Current locale:', locale);
+    console.log('AdStudio: Translation test for title:', t('navigation.adStudio', { defaultValue: 'Ad Studio' }));
+    console.log('AdStudio: Translation test for description:', t('adStudio.pageDescription', { defaultValue: 'Define your ad parameters below to generate creative variations.' }));
+    
+    // Check if adStudio keys exist in translations
+    if (translations) {
+      console.log('AdStudio: Translation object available:', !!translations);
+      console.log('AdStudio: adStudio section exists:', !!translations.adStudio);
+      if (translations.adStudio) {
+        console.log('AdStudio: pageDescription exists:', !!translations.adStudio.pageDescription);
+        console.log('AdStudio: section1Title exists:', !!translations.adStudio.section1Title);
+        console.log('AdStudio: Full adStudio translations:', translations.adStudio);
+      }
+    }
+    
+    // Force Spanish text to see if it's a rendering issue
+    const spanishTitle = locale === 'es' ? 'Estudio de Anuncios' : 'Ad Studio';
+    const spanishDescription = locale === 'es' ? 
+      'Define los parámetros de tu anuncio a continuación para generar variaciones creativas.' : 
+      'Define your ad parameters below to generate creative variations.';
+    
+    console.log('AdStudio: Forced Spanish title:', spanishTitle);
+    console.log('AdStudio: Forced Spanish description:', spanishDescription);
+  }, [locale, t, translations]);
 
   const handleAdSubmit = async (details: AdMakerRequest) => {
     setIsLoading(true);
@@ -95,15 +122,21 @@ export default function AdStudioPage() {
     }
   };
 
+  // Force hardcoded Spanish text if locale is Spanish for testing
+  const pageTitle = locale === 'es' ? 'Estudio de Anuncios' : t('navigation.adStudio', { defaultValue: 'Ad Studio' });
+  const pageDescription = locale === 'es' ? 
+    'Define los parámetros de tu anuncio a continuación para generar variaciones creativas.' : 
+    t('adStudio.pageDescription', { defaultValue: 'Define your ad parameters below to generate creative variations.' });
+
   // Return only the page-specific content, assuming AppShell is in the root layout
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Add back a page title */}
       <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">
-        {t('navigation.adStudio', { defaultValue: 'Ad Studio' })}
+        {pageTitle}
       </h1>
       <p className="mb-8 text-gray-600 dark:text-gray-300">
-        {t('adStudio.pageDescription', { defaultValue: 'Define your ad parameters below to generate creative variations.' })}
+        {pageDescription}
       </p>
         
       {/* Render the Form */}
