@@ -1215,5 +1215,63 @@
     "trendingTopics": "Trending Topics",
     "keyPoints": "Key Points to Consider",
     "contentSuggestions": "Content Suggestions"
+  },
+  "adStudio": {
+    "title": "Ad Studio",
+    "subtitle": "Define your ad parameters below to generate creative variations.",
+    "coreDefinition": "Core Ad Definition",
+    "projectName": "Project Name",
+    "projectNamePlaceholder": "e.g., Spring Skincare Campaign",
+    "productDescription": "Product/Service Description",
+    "productDescriptionPlaceholder": "Describe the product/service being advertised...",
+    "targetAudience": "Target Audience",
+    "targetAudiencePlaceholder": "e.g., Women aged 30-50 interested in anti-aging skincare",
+    "primaryAdObjective": "Primary Ad Objective",
+    "keyMessage": "Key Message",
+    "keyMessagePlaceholder": "What is the single most important message to convey?",
+    "callToAction": "Call To Action (Optional)",
+    "callToActionPlaceholder": "e.g., Shop Now, Learn More, Sign Up",
+    "platformVariationStrategy": "Platform & Variation Strategy",
+    "targetPlatforms": "Target Platforms",
+    "selectAtLeastOne": "(Select at least one)",
+    "elementsToVary": "Elements to Vary",
+    "numberOfVariations": "Number of Variations",
+    "platformOptions": {
+      "facebook_feed": "Facebook Feed",
+      "instagram_feed": "Instagram Feed",
+      "instagram_reels": "Instagram Reels",
+      "instagram_stories": "Instagram Stories",
+      "tiktok": "TikTok",
+      "youtube_shorts": "YouTube Shorts",
+      "linkedin_feed": "LinkedIn Feed",
+      "google_search": "Google Search Ads"
+    },
+    "objectiveOptions": {
+      "brand_awareness": "Brand Awareness",
+      "lead_generation": "Lead Generation",
+      "sales_conversion": "Sales/Conversion",
+      "engagement": "Engagement",
+      "website_traffic": "Website Traffic"
+    },
+    "elementOptions": {
+      "headline": "Headline/Hook",
+      "body_copy": "Body Copy/Script",
+      "visual_angle": "Visual Angle/Style",
+      "call_to_action": "Call To Action (CTA)",
+      "offer": "Offer/Value Proposition",
+      "tone_of_voice": "Tone of Voice"
+    },
+    "generateButton": "Generate Ad Variations",
+    "generating": "Generating...",
+    "generatedVariations": "Generated Ad Variations",
+    "variation": "Variation",
+    "headline": "Headline",
+    "bodyScript": "Body/Script",
+    "visualGuidance": "Visual Guidance",
+    "platformSuitability": "Platform Suitability",
+    "validationError": "Please fill in all required fields and select at least one platform and element to vary.",
+    "errorTitle": "Error",
+    "successTitle": "Success!",
+    "variationsGenerated": "ad variations generated."
   }
 } 

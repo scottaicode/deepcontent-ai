@@ -73,12 +73,12 @@ export default function AdStudioPage() {
 
       console.log('Received Variations:', result.variations);
       setGeneratedVariations(result.variations);
-      toast({ title: "Success!", description: `${result.variations.length} ad variations generated.` });
+      toast({ title: t('adStudio.successTitle'), description: `${result.variations.length} ${t('adStudio.variationsGenerated')}` });
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
       setError(errorMessage);
-      toast({ variant: "destructive", title: "Error", description: errorMessage });
+      toast({ variant: "destructive", title: t('adStudio.errorTitle'), description: errorMessage });
       console.error('Submit Error:', err);
     } finally {
       setIsLoading(false);
@@ -90,7 +90,7 @@ export default function AdStudioPage() {
     <div className="container mx-auto px-4 py-8">
       {/* Add back a page title */}
       <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">{t('navigation.adStudio')}</h1>
-      <p className="mb-8 text-gray-600 dark:text-gray-300">Define your ad parameters below to generate creative variations.</p>
+      <p className="mb-8 text-gray-600 dark:text-gray-300">{t('adStudio.subtitle')}</p>
         
       {/* Render the Form */}
       <AdStudioForm onSubmit={handleAdSubmit} isLoading={isLoading} />
@@ -99,21 +99,21 @@ export default function AdStudioPage() {
       <div className="mt-8">
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong className="font-bold">Error: </strong>
+            <strong className="font-bold">{t('adStudio.errorTitle')}: </strong>
             <span className="block sm:inline">{error}</span>
           </div>
         )}
 
         {generatedVariations.length > 0 && (
           <div className="mt-6 space-y-6">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Generated Ad Variations</h2>
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">{t('adStudio.generatedVariations')}</h2>
             {generatedVariations.map((variation) => (
               <div key={variation.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold mb-2 text-blue-600 dark:text-blue-400">Variation {variation.id}</h3>
-                <p className="mb-1"><strong className="font-medium text-gray-700 dark:text-gray-300">Headline:</strong> {variation.headline}</p>
-                <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">Body/Script:</strong> {variation.bodyScript}</p>
-                <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">Visual Guidance:</strong> {variation.visualGuidance}</p>
-                <p><strong className="font-medium text-gray-700 dark:text-gray-300">Platform Suitability:</strong> {variation.platformSuitability.join(', ')}</p>
+                <h3 className="text-lg font-semibold mb-2 text-blue-600 dark:text-blue-400">{t('adStudio.variation')} {variation.id}</h3>
+                <p className="mb-1"><strong className="font-medium text-gray-700 dark:text-gray-300">{t('adStudio.headline')}:</strong> {variation.headline}</p>
+                <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">{t('adStudio.bodyScript')}:</strong> {variation.bodyScript}</p>
+                <p className="mb-1 whitespace-pre-wrap"><strong className="font-medium text-gray-700 dark:text-gray-300">{t('adStudio.visualGuidance')}:</strong> {variation.visualGuidance}</p>
+                <p><strong className="font-medium text-gray-700 dark:text-gray-300">{t('adStudio.platformSuitability')}:</strong> {variation.platformSuitability.join(', ')}</p>
               </div>
             ))}
           </div>
