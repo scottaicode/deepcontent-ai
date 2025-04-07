@@ -35,6 +35,17 @@
     "numVariationsLabel": "Número de Variaciones:",
     "generateButton": "Generar Variaciones de Anuncio",
     "generatingButton": "Generando...",
+    "pageDescription": "Define los parámetros de tu anuncio a continuación para generar variaciones creativas.",
+    "generatedVariationsTitle": "Variaciones de Anuncio Generadas",
+    "variationLabel": "Variación",
+    "headlineLabel": "Título",
+    "bodyScriptLabel": "Texto/Guion",
+    "visualGuidanceLabel": "Guía Visual",
+    "platformSuitabilityLabel": "Plataformas Adecuadas",
+    "successMessage": "{count} variaciones de anuncio generadas.",
+    "errors": {
+      "noVariations": "No se devolvieron variaciones de anuncio desde la API."
+    },
     "validation": {
       "fillRequired": "Por favor, completa todos los campos obligatorios y selecciona al menos una plataforma y un elemento a variar."
     },
