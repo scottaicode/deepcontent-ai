@@ -135,7 +135,11 @@ export const AdStudioForm: React.FC<AdStudioFormProps> = ({ onSubmit, isLoading 
           >
             {OBJECTIVE_OPTIONS.map(opt => (
                <div key={opt.id} className="flex items-center space-x-3">
-                 <RadioGroupItem value={opt.id} id={`objective-${opt.id}`} />
+                 <RadioGroupItem 
+                   value={opt.id} 
+                   id={`objective-${opt.id}`} 
+                   className="border-gray-400 dark:border-gray-600 data-[state=checked]:border-primary"
+                 />
                  <Label htmlFor={`objective-${opt.id}`} className="font-normal cursor-pointer">{opt.label}</Label>
                </div>
             ))}
