@@ -31,19 +31,29 @@ export async function POST(req: NextRequest) {
     // Enhanced approach with more detailed prompt
     const enhancedPrompt = `Generate a detailed, high-quality image based on this description: "${prompt}". The image should be photorealistic, with good lighting and composition. Focus on creating a visually appealing result. Your task is to generate an image, not just describe how you would create it.`;
     
-    // Use the enhanced prompt
-    const result = await model.generateContent([
-      enhancedPrompt
-    ]);
+    // Match the format shown in the Python documentation example exactly
+    const response = await model.generateContent({
+      contents: [{ 
+        role: "user",
+        parts: [{ text: enhancedPrompt }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        topP: 1,
+        topK: 32,
+        maxOutputTokens: 2048,
+        responseModalities: ["Text", "Image"]
+      }
+    } as any);
 
     console.log("Response received from Gemini API");
     
-    if (!result.response) {
+    if (!response.response) {
       throw new Error("No response received from Gemini");
     }
 
     // Extract content parts from the response
-    const parts = result.response.candidates?.[0]?.content?.parts || [];
+    const parts = response.response.candidates?.[0]?.content?.parts || [];
     console.log(`Response contains ${parts.length} parts`);
     
     // Find image and text parts

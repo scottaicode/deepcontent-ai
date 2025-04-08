@@ -47,20 +47,23 @@ export async function POST(request: Request) {
       }
       console.log(`Prompt: "${formattedPrompt}"`);
 
-      // Prepare the request parts
-      const parts = [
-        { text: formattedPrompt },
-        { 
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: sourceImage
-          }
+      // Prepare the request parts - IMPORTANT: Format exactly as in the docs
+      const parts = [];
+      
+      // Add text part first
+      parts.push({ text: formattedPrompt });
+      
+      // Add source image
+      parts.push({
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: sourceImage
         }
-      ];
+      });
       
       // Add target image if it exists
       if (targetImage) {
-        parts.push({ 
+        parts.push({
           inlineData: {
             mimeType: "image/jpeg",
             data: targetImage
@@ -68,17 +71,29 @@ export async function POST(request: Request) {
         });
       }
 
-      // Simplified API call that worked in production
-      const result = await model.generateContent(parts);
+      // Make the API call exactly as shown in the documentation examples
+      const response = await model.generateContent({
+        contents: [{ 
+          role: "user",
+          parts 
+        }],
+        generationConfig: {
+          temperature: 0.4,
+          topP: 1,
+          topK: 32,
+          maxOutputTokens: 4096,
+          responseModalities: ["Text", "Image"]
+        }
+      } as any);
       
       console.log("Request sent to Gemini API, waiting for response...");
       
-      if (!result.response) {
+      if (!response.response) {
         throw new Error("No response received from Gemini");
       }
       
       // Extract parts from the response
-      const responseParts = result.response.candidates?.[0]?.content?.parts || [];
+      const responseParts = response.response.candidates?.[0]?.content?.parts || [];
       console.log("Response parts count:", responseParts.length);
       
       // Log the types of parts received
