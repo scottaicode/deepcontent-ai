@@ -390,7 +390,7 @@ export default function ImageEditor() {
             Your request is returning text analysis but no generated image. This is likely because:
           </p>
           <ul className="list-disc list-inside text-amber-700 text-sm mt-2 ml-2">
-            <li>Gemini 2.0 Flash image generation is an <a href="https://developers.googleblog.com/en/experiment-with-gemini-20-flash-native-image-generation/" className="underline font-medium" target="_blank" rel="noopener noreferrer">experimental feature</a> (released March 12, 2023)</li>
+            <li>Gemini 2.0 Flash image generation is an <a href="https://developers.googleblog.com/en/experiment-with-gemini-20-flash-native-image-generation/" className="underline font-medium" target="_blank" rel="noopener noreferrer">experimental feature</a> (released March 12, 2025)</li>
             <li>It requires a paid tier Gemini API key</li>
             <li>Your API access must be from a supported region</li>
             <li>You must explicitly enable image generation in your Google Cloud console</li>
