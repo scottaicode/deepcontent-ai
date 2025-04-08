@@ -1,7 +1,5 @@
 import { Metadata } from 'next';
-import AppShell from '@/components/AppShell';
 import ImageEditor from '@/components/ImageEditor';
-import ProductionModeFixes from '@/components/ProductionModeFixes';
 
 export const metadata: Metadata = {
   title: 'AI Image Editor',
@@ -10,11 +8,8 @@ export const metadata: Metadata = {
 
 export default function ImageEditorPage() {
   return (
-    <AppShell hideHeader={true}>
-      <ProductionModeFixes />
-      <div className="container mx-auto px-4 py-8">
-        <ImageEditor />
-      </div>
-    </AppShell>
+    <div className="container mx-auto px-4 py-8">
+      <ImageEditor />
+    </div>
   );
 } 

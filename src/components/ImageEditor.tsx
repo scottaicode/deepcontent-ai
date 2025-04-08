@@ -384,10 +384,8 @@ export default function ImageEditor() {
         </p>
       </div>
 
-      {/* Existing Editor Content (wrapped in a container for better layout) */}
+      {/* Editor Content Container */}
       <div className="bg-white dark:bg-gray-900 shadow sm:rounded-lg p-6 md:p-8">
-        <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">AI Image Editor</h2>
-        
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6 border border-blue-200 dark:border-blue-800/30">
           <p className="text-sm text-blue-700 dark:text-blue-300">
             Upload one or two images and describe how you want to edit them.

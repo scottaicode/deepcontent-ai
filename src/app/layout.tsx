@@ -39,12 +39,6 @@ export default function RootLayout({
   // Try to get the language from the headers (set by middleware)
   const headersList = headers();
   const xLanguage = headersList.get('x-language') || 'en';
-  const pathname = headersList.get('x-pathname') || '';
-  
-  // Check if we're on a page that shouldn't show the main header
-  // like the image editor or text-to-image pages that have their own headers
-  const hideMainHeader = pathname.includes('/dashboard/image-editor') || 
-                          pathname.includes('/dashboard/text-to-image');
   
   return (
     <html lang={xLanguage} className="scroll-smooth">
@@ -88,17 +82,16 @@ export default function RootLayout({
                     showDetails={true}
                   />
                   
-                  {/* Global Header - conditionally rendered */}
-                  {!hideMainHeader && <Header />}
+                  {/* Global Header - Always render */}
+                  <Header />
                   
-                  {/* Information Banner - conditionally rendered */}
-                  {!hideMainHeader && (
-                    <div className="pt-16 md:pt-20">
-                      <InfoBanner />
-                    </div>
-                  )}
+                  {/* Information Banner - Always render */}
+                  <div className="pt-16 md:pt-20">
+                    <InfoBanner />
+                  </div>
                   
                   {/* Main Content */}
+                  {/* Adjust top padding for main content based on header presence */}
                   <main className="min-h-screen pt-0 relative z-0 overflow-hidden">
                     {children}
                   </main>
