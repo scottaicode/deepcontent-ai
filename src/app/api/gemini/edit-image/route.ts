@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     try {
       // Create the prompt
       const formattedPrompt = targetImage
-        ? `Edit these images according to these instructions: ${prompt}`
-        : `Edit this image according to these instructions: ${prompt}`;
+        ? `Look at these images. I want you to edit them according to these instructions: ${prompt}. Create a new image that applies these changes visually. Be creative and make the edits visible and realistic.`
+        : `Look at this image of ${sourceImage.length > 50000 ? 'food' : 'a scene'}. I want you to edit it according to these instructions: "${prompt}". Create a new version of this image that applies these changes visually. The edits should be obvious and realistic. Your task is to generate an edited image, not just describe how you would edit it.`;
 
       // Log information
       console.log(`Processing edit request with ${targetImage ? 'two images' : 'one image'}`);

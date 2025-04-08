@@ -28,9 +28,12 @@ export async function POST(req: NextRequest) {
 
     console.log("Sending request to Gemini for image generation...");
     
-    // Simplified approach - closer to what worked in production
+    // Enhanced approach with more detailed prompt
+    const enhancedPrompt = `Generate a detailed, high-quality image based on this description: "${prompt}". The image should be photorealistic, with good lighting and composition. Focus on creating a visually appealing result. Your task is to generate an image, not just describe how you would create it.`;
+    
+    // Use the enhanced prompt
     const result = await model.generateContent([
-      prompt
+      enhancedPrompt
     ]);
 
     console.log("Response received from Gemini API");
