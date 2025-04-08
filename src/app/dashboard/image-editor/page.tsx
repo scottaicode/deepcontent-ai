@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import AppShell from '@/components/AppShell';
-import ImageEditorContent from './ImageEditorContent';
+import ImageEditor from '@/components/ImageEditor';
 import ProductionModeFixes from '@/components/ProductionModeFixes';
 
 export const metadata: Metadata = {
@@ -13,7 +13,7 @@ export default function ImageEditorPage() {
     <AppShell hideHeader={true}>
       <ProductionModeFixes />
       <div className="container mx-auto px-4 py-8">
-        <ImageEditorContent />
+        <ImageEditor />
       </div>
     </AppShell>
   );
