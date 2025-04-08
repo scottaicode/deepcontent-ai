@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt } = await req.json();
+    const { prompt, temperature = 0.7 } = await req.json();
 
     if (!prompt) {
       return NextResponse.json(
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`Processing image generation request for prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
+    console.log(`Using temperature: ${temperature}`);
 
     // Get the Gemini 2.0 Flash Experimental model for image generation
     const model = genAI.getGenerativeModel({ 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
         parts: [{ text: enhancedPrompt }]
       }],
       generationConfig: {
-        temperature: 0.7,
+        temperature: parseFloat(temperature),
         topP: 1,
         topK: 32,
         maxOutputTokens: 2048,
