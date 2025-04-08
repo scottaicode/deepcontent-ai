@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ImageEditor() {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
@@ -13,6 +16,9 @@ export default function ImageEditor() {
   const [resultText, setResultText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [apiLimited, setApiLimited] = useState<boolean>(false);
+  const [temperature, setTemperature] = useState(0.7); // Default temperature
+  const [progressStage, setProgressStage] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState(0);
   
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const targetInputRef = useRef<HTMLInputElement>(null);
@@ -50,15 +56,62 @@ export default function ImageEditor() {
     }
   }, [sourceImage, targetImage, resultImage]);
 
+  // Function to resize an image to a maximum width/height while maintaining aspect ratio
+  const resizeImage = (base64Image: string, maxWidth: number, maxHeight: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+        
+        // Create canvas and resize
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Get the resized image as base64
+        const resizedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        
+        // Strip the prefix and return just the base64 data
+        resolve(resizedBase64.split(',')[1]);
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Error loading image for resizing'));
+      };
+      
+      img.src = `data:image/jpeg;base64,${base64Image}`;
+    });
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'source' | 'target') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      // Validate file size (max 10MB)
-      const maxSizeInBytes = 10 * 1024 * 1024; // 10MB
+      // Validate file size (max 20MB)
+      const maxSizeInBytes = 20 * 1024 * 1024; // 20MB
       if (file.size > maxSizeInBytes) {
-        alert(`Image size too large (max 10MB). Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+        alert(`Image size too large (max 20MB). Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
         return;
       }
 
@@ -71,7 +124,7 @@ export default function ImageEditor() {
 
       const reader = new FileReader();
       
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         // Make sure we have a result and it's a string
         if (!reader.result || typeof reader.result !== 'string') {
           console.error('FileReader did not produce a valid result');
@@ -87,12 +140,38 @@ export default function ImageEditor() {
           return;
         }
         
-        console.log(`${type} image loaded, size: ${base64Data.length} chars`);
+        console.log(`${type} image loaded, original size: ${base64Data.length} chars`);
         
-        if (type === 'source') {
-          setSourceImage(base64Data);
-        } else {
-          setTargetImage(base64Data);
+        try {
+          // Check if image is large and needs resizing (base64 is ~4/3 the size of the binary data)
+          // If over 1MB in base64, we should resize it
+          if (base64Data.length > 1000000) {
+            console.log(`Resizing large ${type} image...`);
+            const resizedBase64 = await resizeImage(base64Data, 1200, 1200);
+            console.log(`${type} image resized from ${base64Data.length} to ${resizedBase64.length} chars`);
+            
+            if (type === 'source') {
+              setSourceImage(resizedBase64);
+            } else {
+              setTargetImage(resizedBase64);
+            }
+          } else {
+            // Image is small enough to use as-is
+            if (type === 'source') {
+              setSourceImage(base64Data);
+            } else {
+              setTargetImage(base64Data);
+            }
+          }
+        } catch (resizeError) {
+          console.error('Error resizing image:', resizeError);
+          
+          // Fall back to using the original image if resize fails
+          if (type === 'source') {
+            setSourceImage(base64Data);
+          } else {
+            setTargetImage(base64Data);
+          }
         }
       };
       
@@ -121,12 +200,20 @@ export default function ImageEditor() {
     setResultText(null);
     setApiLimited(false);
     
+    // Progress simulation
+    setProgressStage('Preparing image data');
+    setProgressPercent(10);
+    
     try {
       console.log('Sending request to edit image API...');
       console.log('Source image size:', sourceImage.length, 'chars');
       if (targetImage) {
         console.log('Target image size:', targetImage.length, 'chars');
       }
+      console.log('Using temperature:', temperature);
+      
+      setProgressStage('Sending request to AI model');
+      setProgressPercent(30);
       
       const response = await fetch('/api/gemini/edit-image', {
         method: 'POST',
@@ -137,9 +224,13 @@ export default function ImageEditor() {
           sourceImage,
           targetImage,
           prompt,
+          temperature // Pass the temperature to the API
         }),
       });
 
+      setProgressStage('Processing AI response');
+      setProgressPercent(70);
+      
       const data = await response.json();
       console.log('Response received:', { status: response.status, hasError: !!data.error, hasImage: !!data.image });
       
@@ -155,6 +246,9 @@ export default function ImageEditor() {
         setApiLimited(true);
       }
       
+      setProgressStage('Finalizing result');
+      setProgressPercent(90);
+      
       if (data.image) {
         setResultImage(data.image);
         console.log('Successfully received edited image');
@@ -166,21 +260,60 @@ export default function ImageEditor() {
         setResultText(data.textResponse);
         console.log('Text response:', data.textResponse.substring(0, 100));
       }
+      
+      setProgressStage('Complete');
+      setProgressPercent(100);
     } catch (error: any) {
       console.error('Error during image editing:', error);
       setError(error.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
+      // Reset progress after a brief delay
+      setTimeout(() => {
+        setProgressStage(null);
+        setProgressPercent(0);
+      }, 1000);
     }
   };
 
-  const promptExamples = [
-    "Add a red hat to the woman",
-    "Make the background blue",
-    "Turn this into a painting",
-    "Add a digital effect to the image",
-    "Add a cartoon effect",
-  ];
+  // Categorized prompt examples
+  const promptCategories = {
+    additions: [
+      "Add onions to the hotdog",
+      "Add a person to the beach scene",
+      "Add a dog to the park",
+      "Put sunglasses on the person",
+      "Add a coffee cup to the table"
+    ],
+    transformations: [
+      "Turn this into a painting",
+      "Make it look like a sketch",
+      "Convert to anime style",
+      "Transform into a watercolor painting",
+      "Make it look like a stained glass window"
+    ],
+    backgrounds: [
+      "Make the background blue",
+      "Change background to a beach",
+      "Remove the background",
+      "Replace background with mountains",
+      "Change to a nighttime scene"
+    ],
+    combinations: [
+      "Combine these two images",
+      "Put the hotdog in the person's hand",
+      "Make the flower appear in the vase",
+      "Place the object on the table",
+      "Add the second image as a reflection in water"
+    ],
+    effects: [
+      "Add a digital effect to the image",
+      "Add a cartoon effect",
+      "Make it look vintage",
+      "Add a cinematic filter",
+      "Apply neon glow effect"
+    ]
+  };
 
   const removeSourceImage = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -196,6 +329,26 @@ export default function ImageEditor() {
     if (targetImageRef.current) {
       targetImageRef.current.innerHTML = '';
     }
+  };
+
+  const handleRefinement = () => {
+    if (!resultImage) return;
+
+    // Extract the base64 data from the resultImage URL
+    const base64Data = resultImage.split(',')[1];
+    if (!base64Data) return;
+
+    // Set the result as the new source image for further editing
+    setSourceImage(base64Data);
+    setTargetImage(null);
+    setResultImage(null);
+    setResultText(null);
+    
+    // Update prompt to indicate it's refining
+    setPrompt(prompt => `Refine this image further: ${prompt}`);
+    
+    // Scroll to the editor section
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -326,51 +479,125 @@ export default function ImageEditor() {
           />
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          {promptExamples.map((example, index) => (
-            <button
-              key={index}
-              className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-              onClick={(e) => {
-                e.preventDefault(); 
-                setPrompt(example);
-              }}
-            >
-              {example}
-            </button>
-          ))}
+        {/* Creative Control Slider */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label htmlFor="temperature-slider" className="text-sm font-medium">
+              Creativity Level: {temperature.toFixed(1)}
+            </Label>
+            <span className="text-xs text-gray-500">
+              {temperature < 0.4 ? 'Conservative' : temperature < 0.7 ? 'Balanced' : 'Creative'}
+            </span>
+          </div>
+          <Slider
+            id="temperature-slider"
+            min={0.1}
+            max={1.0}
+            step={0.1}
+            value={[temperature]}
+            onValueChange={(value) => setTemperature(value[0])}
+            className="w-full"
+          />
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Precise</span>
+            <span>Balanced</span>
+            <span>Creative</span>
+          </div>
+        </div>
+        
+        {/* Prompt Examples in Tabs */}
+        <div>
+          <Label className="text-sm font-medium block mb-2">Example Prompts</Label>
+          <Tabs defaultValue="additions" className="w-full">
+            <TabsList className="grid grid-cols-5 mb-2">
+              <TabsTrigger value="additions">Add Items</TabsTrigger>
+              <TabsTrigger value="transformations">Transform</TabsTrigger>
+              <TabsTrigger value="backgrounds">Background</TabsTrigger>
+              <TabsTrigger value="combinations">Combine</TabsTrigger>
+              <TabsTrigger value="effects">Effects</TabsTrigger>
+            </TabsList>
+            
+            {Object.entries(promptCategories).map(([category, examples]) => (
+              <TabsContent key={category} value={category} className="pt-2">
+                <div className="flex flex-wrap gap-2">
+                  {examples.map((example, index) => (
+                    <button
+                      key={index}
+                      className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                      onClick={(e) => {
+                        e.preventDefault(); 
+                        setPrompt(example);
+                      }}
+                    >
+                      {example}
+                    </button>
+                  ))}
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
         </div>
 
+        {/* Generate Button with Loading State */}
         <Button
           onClick={handleSubmit}
           disabled={loading || !sourceImage || !prompt}
-          className="w-full"
+          className="w-full relative h-10"
         >
-          {loading ? 'Generating...' : 'Generate Edited Image'}
+          {loading ? (
+            <div className="flex items-center justify-center w-full">
+              <div className="mr-2">
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+              <span>{progressStage || 'Generating...'}</span>
+            </div>
+          ) : 'Generate Edited Image'}
+          
+          {/* Progress bar for loading state */}
+          {loading && (
+            <div className="absolute bottom-0 left-0 h-1 bg-white/30 rounded-b-md" style={{ width: `${progressPercent}%` }}></div>
+          )}
         </Button>
       </div>
       
       {/* Result Display */}
       {(resultImage || resultText) && (
         <div className="mt-8 border-t border-gray-200 pt-6">
-          <h3 className="text-xl font-bold mb-4">Result</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-bold">Result</h3>
+            {resultImage && (
+              <Button
+                onClick={handleRefinement}
+                variant="outline"
+                className="text-sm"
+                size="sm"
+              >
+                Use As Source & Refine Further
+              </Button>
+            )}
+          </div>
           
           {resultImage && (
             <div className="mb-6">
               <div className="relative w-full aspect-square bg-gray-100 rounded-lg overflow-hidden">
                 <div ref={resultImageRef} className="w-full h-full"></div>
-                <a 
-                  href={resultImage}
-                  download="edited-image.jpg"
-                  className="absolute bottom-3 right-3 bg-white p-2 rounded-full shadow-md hover:bg-gray-100"
-                  title="Download"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </a>
+                <div className="absolute bottom-3 right-3 flex space-x-2">
+                  <a 
+                    href={resultImage}
+                    download="edited-image.jpg"
+                    className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100"
+                    title="Download"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </a>
+                </div>
               </div>
             </div>
           )}

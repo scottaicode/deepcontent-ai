@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { sourceImage, targetImage, prompt } = await request.json();
+    const { sourceImage, targetImage, prompt, temperature = 0.7 } = await request.json();
 
     // Validate inputs - require at least sourceImage and prompt
     if (!sourceImage || !prompt) {
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     }
 
     console.log("Initializing Gemini 2.0 Flash image generation model...");
+    console.log(`Using temperature: ${temperature}`);
     
     // Create model
     const model = genAI.getGenerativeModel({
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
           parts 
         }],
         generationConfig: {
-          temperature: 0.4,
+          temperature: parseFloat(temperature.toString()), // Convert to number for safety
           topP: 1,
           topK: 32,
           maxOutputTokens: 4096,
