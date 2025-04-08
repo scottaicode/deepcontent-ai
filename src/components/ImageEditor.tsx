@@ -388,29 +388,20 @@ export default function ImageEditor() {
       <div className="bg-white dark:bg-gray-900 shadow sm:rounded-lg p-6 md:p-8">
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6 border border-blue-200 dark:border-blue-800/30">
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            Upload one or two images and describe how you want to edit them.
-            Gemini 2.0 Flash will generate a new image based on your instructions.
+            Upload one or two images and describe how you want to edit them. 
+            The AI will generate a new image based on your instructions.
           </p>
         </div>
         
         {apiLimited && (
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg mb-4">
-            <h3 className="text-amber-800 font-medium mb-2">Gemini Experimental API Limitation</h3>
+            <h3 className="text-amber-800 font-medium mb-2">API Limitation Notice</h3>
             <p className="text-amber-700 text-sm">
-              Your request is returning text analysis but no generated image. This is likely because:
+              Your request returned text analysis but no generated image. This might be due to API access limitations or configuration.
             </p>
-            <ul className="list-disc list-inside text-amber-700 text-sm mt-2 ml-2">
-              <li>Gemini 2.0 Flash image generation is an <a href="https://developers.googleblog.com/en/experiment-with-gemini-20-flash-native-image-generation/" className="underline font-medium" target="_blank" rel="noopener noreferrer">experimental feature</a> (released March 12, 2025)</li>
-              <li>It requires a paid tier Gemini API key</li>
-              <li>Your API access must be from a supported region</li>
-              <li>You must explicitly enable image generation in your Google Cloud console</li>
-            </ul>
-            <div className="mt-3 p-3 bg-white rounded border border-amber-200 text-sm">
-              <p className="font-medium text-amber-800">Current Limitations:</p>
-              <p className="text-gray-700 mt-1">
-                Even with access to the experimental API, Google notes that "the image generation capability is still being refined" and may not consistently provide high-quality image edits for all requests.
-              </p>
-            </div>
+            <p className="text-gray-700 text-sm mt-1">
+              Please ensure your API access is properly configured and supports image generation capabilities.
+            </p>
           </div>
         )}
         
