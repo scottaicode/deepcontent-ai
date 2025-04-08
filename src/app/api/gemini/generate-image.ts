@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export const maxDuration = 60;
 
 // Initialize the Google Generative AI client with the API key
-const apiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
+const apiKey = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
@@ -29,10 +29,23 @@ export async function POST(req: NextRequest) {
     console.log("Sending request to Gemini for image generation...");
     
     // Generate content with text and image response modalities
-    // The API requires a specific format for the request
-    const result = await model.generateContent([
-      prompt
-    ]);
+    // Create request with responseModalities for image generation support
+    const generateContentRequest = {
+      contents: [{
+        role: "user",
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 32,
+        maxOutputTokens: 2048
+      },
+      responseModalities: ["Text", "Image"]  // Required for image generation
+    };
+    
+    // Use type assertion to work around TypeScript limitations
+    const result = await model.generateContent(generateContentRequest as any);
 
     console.log("Response received from Gemini API");
     
