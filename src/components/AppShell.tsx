@@ -1,10 +1,16 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import MainLanguageSwitcher from './MainLanguageSwitcher';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useTranslation } from '@/lib/hooks/useTranslation';
-import FirebaseIndexHelper from './FirebaseIndexHelper';
+// Import FirebaseIndexHelper dynamically to handle potential issues
+import dynamic from 'next/dynamic';
+
+// Dynamically import FirebaseIndexHelper with error handling
+const FirebaseIndexHelper = dynamic(() => import('./FirebaseIndexHelper').catch(() => () => null), {
+  ssr: false
+});
 
 // Explicitly define the props interface for AppShell
 interface AppShellProps {
