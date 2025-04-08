@@ -1,5 +1,4 @@
 import { Metadata } from 'next';
-import ImageEditorContent from './ImageEditorContent';
 import AppShell from '@/components/AppShell';
 import ImageEditor from '@/components/ImageEditor';
 import ProductionModeFixes from '@/components/ProductionModeFixes';
