@@ -6,8 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useLanguage } from '@/app/components/LanguageProvider';
 
 export default function ImageEditor() {
+  const { t } = useLanguage();
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [targetImage, setTargetImage] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -480,13 +482,13 @@ export default function ImageEditor() {
         </div>
         
         {/* Creative Control Slider */}
-        <div className="space-y-2">
+        <div className="space-y-2 py-2 mb-4">
           <div className="flex justify-between items-center">
             <Label htmlFor="temperature-slider" className="text-sm font-medium">
-              Creativity Level: {temperature.toFixed(1)}
+              {t('imageEditor.creativityLevel')} {temperature.toFixed(1)}
             </Label>
             <span className="text-xs text-gray-500">
-              {temperature < 0.4 ? 'Conservative' : temperature < 0.7 ? 'Balanced' : 'Creative'}
+              {temperature < 0.4 ? t('imageEditor.precise') : temperature < 0.7 ? t('imageEditor.balanced') : t('imageEditor.creative')}
             </span>
           </div>
           <Slider
@@ -495,13 +497,14 @@ export default function ImageEditor() {
             max={1.0}
             step={0.1}
             value={[temperature]}
-            onValueChange={(value) => setTemperature(value[0])}
-            className="w-full"
+            onValueChange={(values) => setTemperature(values[0])}
+            className="w-full mt-2"
+            aria-label={t('imageEditor.adjustCreativityLevel')}
           />
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Precise</span>
-            <span>Balanced</span>
-            <span>Creative</span>
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>{t('imageEditor.precise')}</span>
+            <span>{t('imageEditor.balanced')}</span>
+            <span>{t('imageEditor.creative')}</span>
           </div>
         </div>
         

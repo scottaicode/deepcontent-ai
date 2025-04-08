@@ -1275,8 +1275,26 @@
     "variationsGenerated": "ad variations generated."
   },
   "imageEditor": {
-    "title": "Image Editor",
-    "subtitle": "Upload an image and edit it using AI. Provide specific instructions to modify your image."
+    "title": "AI Image Editor",
+    "subtitle": "Transform and enhance your images with AI-powered editing tools",
+    "creativityLevel": "Creativity Level",
+    "precise": "Precise",
+    "balanced": "Balanced",
+    "creative": "Creative",
+    "adjustCreativityLevel": "Adjust creativity level",
+    "sourceImage": "Source Image",
+    "targetImage": "Target Image",
+    "uploadSourceImage": "Upload source image (required)",
+    "uploadTargetImage": "Upload target image (optional, for combining images)",
+    "editingInstructions": "Editing Instructions",
+    "promptPlaceholder": "Enter your prompt (e.g., 'Put a red hat on the woman' or 'Change the background to a beach scene')",
+    "examplePrompts": "Example Prompts",
+    "generateButton": "Generate Edited Image",
+    "generating": "Generating...",
+    "result": "Result",
+    "aiCommentary": "AI Commentary",
+    "useAsSource": "Use As Source & Refine Further",
+    "download": "Download"
   },
   "textToImage": {
     "title": "AI Text-to-Image Generator",

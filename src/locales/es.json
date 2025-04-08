@@ -1425,8 +1425,26 @@
     }
   },
   "imageEditor": {
-    "title": "Editor de Imágenes",
-    "subtitle": "Sube una imagen y edítala usando IA. Proporciona instrucciones específicas para modificar tu imagen."
+    "title": "Editor de Imágenes IA",
+    "subtitle": "Transforma y mejora tus imágenes con herramientas de edición potenciadas por IA",
+    "creativityLevel": "Nivel de Creatividad",
+    "precise": "Preciso",
+    "balanced": "Equilibrado",
+    "creative": "Creativo",
+    "adjustCreativityLevel": "Ajustar nivel de creatividad",
+    "sourceImage": "Imagen de Origen",
+    "targetImage": "Imagen Objetivo",
+    "uploadSourceImage": "Subir imagen de origen (requerido)",
+    "uploadTargetImage": "Subir imagen objetivo (opcional, para combinar imágenes)",
+    "editingInstructions": "Instrucciones de Edición",
+    "promptPlaceholder": "Ingresa tu instrucción (ej., 'Poner un sombrero rojo en la mujer' o 'Cambiar el fondo a una escena de playa')",
+    "examplePrompts": "Ejemplos de Instrucciones",
+    "generateButton": "Generar Imagen Editada",
+    "generating": "Generando...",
+    "result": "Resultado",
+    "aiCommentary": "Comentario de la IA",
+    "useAsSource": "Usar Como Origen y Refinar Más",
+    "download": "Descargar"
   },
   "textToImage": {
     "title": "Generador de Imágenes con IA",
