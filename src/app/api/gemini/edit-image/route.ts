@@ -5,12 +5,12 @@ import { NextResponse } from "next/server";
 export const maxDuration = 60;
 
 // Initialize the Gemini API with the key
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(request: Request) {
-  if (!process.env.GOOGLE_GEMINI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: "GOOGLE_GEMINI_API_KEY environment variable is not set" },
+      { error: "GEMINI_API_KEY environment variable is not set" },
       { status: 500 }
     );
   }
@@ -68,42 +68,8 @@ export async function POST(request: Request) {
         });
       }
 
-      // Make the API request - IMPORTANT: Using type assertion to allow responseModalities
-      const generateContentRequest = {
-        contents: [
-          {
-            role: "user",
-            parts: parts
-          }
-        ],
-        generationConfig: {
-          temperature: 0.4,
-          topP: 1,
-          topK: 32,
-          maxOutputTokens: 4096
-        },
-        responseModalities: ["Text", "Image"], // Required for image generation
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-          }
-        ]
-      };
-      
-      const result = await model.generateContent(generateContentRequest as any);
+      // Simplified API call that worked in production
+      const result = await model.generateContent(parts);
       
       console.log("Request sent to Gemini API, waiting for response...");
       

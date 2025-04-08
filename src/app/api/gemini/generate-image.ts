@@ -28,24 +28,10 @@ export async function POST(req: NextRequest) {
 
     console.log("Sending request to Gemini for image generation...");
     
-    // Generate content with text and image response modalities
-    // Create request with responseModalities for image generation support
-    const generateContentRequest = {
-      contents: [{
-        role: "user",
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        temperature: 0.7,
-        topP: 0.9,
-        topK: 32,
-        maxOutputTokens: 2048
-      },
-      responseModalities: ["Text", "Image"]  // Required for image generation
-    };
-    
-    // Use type assertion to work around TypeScript limitations
-    const result = await model.generateContent(generateContentRequest as any);
+    // Simplified approach - closer to what worked in production
+    const result = await model.generateContent([
+      prompt
+    ]);
 
     console.log("Response received from Gemini API");
     
