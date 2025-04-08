@@ -1,5 +1,4 @@
 import { Metadata } from 'next';
-import TextToImageContent from './TextToImageContent';
 import AppShell from '@/components/AppShell';
 import TextToImageGenerator from '@/components/TextToImageGenerator';
 import ProductionModeFixes from '@/components/ProductionModeFixes';
