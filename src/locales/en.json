@@ -1294,7 +1294,12 @@
     "result": "Result",
     "aiCommentary": "AI Commentary",
     "useAsSource": "Use As Source & Refine Further",
-    "download": "Download"
+    "download": "Download",
+    "addItems": "Add Items",
+    "transform": "Transform", 
+    "background": "Background",
+    "combine": "Combine",
+    "effects": "Effects"
   },
   "textToImage": {
     "title": "AI Text-to-Image Generator",

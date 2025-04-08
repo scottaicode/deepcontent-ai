@@ -285,35 +285,50 @@ export default function ImageEditor() {
       "Add a person to the beach scene",
       "Add a dog to the park",
       "Put sunglasses on the person",
-      "Add a coffee cup to the table"
+      "Add a coffee cup to the table",
+      "Add flowers in the foreground",
+      "Add clouds to the sky",
+      "Add a hat to the person"
     ],
     transformations: [
-      "Turn this into a painting",
-      "Make it look like a sketch",
+      "Turn this into a watercolor painting",
+      "Make it look like a pencil sketch",
       "Convert to anime style",
-      "Transform into a watercolor painting",
-      "Make it look like a stained glass window"
+      "Transform into a 3D rendering",
+      "Make it look like a stained glass window",
+      "Convert to black and white with high contrast",
+      "Make this look like a vintage photograph",
+      "Transform into a digital illustration"
     ],
     backgrounds: [
-      "Make the background blue",
-      "Change background to a beach",
-      "Remove the background",
-      "Replace background with mountains",
-      "Change to a nighttime scene"
+      "Change background to a sunset beach",
+      "Replace background with mountain landscape",
+      "Make the background solid blue",
+      "Remove the background completely",
+      "Change to a nighttime scene",
+      "Replace background with a cityscape",
+      "Make the background blurry while keeping subject sharp",
+      "Change background to a forest scene"
     ],
     combinations: [
-      "Combine these two images",
-      "Put the hotdog in the person's hand",
-      "Make the flower appear in the vase",
-      "Place the object on the table",
-      "Add the second image as a reflection in water"
+      "Combine these two images side by side",
+      "Put the object from image 2 into image 1",
+      "Merge these images with a smooth transition",
+      "Place the person from image 2 into scene in image 1",
+      "Create a collage with both images",
+      "Use image 2 as a background for image 1",
+      "Blend these images with a gradient effect",
+      "Create a reflection of image 2 in image 1"
     ],
     effects: [
-      "Add a digital effect to the image",
-      "Add a cartoon effect",
-      "Make it look vintage",
-      "Add a cinematic filter",
-      "Apply neon glow effect"
+      "Add a subtle glow around the subject",
+      "Apply a vintage film grain effect",
+      "Add a dreamy soft focus effect",
+      "Create a double exposure effect",
+      "Add cinematic color grading",
+      "Add dramatic lighting and shadows",
+      "Apply a neon light effect",
+      "Add a mirror/reflection effect"
     ]
   };
 
@@ -510,34 +525,100 @@ export default function ImageEditor() {
         
         {/* Prompt Examples in Tabs */}
         <div>
-          <Label className="text-sm font-medium block mb-2">Example Prompts</Label>
+          <Label className="text-sm font-medium block mb-2">{t('imageEditor.examplePrompts')}</Label>
           <Tabs defaultValue="additions" className="w-full">
             <TabsList className="grid grid-cols-5 mb-2">
-              <TabsTrigger value="additions">Add Items</TabsTrigger>
-              <TabsTrigger value="transformations">Transform</TabsTrigger>
-              <TabsTrigger value="backgrounds">Background</TabsTrigger>
-              <TabsTrigger value="combinations">Combine</TabsTrigger>
-              <TabsTrigger value="effects">Effects</TabsTrigger>
+              <TabsTrigger value="additions">{t('imageEditor.addItems')}</TabsTrigger>
+              <TabsTrigger value="transformations">{t('imageEditor.transform')}</TabsTrigger>
+              <TabsTrigger value="backgrounds">{t('imageEditor.background')}</TabsTrigger>
+              <TabsTrigger value="combinations">{t('imageEditor.combine')}</TabsTrigger>
+              <TabsTrigger value="effects">{t('imageEditor.effects')}</TabsTrigger>
             </TabsList>
             
-            {Object.entries(promptCategories).map(([category, examples]) => (
-              <TabsContent key={category} value={category} className="pt-2">
-                <div className="flex flex-wrap gap-2">
-                  {examples.map((example, index) => (
-                    <button
-                      key={index}
-                      className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                      onClick={(e) => {
-                        e.preventDefault(); 
-                        setPrompt(example);
-                      }}
-                    >
-                      {example}
-                    </button>
-                  ))}
-                </div>
-              </TabsContent>
-            ))}
+            <TabsContent value="additions" className="pt-2">
+              <div className="flex flex-wrap gap-2">
+                {promptCategories.additions.map((example, index) => (
+                  <button
+                    key={index}
+                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault(); 
+                      setPrompt(example);
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="transformations" className="pt-2">
+              <div className="flex flex-wrap gap-2">
+                {promptCategories.transformations.map((example, index) => (
+                  <button
+                    key={index}
+                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault(); 
+                      setPrompt(example);
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="backgrounds" className="pt-2">
+              <div className="flex flex-wrap gap-2">
+                {promptCategories.backgrounds.map((example, index) => (
+                  <button
+                    key={index}
+                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault(); 
+                      setPrompt(example);
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="combinations" className="pt-2">
+              <div className="flex flex-wrap gap-2">
+                {promptCategories.combinations.map((example, index) => (
+                  <button
+                    key={index}
+                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault(); 
+                      setPrompt(example);
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="effects" className="pt-2">
+              <div className="flex flex-wrap gap-2">
+                {promptCategories.effects.map((example, index) => (
+                  <button
+                    key={index}
+                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                    onClick={(e) => {
+                      e.preventDefault(); 
+                      setPrompt(example);
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
 

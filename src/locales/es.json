@@ -1444,7 +1444,12 @@
     "result": "Resultado",
     "aiCommentary": "Comentario de la IA",
     "useAsSource": "Usar Como Origen y Refinar Más",
-    "download": "Descargar"
+    "download": "Descargar",
+    "addItems": "Añadir Elementos",
+    "transform": "Transformar", 
+    "background": "Fondo",
+    "combine": "Combinar",
+    "effects": "Efectos"
   },
   "textToImage": {
     "title": "Generador de Imágenes con IA",
