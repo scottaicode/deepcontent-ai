@@ -374,12 +374,12 @@ export default function ImageEditor() {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6 space-y-6">
-      <h2 className="text-2xl font-bold mb-4">AI Image Editor</h2>
+      <h2 className="text-2xl font-bold mb-4">{t('imageEditor.title')}</h2>
+      <p className="text-lg text-gray-500 mb-6">{t('imageEditor.subtitle')}</p>
       
       <div className="bg-blue-50 p-4 rounded-lg mb-4">
         <p className="text-sm text-blue-700">
-          Upload one or two images and describe how you want to edit them.
-          Gemini 2.0 Flash will generate a new image based on your instructions.
+          {t('imageEditor.description')}
         </p>
       </div>
       
