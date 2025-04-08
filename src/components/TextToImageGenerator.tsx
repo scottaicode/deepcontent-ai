@@ -205,30 +205,30 @@ export default function TextToImageGenerator({
 
   return (
     <div className={`w-full max-w-4xl mx-auto p-6 space-y-6 ${className}`}>
-      <h2 className="text-2xl font-bold mb-4">{t('textToImage.title', 'AI Text-to-Image Generator')}</h2>
+      <h2 className="text-2xl font-bold mb-4">{t('textToImage.title')}</h2>
       
       <div className="bg-blue-50 p-4 rounded-lg mb-4">
         <p className="text-sm text-blue-700">
-          {t('textToImage.description', 'Enter a detailed description and our AI will generate an image based on your text prompt. The more specific your description, the better the result!')}
+          {t('textToImage.description')}
         </p>
       </div>
       
       {apiLimited && (
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg mb-4">
-          <h3 className="text-amber-800 font-medium mb-2">{t('textToImage.apiLimitTitle', 'Gemini Experimental API Limitation')}</h3>
+          <h3 className="text-amber-800 font-medium mb-2">{t('textToImage.apiLimitTitle')}</h3>
           <p className="text-amber-700 text-sm">
-            {t('textToImage.apiLimitDescription', 'Your request is returning text analysis but no generated image. This is likely because:')}
+            {t('textToImage.apiLimitDescription')}
           </p>
           <ul className="list-disc list-inside text-amber-700 text-sm mt-2 ml-2">
-            <li>{t('textToImage.apiLimitReason1', 'Gemini image generation is an experimental feature')}</li>
-            <li>{t('textToImage.apiLimitReason2', 'It requires a paid tier Gemini API key')}</li>
-            <li>{t('textToImage.apiLimitReason3', 'Your API access must be from a supported region')}</li>
-            <li>{t('textToImage.apiLimitReason4', 'You must explicitly enable image generation in your Google Cloud console')}</li>
+            <li>{t('textToImage.apiLimitReason1')}</li>
+            <li>{t('textToImage.apiLimitReason2')}</li>
+            <li>{t('textToImage.apiLimitReason3')}</li>
+            <li>{t('textToImage.apiLimitReason4')}</li>
           </ul>
           <div className="mt-3 p-3 bg-white rounded border border-amber-200 text-sm">
-            <p className="font-medium text-amber-800">{t('textToImage.currentLimitations', 'Current Limitations:')}</p>
+            <p className="font-medium text-amber-800">{t('textToImage.currentLimitations')}</p>
             <p className="text-gray-700 mt-1">
-              {t('textToImage.limitationsDescription', 'The image generation capability is still being refined and may not work consistently for all requests.')}
+              {t('textToImage.limitationsDescription')}
             </p>
           </div>
         </div>
@@ -242,9 +242,9 @@ export default function TextToImageGenerator({
 
       <div className="space-y-4">
         <div>
-          <label className="font-medium block mb-1">{t('textToImage.promptLabel', 'Text Description')}</label>
+          <label className="font-medium block mb-1">{t('textToImage.promptLabel')}</label>
           <Textarea
-            placeholder={t('textToImage.promptPlaceholder', 'Describe the image you want to generate in detail (e.g., "A serene mountain lake at sunrise with mist rising from the water and snow-capped peaks in the background")')}
+            placeholder={t('textToImage.promptPlaceholder')}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={4}
@@ -256,10 +256,12 @@ export default function TextToImageGenerator({
         <div className="space-y-2 py-2 mb-4">
           <div className="flex justify-between items-center">
             <Label htmlFor="temperature-slider" className="text-sm font-medium">
-              {t('textToImage.creativityLevel', 'Creativity Level')} {temperature.toFixed(1)}
+              {t('textToImage.creativityLevel')} {temperature.toFixed(1)}
             </Label>
             <span className="text-xs text-gray-500">
-              {temperature < 0.4 ? t('textToImage.precise', 'Precise') : temperature < 0.7 ? t('textToImage.balanced', 'Balanced') : t('textToImage.creative', 'Creative')}
+              {temperature < 0.4 ? t('textToImage.precise') : 
+               temperature < 0.7 ? t('textToImage.balanced') : 
+               t('textToImage.creative')}
             </span>
           </div>
           <Slider
@@ -270,18 +272,18 @@ export default function TextToImageGenerator({
             value={[temperature]}
             onValueChange={(values) => setTemperature(values[0])}
             className="w-full mt-2"
-            aria-label={t('textToImage.adjustCreativityLevel', 'Adjust creativity level')}
+            aria-label={t('textToImage.adjustCreativityLevel')}
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>{t('textToImage.precise', 'Precise')}</span>
-            <span>{t('textToImage.balanced', 'Balanced')}</span>
-            <span>{t('textToImage.creative', 'Creative')}</span>
+            <span>{t('textToImage.precise')}</span>
+            <span>{t('textToImage.balanced')}</span>
+            <span>{t('textToImage.creative')}</span>
           </div>
         </div>
         
         {/* Prompt Examples in Tabs */}
         <div>
-          <Label className="text-sm font-medium block mb-2">{t('textToImage.examplePrompts', 'Example Prompts')}</Label>
+          <Label className="text-sm font-medium block mb-2">{t('textToImage.examplePrompts')}</Label>
           <div className="w-full">
             <div className="grid grid-cols-5 mb-2 bg-slate-100 p-1 rounded-md">
               {['creative', 'landscapes', 'portrait', 'concept', 'abstract'].map((tab) => (
@@ -294,7 +296,7 @@ export default function TextToImageGenerator({
                       : 'text-slate-500 hover:bg-slate-50'
                   }`}
                 >
-                  {t(`textToImage.${tab}`, tab.charAt(0).toUpperCase() + tab.slice(1))}
+                  {t(`textToImage.${tab}`)}
                 </button>
               ))}
             </div>
@@ -326,9 +328,9 @@ export default function TextToImageGenerator({
               <div className="mr-2">
                 <IconRefresh className="animate-spin h-4 w-4 text-white" />
               </div>
-              <span>{progressStage || t('textToImage.generating', 'Generating...')}</span>
+              <span>{progressStage || t('textToImage.generating')}</span>
             </div>
-          ) : t('textToImage.generateButton', 'Generate Image')}
+          ) : t('textToImage.generateButton')}
           
           {/* Progress bar for loading state */}
           {loading && (
@@ -341,7 +343,7 @@ export default function TextToImageGenerator({
       {(generatedImage || textResponse) && (
         <div className="mt-8 border-t border-gray-200 pt-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold">{t('textToImage.result', 'Result')}</h3>
+            <h3 className="text-xl font-bold">{t('textToImage.result')}</h3>
           </div>
           
           {generatedImage && (
@@ -350,7 +352,7 @@ export default function TextToImageGenerator({
                 <div ref={resultImageRef} className="w-full h-full">
                   <img 
                     src={generatedImage} 
-                    alt={t('textToImage.resultAlt', 'AI-generated image')}
+                    alt={t('textToImage.resultAlt')}
                     className="object-contain w-full h-full" 
                   />
                 </div>
@@ -358,7 +360,7 @@ export default function TextToImageGenerator({
                   <button
                     onClick={handleDownload}
                     className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100"
-                    title={t('textToImage.download', 'Download')}
+                    title={t('textToImage.download')}
                   >
                     <IconDownload className="w-5 h-5 text-gray-700" />
                   </button>
@@ -369,7 +371,7 @@ export default function TextToImageGenerator({
           
           {textResponse && (
             <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium mb-2">{t('textToImage.aiCommentary', 'AI Commentary')}</h4>
+              <h4 className="font-medium mb-2">{t('textToImage.aiCommentary')}</h4>
               <p className="text-gray-700">{textResponse}</p>
             </div>
           )}
