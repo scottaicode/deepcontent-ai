@@ -28,6 +28,10 @@ export default function ImageEditor() {
   const targetImageRef = useRef<HTMLDivElement>(null);
   const resultImageRef = useRef<HTMLDivElement>(null);
 
+  // Define tab type for type safety
+  type TabType = 'additions' | 'transformations' | 'backgrounds' | 'combinations' | 'effects';
+  const [activeTab, setActiveTab] = useState<TabType>('additions');
+
   // Effect to update image displays whenever images change
   useEffect(() => {
     if (sourceImage && sourceImageRef.current) {
@@ -526,100 +530,37 @@ export default function ImageEditor() {
         {/* Prompt Examples in Tabs */}
         <div>
           <Label className="text-sm font-medium block mb-2">{t('imageEditor.examplePrompts')}</Label>
-          <Tabs defaultValue="additions" className="w-full">
-            <TabsList className="grid grid-cols-5 mb-2">
-              <TabsTrigger value="additions">{t('imageEditor.addItems')}</TabsTrigger>
-              <TabsTrigger value="transformations">{t('imageEditor.transform')}</TabsTrigger>
-              <TabsTrigger value="backgrounds">{t('imageEditor.background')}</TabsTrigger>
-              <TabsTrigger value="combinations">{t('imageEditor.combine')}</TabsTrigger>
-              <TabsTrigger value="effects">{t('imageEditor.effects')}</TabsTrigger>
-            </TabsList>
+          <div className="w-full">
+            <div className="grid grid-cols-5 mb-2 bg-slate-100 p-1 rounded-md">
+              {['additions', 'transformations', 'backgrounds', 'combinations', 'effects'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab as TabType)}
+                  className={`px-3 py-1.5 text-sm font-medium transition-all rounded-sm ${
+                    activeTab === tab
+                      ? 'bg-white text-slate-950 shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {t(`imageEditor.${tab === 'additions' ? 'addItems' : tab === 'transformations' ? 'transform' : tab === 'backgrounds' ? 'background' : tab === 'combinations' ? 'combine' : 'effects'}`)}
+                </button>
+              ))}
+            </div>
             
-            <TabsContent value="additions" className="pt-2">
+            <div className="pt-2">
               <div className="flex flex-wrap gap-2">
-                {promptCategories.additions.map((example, index) => (
+                {promptCategories[activeTab] && promptCategories[activeTab].map((example, index) => (
                   <button
                     key={index}
                     className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                    onClick={(e) => {
-                      e.preventDefault(); 
-                      setPrompt(example);
-                    }}
+                    onClick={() => setPrompt(example)}
                   >
                     {example}
                   </button>
                 ))}
               </div>
-            </TabsContent>
-            
-            <TabsContent value="transformations" className="pt-2">
-              <div className="flex flex-wrap gap-2">
-                {promptCategories.transformations.map((example, index) => (
-                  <button
-                    key={index}
-                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                    onClick={(e) => {
-                      e.preventDefault(); 
-                      setPrompt(example);
-                    }}
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="backgrounds" className="pt-2">
-              <div className="flex flex-wrap gap-2">
-                {promptCategories.backgrounds.map((example, index) => (
-                  <button
-                    key={index}
-                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                    onClick={(e) => {
-                      e.preventDefault(); 
-                      setPrompt(example);
-                    }}
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="combinations" className="pt-2">
-              <div className="flex flex-wrap gap-2">
-                {promptCategories.combinations.map((example, index) => (
-                  <button
-                    key={index}
-                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                    onClick={(e) => {
-                      e.preventDefault(); 
-                      setPrompt(example);
-                    }}
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="effects" className="pt-2">
-              <div className="flex flex-wrap gap-2">
-                {promptCategories.effects.map((example, index) => (
-                  <button
-                    key={index}
-                    className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                    onClick={(e) => {
-                      e.preventDefault(); 
-                      setPrompt(example);
-                    }}
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </div>
 
         {/* Generate Button with Loading State */}
