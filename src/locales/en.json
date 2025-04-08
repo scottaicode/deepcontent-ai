@@ -1336,6 +1336,58 @@
       "ProcessingAIresponse": "Processing AI response",
       "Finalizingresult": "Finalizing result",
       "Complete": "Complete"
+    },
+    "prompts": {
+      "additions": {
+        "example1": "Add onions to the hotdog",
+        "example2": "Add a person to the beach scene",
+        "example3": "Add a dog to the park",
+        "example4": "Put sunglasses on the person",
+        "example5": "Add a coffee cup to the table",
+        "example6": "Add flowers in the foreground",
+        "example7": "Add clouds to the sky",
+        "example8": "Add a hat to the person"
+      },
+      "transformations": {
+        "example1": "Turn this into a watercolor painting",
+        "example2": "Make it look like a pencil sketch",
+        "example3": "Convert to anime style",
+        "example4": "Transform into a 3D rendering",
+        "example5": "Make it look like a stained glass window",
+        "example6": "Convert to black and white with high contrast",
+        "example7": "Make this look like a vintage photograph",
+        "example8": "Transform into a digital illustration"
+      },
+      "backgrounds": {
+        "example1": "Change background to a sunset beach",
+        "example2": "Replace background with mountain landscape",
+        "example3": "Make the background solid blue",
+        "example4": "Remove the background completely",
+        "example5": "Change to a nighttime scene",
+        "example6": "Replace background with a cityscape",
+        "example7": "Make the background blurry while keeping subject sharp",
+        "example8": "Change background to a forest scene"
+      },
+      "combinations": {
+        "example1": "Combine these two images side by side",
+        "example2": "Put the object from image 2 into image 1",
+        "example3": "Merge these images with a smooth transition",
+        "example4": "Place the person from image 2 into scene in image 1",
+        "example5": "Create a collage with both images",
+        "example6": "Use image 2 as a background for image 1",
+        "example7": "Blend these images with a gradient effect",
+        "example8": "Create a reflection of image 2 in image 1"
+      },
+      "effects": {
+        "example1": "Add a subtle glow around the subject",
+        "example2": "Apply a vintage film grain effect",
+        "example3": "Add a dreamy soft focus effect",
+        "example4": "Create a double exposure effect",
+        "example5": "Add cinematic color grading",
+        "example6": "Add dramatic lighting and shadows",
+        "example7": "Apply a neon light effect",
+        "example8": "Add a mirror/reflection effect"
+      }
     }
   },
   "textToImage": {

@@ -1463,6 +1463,58 @@
       "ProcessingAIresponse": "Procesando respuesta IA",
       "Finalizingresult": "Finalizando resultado",
       "Complete": "Completo"
+    },
+    "prompts": {
+      "additions": {
+        "example1": "Añade cebollas al perrito caliente",
+        "example2": "Añade una persona a la escena de la playa",
+        "example3": "Añade un perro al parque",
+        "example4": "Ponle gafas de sol a la persona",
+        "example5": "Añade una taza de café a la mesa",
+        "example6": "Añade flores en primer plano",
+        "example7": "Añade nubes al cielo",
+        "example8": "Ponle un sombrero a la persona"
+      },
+      "transformations": {
+        "example1": "Convierte esto en una pintura de acuarela",
+        "example2": "Haz que parezca un boceto a lápiz",
+        "example3": "Convertir a estilo anime",
+        "example4": "Transformar en un render 3D",
+        "example5": "Haz que parezca una vidriera",
+        "example6": "Convertir a blanco y negro con alto contraste",
+        "example7": "Haz que parezca una fotografía antigua",
+        "example8": "Transformar en una ilustración digital"
+      },
+      "backgrounds": {
+        "example1": "Cambia el fondo a una playa al atardecer",
+        "example2": "Reemplaza el fondo con un paisaje de montaña",
+        "example3": "Haz el fondo azul sólido",
+        "example4": "Elimina el fondo por completo",
+        "example5": "Cambia a una escena nocturna",
+        "example6": "Reemplaza el fondo con un paisaje urbano",
+        "example7": "Haz el fondo borroso manteniendo el sujeto enfocado",
+        "example8": "Cambia el fondo a una escena de bosque"
+      },
+      "combinations": {
+        "example1": "Combina estas dos imágenes lado a lado",
+        "example2": "Pon el objeto de la imagen 2 en la imagen 1",
+        "example3": "Fusiona estas imágenes con una transición suave",
+        "example4": "Coloca la persona de la imagen 2 en la escena de la imagen 1",
+        "example5": "Crea un collage con ambas imágenes",
+        "example6": "Usa la imagen 2 como fondo para la imagen 1",
+        "example7": "Mezcla estas imágenes con un efecto degradado",
+        "example8": "Crea un reflejo de la imagen 2 en la imagen 1"
+      },
+      "effects": {
+        "example1": "Añade un brillo sutil alrededor del sujeto",
+        "example2": "Aplica un efecto de grano de película antiguo",
+        "example3": "Añade un efecto de enfoque suave de ensueño",
+        "example4": "Crea un efecto de doble exposición",
+        "example5": "Añade gradación de color cinematográfica",
+        "example6": "Añade iluminación y sombras dramáticas",
+        "example7": "Aplica un efecto de luz de neón",
+        "example8": "Añade un efecto espejo/reflejo"
+      }
     }
   },
   "textToImage": {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
@@ -282,60 +282,6 @@ export default function ImageEditor() {
     }
   };
 
-  // Categorized prompt examples
-  const promptCategories = {
-    additions: [
-      "Add onions to the hotdog",
-      "Add a person to the beach scene",
-      "Add a dog to the park",
-      "Put sunglasses on the person",
-      "Add a coffee cup to the table",
-      "Add flowers in the foreground",
-      "Add clouds to the sky",
-      "Add a hat to the person"
-    ],
-    transformations: [
-      "Turn this into a watercolor painting",
-      "Make it look like a pencil sketch",
-      "Convert to anime style",
-      "Transform into a 3D rendering",
-      "Make it look like a stained glass window",
-      "Convert to black and white with high contrast",
-      "Make this look like a vintage photograph",
-      "Transform into a digital illustration"
-    ],
-    backgrounds: [
-      "Change background to a sunset beach",
-      "Replace background with mountain landscape",
-      "Make the background solid blue",
-      "Remove the background completely",
-      "Change to a nighttime scene",
-      "Replace background with a cityscape",
-      "Make the background blurry while keeping subject sharp",
-      "Change background to a forest scene"
-    ],
-    combinations: [
-      "Combine these two images side by side",
-      "Put the object from image 2 into image 1",
-      "Merge these images with a smooth transition",
-      "Place the person from image 2 into scene in image 1",
-      "Create a collage with both images",
-      "Use image 2 as a background for image 1",
-      "Blend these images with a gradient effect",
-      "Create a reflection of image 2 in image 1"
-    ],
-    effects: [
-      "Add a subtle glow around the subject",
-      "Apply a vintage film grain effect",
-      "Add a dreamy soft focus effect",
-      "Create a double exposure effect",
-      "Add cinematic color grading",
-      "Add dramatic lighting and shadows",
-      "Apply a neon light effect",
-      "Add a mirror/reflection effect"
-    ]
-  };
-
   const removeSourceImage = (e: React.MouseEvent) => {
     e.preventDefault();
     setSourceImage(null);
@@ -371,6 +317,16 @@ export default function ImageEditor() {
     // Scroll to the editor section
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Get the keys for the active prompt category
+  const exampleKeys = useMemo(() => {
+    // We need a way to know how many examples exist for each category
+    // Since we removed the hardcoded object, let's assume 8 for now.
+    // A better solution might involve introspecting the translation JSON,
+    // but that's complex. We'll use a fixed number.
+    const keyCount = 8; // Assuming 8 examples per category
+    return Array.from({ length: keyCount }, (_, i) => `example${i + 1}`);
+  }, [activeTab]);
 
   return (
     <div className="w-full max-w-6xl mx-auto p-6 space-y-8">
@@ -549,15 +505,20 @@ export default function ImageEditor() {
               
               <div className="pt-2">
                 <div className="flex flex-wrap gap-2">
-                  {promptCategories[activeTab] && promptCategories[activeTab].map((example, index) => (
-                    <button
-                      key={index}
-                      className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
-                      onClick={() => setPrompt(example)}
-                    >
-                      {example}
-                    </button>
-                  ))}
+                  {/* Loop through keys and use t() function */}
+                  {exampleKeys.map((key) => {
+                    const translationKey = `imageEditor.prompts.${activeTab}.${key}`;
+                    const exampleText = t(translationKey); // Get translated text
+                    return (
+                      <button
+                        key={key}
+                        className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-full"
+                        onClick={() => setPrompt(exampleText)} // Use translated text for the prompt
+                      >
+                        {exampleText} {/* Display translated text */}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
