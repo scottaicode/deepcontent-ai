@@ -82,15 +82,16 @@ export default function RootLayout({
                     showDetails={true}
                   />
                   
-                  {/* Global Header */}
+                  {/* Global Header - Always render */}
                   <Header />
                   
-                  {/* Information Banner */}
+                  {/* Information Banner - Always render */}
                   <div className="pt-16 md:pt-20">
                     <InfoBanner />
                   </div>
                   
                   {/* Main Content */}
+                  {/* Adjust top padding for main content based on header presence */}
                   <main className="min-h-screen pt-0 relative z-0 overflow-hidden">
                     {children}
                   </main>

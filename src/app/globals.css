@@ -153,3 +153,42 @@ html {
     text-wrap: balance;
   }
 }
+
+/* Slider production mode fixes */
+[id="temperature-slider"] {
+  position: relative;
+  height: 20px;
+  margin: 10px 0;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+}
+
+[id="temperature-slider"] [data-radix-slider-thumb] {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-color: white;
+  border: 2px solid #0284c7;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+[id="temperature-slider"] [data-radix-slider-track] {
+  position: relative;
+  height: 4px;
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+  flex-grow: 1;
+}
+
+[id="temperature-slider"] [data-radix-slider-range] {
+  position: absolute;
+  height: 100%;
+  background-color: #0284c7;
+}
+
+.creativity-slider-fixed [data-radix-slider-thumb] {
+  opacity: 1 !important;
+}

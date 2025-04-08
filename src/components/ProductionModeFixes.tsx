@@ -171,6 +171,94 @@ export default function ProductionModeFixes() {
       fixExactTranslationKeys();
       fixPlaceholders();
       fixActionButtons();
+      
+      // Fix for the Creativity Level slider in production mode
+      const fixCreativitySlider = () => {
+        const sliders = document.querySelectorAll('[id="temperature-slider"]');
+        sliders.forEach(slider => {
+          // Add specific class to help with visibility
+          slider.classList.add('creativity-slider-fixed');
+          
+          // Make sure thumb is visible
+          const thumbs = slider.querySelectorAll('[data-radix-slider-thumb]');
+          thumbs.forEach(thumb => {
+            if (thumb instanceof HTMLElement) {
+              thumb.style.backgroundColor = 'white';
+              thumb.style.border = '2px solid var(--primary, #0284c7)';
+              thumb.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+              thumb.style.opacity = '1';
+              thumb.style.transform = 'translateY(-50%)';
+              thumb.style.width = '16px';
+              thumb.style.height = '16px';
+              thumb.style.borderRadius = '50%';
+            }
+          });
+          
+          // Fix track styling
+          const tracks = slider.querySelectorAll('[data-radix-slider-track]');
+          tracks.forEach(track => {
+            if (track instanceof HTMLElement) {
+              track.style.backgroundColor = '#e2e8f0';
+              track.style.height = '4px';
+              track.style.borderRadius = '9999px';
+            }
+          });
+          
+          // Fix range styling
+          const ranges = slider.querySelectorAll('[data-radix-slider-range]');
+          ranges.forEach(range => {
+            if (range instanceof HTMLElement) {
+              range.style.backgroundColor = 'var(--primary, #0284c7)';
+              range.style.height = '100%';
+            }
+          });
+        });
+
+        console.log(`[ProductionModeFixes] Fixed ${sliders.length} creativity level sliders`);
+      };
+      
+      // Fix for imageEditor text labels
+      const fixImageEditorLabels = () => {
+        // Translation keys that might need fixing in the image editor
+        const imageEditorKeys = {
+          'imageEditor.creativityLevel': 'Creativity Level',
+          'imageEditor.precise': 'Precise',
+          'imageEditor.balanced': 'Balanced',
+          'imageEditor.creative': 'Creative',
+          'imageEditor.title': 'AI Image Editor',
+          'imageEditor.subtitle': 'Transform and enhance your images with AI-powered editing tools'
+        };
+        
+        // Spanish translations if the page language is Spanish
+        const imageEditorKeysEs = {
+          'imageEditor.creativityLevel': 'Nivel de Creatividad',
+          'imageEditor.precise': 'Preciso',
+          'imageEditor.balanced': 'Equilibrado',
+          'imageEditor.creative': 'Creativo',
+          'imageEditor.title': 'Editor de Imágenes IA',
+          'imageEditor.subtitle': 'Transforma y mejora tus imágenes con herramientas de edición potenciadas por IA'
+        };
+        
+        // Determine current language
+        const isSpanish = document.documentElement.lang === 'es';
+        const keysToUse = isSpanish ? imageEditorKeysEs : imageEditorKeys;
+        
+        // Find and fix all elements with these translation keys
+        document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, label, div').forEach(el => {
+          const content = el.textContent?.trim();
+          if (!content) return;
+          
+          // Check if the content matches any of our keys exactly
+          if (Object.keys(keysToUse).includes(content)) {
+            el.textContent = keysToUse[content as keyof typeof keysToUse];
+            console.log(`[ProductionModeFixes] Fixed imageEditor label: ${content}`);
+          }
+        });
+      };
+      
+      // Run the creativity slider fix and image editor label fixes
+      fixCreativitySlider();
+      fixImageEditorLabels();
     };
     
     // Apply fixes immediately

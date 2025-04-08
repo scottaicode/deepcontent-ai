@@ -73,14 +73,19 @@ export function middleware(request: NextRequest) {
   // Set language header for client-side access
   response.headers.set('x-language', supportedLanguage);
   
+  // Set pathname header so the layout can know which route we're on
+  response.headers.set('x-pathname', request.nextUrl.pathname);
+  
   console.log('[MiddlewareDebug] Set cookies and headers:', {
     language: supportedLanguage,
+    pathname: request.nextUrl.pathname,
     cookies: {
       preferred_language: response.cookies.get('preferred_language')?.value,
       language: response.cookies.get('language')?.value
     },
     headers: {
-      'x-language': response.headers.get('x-language')
+      'x-language': response.headers.get('x-language'),
+      'x-pathname': response.headers.get('x-pathname')
     }
   });
   
