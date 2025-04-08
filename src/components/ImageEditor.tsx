@@ -377,10 +377,10 @@ export default function ImageEditor() {
       {/* Page Title and Subtitle */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
-          AI Image Editor
+          {t('imageEditor.mainTitle', { defaultValue: 'AI Image Editor' })}
         </h1>
         <p className="mt-3 max-w-md mx-auto text-base text-gray-500 dark:text-gray-400 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-          Transform and enhance your images with AI-powered editing tools
+          {t('imageEditor.mainSubtitle', { defaultValue: 'Transform and enhance your images with AI-powered editing tools' })}
         </p>
       </div>
 
@@ -388,19 +388,18 @@ export default function ImageEditor() {
       <div className="bg-white dark:bg-gray-900 shadow sm:rounded-lg p-6 md:p-8">
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6 border border-blue-200 dark:border-blue-800/30">
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            Upload one or two images and describe how you want to edit them. 
-            The AI will generate a new image based on your instructions.
+            {t('imageEditor.instructionBox', { defaultValue: 'Upload one or two images and describe how you want to edit them. The AI will generate a new image based on your instructions.' })}
           </p>
         </div>
         
         {apiLimited && (
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg mb-4">
-            <h3 className="text-amber-800 font-medium mb-2">API Limitation Notice</h3>
+            <h3 className="text-amber-800 font-medium mb-2">{t('imageEditor.apiLimitedTitle', { defaultValue: 'API Limitation Notice' })}</h3>
             <p className="text-amber-700 text-sm">
-              Your request returned text analysis but no generated image. This might be due to API access limitations or configuration.
+              {t('imageEditor.apiLimitedBody1', { defaultValue: 'Your request returned text analysis but no generated image. This might be due to API access limitations or configuration.' })}
             </p>
             <p className="text-gray-700 text-sm mt-1">
-              Please ensure your API access is properly configured and supports image generation capabilities.
+              {t('imageEditor.apiLimitedBody2', { defaultValue: 'Please ensure your API access is properly configured and supports image generation capabilities.' })}
             </p>
           </div>
         )}
@@ -413,7 +412,7 @@ export default function ImageEditor() {
         
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-4">
-            <h3 className="font-medium">Source Image</h3>
+            <h3 className="font-medium">{t('imageEditor.sourceImage', { defaultValue: 'Source Image' })}</h3>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
               {sourceImage ? (
                 <div className="relative w-full aspect-square">
@@ -421,7 +420,7 @@ export default function ImageEditor() {
                   <button 
                     onClick={removeSourceImage}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"
-                    title="Remove image"
+                    title={t('imageEditor.removeImageTitle', { defaultValue: 'Remove image' })}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -431,12 +430,12 @@ export default function ImageEditor() {
                 </div>
               ) : (
                 <div>
-                  <p className="text-gray-500 mb-2">Upload source image (required)</p>
+                  <p className="text-gray-500 mb-2">{t('imageEditor.uploadSourceRequired', { defaultValue: 'Upload source image (required)' })}</p>
                   <Button
                     onClick={() => sourceInputRef.current?.click()}
                     variant="outline"
                   >
-                    Choose File
+                    {t('imageEditor.chooseFile', { defaultValue: 'Choose File' })}
                   </Button>
                 </div>
               )}
@@ -451,7 +450,7 @@ export default function ImageEditor() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="font-medium">Target Image <span className="text-gray-500 text-sm font-normal">(optional)</span></h3>
+            <h3 className="font-medium">{t('imageEditor.targetImage', { defaultValue: 'Target Image' })} <span className="text-gray-500 text-sm font-normal">{t('common.optional', { defaultValue: '(optional)' })}</span></h3>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
               {targetImage ? (
                 <div className="relative w-full aspect-square">
@@ -459,7 +458,7 @@ export default function ImageEditor() {
                   <button 
                     onClick={removeTargetImage}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"
-                    title="Remove image"
+                    title={t('imageEditor.removeImageTitle', { defaultValue: 'Remove image' })}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -469,12 +468,12 @@ export default function ImageEditor() {
                 </div>
               ) : (
                 <div>
-                  <p className="text-gray-500 mb-2">Upload target image (optional, for combining images)</p>
+                  <p className="text-gray-500 mb-2">{t('imageEditor.uploadTargetOptional', { defaultValue: 'Upload target image (optional, for combining images)' })}</p>
                   <Button
                     onClick={() => targetInputRef.current?.click()}
                     variant="outline"
                   >
-                    Choose File
+                    {t('imageEditor.chooseFile', { defaultValue: 'Choose File' })}
                   </Button>
                 </div>
               )}
@@ -491,9 +490,9 @@ export default function ImageEditor() {
 
         <div className="space-y-4">
           <div>
-            <label className="font-medium block mb-1">Editing Instructions</label>
+            <label className="font-medium block mb-1">{t('imageEditor.editingInstructions', { defaultValue: 'Editing Instructions' })}</label>
             <Textarea
-              placeholder="Enter your prompt (e.g., 'Put a red hat on the woman' or 'Change the background to a beach scene')"
+              placeholder={t('imageEditor.promptPlaceholder', { defaultValue: "Enter your prompt (e.g., 'Put a red hat on the woman' or 'Change the background to a beach scene')" })}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={3}
@@ -578,9 +577,9 @@ export default function ImageEditor() {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
-                <span>{progressStage || 'Generating...'}</span>
+                <span>{progressStage ? t(`imageEditor.progress.${progressStage.replace(/s+/g, '')}`, { defaultValue: progressStage }) : t('imageEditor.generating', { defaultValue: 'Generating...' })}</span>
               </div>
-            ) : 'Generate Edited Image'}
+            ) : t('imageEditor.generateButton', { defaultValue: 'Generate Edited Image' })}
             
             {/* Progress bar for loading state */}
             {loading && (
@@ -593,7 +592,7 @@ export default function ImageEditor() {
         {(resultImage || resultText) && (
           <div className="mt-8 border-t border-gray-200 pt-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Result</h3>
+              <h3 className="text-xl font-bold">{t('imageEditor.resultTitle', { defaultValue: 'Result' })}</h3>
               {resultImage && (
                 <Button
                   onClick={handleRefinement}
@@ -601,7 +600,7 @@ export default function ImageEditor() {
                   className="text-sm"
                   size="sm"
                 >
-                  Use As Source & Refine Further
+                  {t('imageEditor.refineButton', { defaultValue: 'Use As Source & Refine Further' })}
                 </Button>
               )}
             </div>
@@ -615,7 +614,7 @@ export default function ImageEditor() {
                       href={resultImage}
                       download="edited-image.jpg"
                       className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100"
-                      title="Download"
+                      title={t('common.download', { defaultValue: 'Download' })}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -630,7 +629,7 @@ export default function ImageEditor() {
             
             {resultText && (
               <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-2">AI Commentary</h4>
+                <h4 className="font-medium mb-2">{t('imageEditor.aiCommentary', { defaultValue: 'AI Commentary' })}</h4>
                 <p className="text-gray-700">{resultText}</p>
               </div>
             )}
