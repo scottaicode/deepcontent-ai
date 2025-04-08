@@ -1361,6 +1361,8 @@
     "generate": "Generate Image",
     "resultTitle": "Generated Image",
     "resultAlt": "Generated",
-    "aiCommentary": "AI Commentary"
+    "aiCommentary": "AI Commentary",
+    "comingSoonTitle": "AI Text-to-Image Generator",
+    "comingSoonMessage": "We're working on this feature. It will be available soon."
   }
 } 

@@ -1488,6 +1488,8 @@
     "generate": "Generar Imagen",
     "resultTitle": "Imagen Generada",
     "resultAlt": "Generada",
-    "aiCommentary": "Comentario de la IA"
+    "aiCommentary": "Comentario de la IA",
+    "comingSoonTitle": "Generador de Texto a Imagen AI",
+    "comingSoonMessage": "Estamos trabajando en esta función. Estará disponible pronto."
   }
 } 
