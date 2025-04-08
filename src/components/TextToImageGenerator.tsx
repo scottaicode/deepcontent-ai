@@ -296,7 +296,7 @@ export default function TextToImageGenerator({
                       : 'text-slate-500 hover:bg-slate-50'
                   }`}
                 >
-                  {t(`textToImage.${tab}`)}
+                  {t(`textToImage.${tab === 'creative' ? 'creativeCategory' : tab}`)}
                 </button>
               ))}
             </div>
